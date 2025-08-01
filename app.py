@@ -24,37 +24,23 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.index_string = '''
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Departamento Datos - Villarreal CF</title>
-        <link rel="icon" type="image/png" href="/assets/favicon.ico">
-        
-        <!-- Open Graph / Facebook / WhatsApp -->
-        <meta property="og:type" content="website">
-        <meta property="og:url" content="http://154.56.153.161:8050">
-        <meta property="og:title" content="Departamento Datos - Villarreal CF">
-        <meta property="og:description" content="Análisis de datos oficial del Villarreal CF">
-        <meta property="og:image" content="http://154.56.153.161:8050/assets/logodatos-villarrealcf.png">
-        
-        <!-- Twitter -->
-        <meta property="twitter:card" content="summary_large_image">
-        <meta property="twitter:url" content="http://154.56.153.161:8050">
-        <meta property="twitter:title" content="Departamento Datos - Villarreal CF">
-        <meta property="twitter:description" content="Análisis de datos oficial del Villarreal CF">
-        <meta property="twitter:image" content="http://154.56.153.161:8050/assets/logodatos-villarrealcf.png">
-        
-        {%metas%}
-        {%css%}
-    </head>
-    <body>
-        {%app_entry%}
-        <footer>
-            {%config%}
-            {%scripts%}
-            {%renderer%}
-        </footer>
-    </body>
+<head>
+<meta charset="UTF-8">
+<meta property="og:title" content="Departamento Datos - Villarreal CF">
+<meta property="og:description" content="Análisis de datos oficial del Villarreal CF">
+<meta property="og:image" content="http://154.56.153.161:8050/assets/logodatos-villarrealcf.png">
+<meta property="og:url" content="http://154.56.153.161:8050">
+<title>Departamento Datos - Villarreal CF</title>
+<link rel="icon" href="/assets/favicon.ico">
+{%metas%}
+{%css%}
+</head>
+<body>
+{%app_entry%}
+{%config%}
+{%scripts%}
+{%renderer%}
+</body>
 </html>
 '''
 
