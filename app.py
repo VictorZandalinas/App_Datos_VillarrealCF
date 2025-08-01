@@ -20,7 +20,7 @@ progress_data = {
 }
 
 # Inicializar la app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], title="Departamento Datos - Villarreal CF")
 app.config.suppress_callback_exceptions = True  # <-- Añade esta línea
 server = app.server
 
