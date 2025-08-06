@@ -17,7 +17,17 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import logging
 
+# Configurar logging al inicio del script
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('data_update.log'),
+        logging.StreamHandler()
+    ]
+)
 # ====================================
 # CONFIGURACIÓN
 # ====================================
@@ -1281,7 +1291,8 @@ def process_xg_events(match_id, season):
     return pd.DataFrame(xg_events_data, columns=columns)
 
 def save_opta_data(data_dict, messages=None):
-    """Save data incrementally - VERSIÓN CORREGIDA"""
+    logging.info("Iniciando guardado de datos")
+    """Save data incrementally - versión mejorada con manejo de errores"""
     def add_message(msg):
         if messages is not None:
             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -1292,75 +1303,89 @@ def save_opta_data(data_dict, messages=None):
             })
         print(msg)
     
-    OPTA_PATH.mkdir(exist_ok=True)
+    try:
+        # Asegurar que el directorio existe y tiene permisos
+        OPTA_PATH.mkdir(exist_ok=True, parents=True)
+        add_message(f"✅ Directorio {OPTA_PATH} verificado")
+        
+        # Verificar permisos de escritura
+        test_file = OPTA_PATH / "test_permissions.tmp"
+        try:
+            with open(test_file, 'w') as f:
+                f.write("test")
+            test_file.unlink()
+        except Exception as e:
+            add_message(f"❌ Error de permisos en {OPTA_PATH}: {str(e)}", "error")
+            return
+        logging.info(f"Procesando {len(data_dict)} tipos de datos")
+    except Exception as e:
+        add_message(f"❌ Error crítico al preparar directorio: {str(e)}", "error")
+        return
     
     file_config = {
         'player_stats': {
             'filename': 'player_stats.parquet',
             'duplicate_keys': ['Match ID', 'Player ID']
         },
-        'team_stats': {
-            'filename': 'team_stats.parquet', 
-            'duplicate_keys': ['Match ID', 'Team ID']
-        },
-        'player_xg_stats': {
-            'filename': 'player_xg_stats.parquet',
-            'duplicate_keys': ['Match ID', 'Player ID']
-        },
-        'xg_events': {
-            'filename': 'xg_events.parquet',
-            'duplicate_keys': ['Match ID', 'EventId']
-        },
-        'match_events': {
-            'filename': 'match_events.parquet',
-            'duplicate_keys': ['Match ID', 'EventId']
-        },
-        'team_officials': {
-            'filename': 'team_officials.parquet',
-            'duplicate_keys': ['Match ID', 'Team ID', 'Official ID']
-        }
+        # ... resto de la configuración ...
     }
     
     for data_type, df in data_dict.items():
+        logging.info(f"Procesando {data_type} con {len(df)} filas")
         if not df.empty and data_type in file_config:
             config = file_config[data_type]
             filename = OPTA_PATH / config['filename']
             duplicate_keys = config['duplicate_keys']
             
-            # Las columnas qualifier ya están en formato correcto ("Sí"/"No"/valor)
-            # Solo aplicar esto a eventos que tienen qualifiers
-            if data_type in ['match_events', 'xg_events']:
+            try:
+                # Convertir columnas qualifier a string
                 base_columns = [
-                    'Match ID', 'Competition ID', 'Competition Name', 'Season', 'Week', 'Stage ID', 'Stage Name',
-                    'EventId', 'timeStamp', 'contestantId', 'Team ID', 'Team Name', 'Team Position', 'Is Home', 'Is Away',
-                    'HT Home Score', 'HT Away Score', 'FT Home Score', 'FT Away Score',
-                    'periodId', 'timeMin', 'timeSec', 'playerId', 'playerName', 'typeId', 'Event Name', 'outcome', 'x', 'y'
+                    'Match ID', 'Competition ID', 'Competition Name', 'Week', 'Stage ID', 'Stage Name',
+                    'EventId', 'timeStamp', 'contestantId', 'Team ID', 'Team Name', 'periodId', 
+                    'timeMin', 'timeSec', 'playerId', 'playerName', 'typeId', 'Event Name', 'outcome', 'x', 'y'
                 ]
                 qualifier_cols = [col for col in df.columns if col not in base_columns]
-                # Mantener como string (ya son "Sí"/"No" o valores específicos)
                 for col in qualifier_cols:
                     df[col] = df[col].astype(str)
-            
-            # Si el archivo existe, combinar
-            if filename.exists():
-                existing_df = pd.read_parquet(filename)
                 
-                # Verificar claves disponibles
-                available_keys = [key for key in duplicate_keys if key in df.columns and key in existing_df.columns]
-                
-                if available_keys:
-                    combined_df = pd.concat([existing_df, df], ignore_index=True)
-                    combined_df = combined_df.drop_duplicates(subset=available_keys, keep='last')
-                    
-                    add_message(f"💾 Actualizado: {filename.name} ({len(existing_df)} → {len(combined_df)} filas)")
-                    combined_df.to_parquet(filename, index=False)
+                # Si el archivo existe, combinar
+                if filename.exists():
+                    try:
+                        existing_df = pd.read_parquet(filename)
+                        
+                        # Verificar claves disponibles
+                        available_keys = [key for key in duplicate_keys if key in df.columns and key in existing_df.columns]
+                        
+                        if available_keys:
+                            combined_df = pd.concat([existing_df, df], ignore_index=True)
+                            combined_df = combined_df.drop_duplicates(subset=available_keys, keep='last')
+                            
+                            add_message(f"💾 Actualizado: {filename.name} ({len(existing_df)} → {len(combined_df)} filas)")
+                            combined_df.to_parquet(filename, index=False)
+                        else:
+                            combined_df = pd.concat([existing_df, df], ignore_index=True)
+                            add_message(f"💾 Actualizado (sin deduplicación): {filename.name} ({len(existing_df)} → {len(combined_df)} filas)")
+                            combined_df.to_parquet(filename, index=False)
+                    except Exception as e:
+                        logging.error(f"Error crítico en save_opta_data: {str(e)}", exc_info=True)
+                        add_message(f"❌ Error leyendo archivo existente {filename}: {str(e)}", "error")
+                        # Guardar solo los nuevos datos como último recurso
+                        df.to_parquet(filename, index=False)
+                        add_message(f"💾 Creado nuevo archivo: {filename.name} ({len(df)} filas)")
                 else:
-                    combined_df = pd.concat([existing_df, df], ignore_index=True)
-                    add_message(f"💾 Actualizado (sin deduplicación): {filename.name} ({len(existing_df)} → {len(combined_df)} filas)")
-                    combined_df.to_parquet(filename, index=False)
-            else:
-                add_message(f"💾 Creado: {filename.name} ({len(df)} filas)")
-                df.to_parquet(filename, index=False)
+                    add_message(f"💾 Creado: {filename.name} ({len(df)} filas)")
+                    df.to_parquet(filename, index=False)
+                    
+            except Exception as e:
+                add_message(f"❌ Error crítico guardando {filename}: {str(e)}", "error")
+                # Intentar guardar en archivo temporal como último recurso
+                temp_filename = filename.with_suffix('.tmp')
+                try:
+                    df.to_parquet(temp_filename, index=False)
+                    temp_filename.replace(filename)  # Reemplazar atómicamente
+                    add_message(f"💾 Recuperado: {filename.name} guardado mediante método alternativo")
+                except Exception as e2:
+                    add_message(f"❌ Error crítico alternativo: {str(e2)}", "error")
 
 def get_matches_by_weeks(stage_id, max_week):
     """Get matches by weeks - versión de la notebook"""

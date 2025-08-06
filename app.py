@@ -835,16 +835,21 @@ def iniciar_actualizacion_opta(n_clicks, liga_seleccionada, temporada_selecciona
             progress_data['progress'] = progress
             progress_data['status'] = status
             progress_data['messages'] = messages
+            if progress >= 100:
+                progress_data['active'] = False
         
-        # Iniciar hilo
-        thread = threading.Thread(target=lambda: actualizar_datos.update_opta_data_web_ranges(
-            competition_id=liga_seleccionada,
-            stage_id=temporada_seleccionada,
-            start_week=jornada_inicial,      # ← Ahora usa jornada_inicial
-            end_week=jornada_final,         # ← Ahora usa jornada_final
-            progress_callback=progress_callback
-        ))
-        thread.start()  # ← Faltaba iniciar el hilo
+        # Iniciar hilo como daemon para que no bloquee la salida
+        thread = threading.Thread(
+            target=lambda: actualizar_datos.update_opta_data_web_ranges(
+                competition_id=liga_seleccionada,
+                stage_id=temporada_seleccionada,
+                start_week=jornada_inicial,
+                end_week=jornada_final,
+                progress_callback=progress_callback
+            ),
+            daemon=True
+        )
+        thread.start()
         
         # Habilitar el interval y deshabilitar el botón
         return False, True
