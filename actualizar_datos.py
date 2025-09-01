@@ -13,6 +13,8 @@ import requests
 import time
 import os
 from datetime import datetime
+import shutil
+import pyarrow.parquet as pq
 from pathlib import Path
 import sys
 import tempfile
@@ -35,7 +37,7 @@ logging.basicConfig(
 # Opta API Credentials
 OPTA_API_KEY = '10lthl3y5chwn1m0fa4mfg3bqy'
 OPTA_SECRET_KEY = '1u3x3eovxa0vh1lwmutbygq8xn'
-DELAY_SECONDS = 30
+DELAY_SECONDS = 60
 
 # Paths
 OPTA_PATH = Path('datos_opta_parquet')
@@ -301,10 +303,18 @@ def get_existing_match_ids(messages=None):
     else:
         add_message(f"   📁 No se encontraron datos previos - descarga completa")
     
+    # Al final, antes de return:
+    if existing_match_ids:
+        add_message(f"   ✅ Total Match IDs únicos: {len(existing_match_ids)}")
+        # Verificar integridad
+        match_ids_list = list(existing_match_ids)
+        if None in match_ids_list or 'N/A' in match_ids_list:
+            add_message(f"   ⚠️ Detectados Match IDs inválidos", "warning")
+    
     return existing_match_ids
 
-def get_matches_by_weeks(stage_id, max_week, messages=None):
-    """Get matches by weeks - versión web"""
+def get_matches_by_weeks_range(stage_id, start_week, end_week, messages=None, progress_callback=None):
+    """Get matches by range - versión web con progreso"""
     def add_message(msg):
         if messages is not None:
             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -317,14 +327,19 @@ def get_matches_by_weeks(stage_id, max_week, messages=None):
     
     all_matches = []
     add_message(f"🔍 Buscando partidos para Stage ID: {stage_id}")
+    total_weeks = end_week - start_week + 1
     
-    for week in range(1, max_week + 1):
+    for week in range(start_week, end_week + 1):
+        week_progress = 20 + ((week - start_week) / total_weeks) * 10
+        if progress_callback:
+            progress_callback(week_progress, f"Buscando jornada {week}/{end_week}", messages)
+        
         add_message(f"📅 Jornada {week}...")
         matches_df = get_match_ids_advanced(
             max_matches=50,
             specific_week=str(week),
             stage_id=stage_id,
-            messages=messages  # Pasar messages aquí
+            messages=messages
         )
         
         if not matches_df.empty:
@@ -334,97 +349,13 @@ def get_matches_by_weeks(stage_id, max_week, messages=None):
             add_message(f"   ⚠️ No se encontraron partidos en jornada {week}")
         time.sleep(2)
     
-    if not all_matches:
+    if all_matches:
+        result_df = pd.concat(all_matches, ignore_index=True)
+        add_message(f"📊 Total partidos encontrados: {len(result_df)}")
+        return result_df
+    else:
         add_message("❌ No se encontraron partidos", "error")
-        return messages
-    
-    all_matches_df = pd.concat(all_matches, ignore_index=True)
-    add_message(f"📊 Total partidos encontrados: {len(all_matches_df)}")
-    
-    # Filter new matches
-    add_message("🔍 Filtrando partidos nuevos...")
-    new_matches_df = filter_new_matches(all_matches_df, existing_match_ids)
-    
-    if new_matches_df.empty:
-        add_message("🎉 ¡No hay partidos nuevos que procesar!", "success")
-        return messages
-    
-    add_message(f"📊 Procesando {len(new_matches_df)} partidos nuevos...")
-    match_ids = new_matches_df['Match ID'].tolist()
-
-    # Get season from competitions data
-    try:
-        competitions = get_all_competitions_and_stages()
-        season = "N/A"
-        for comp_id, comp_info in competitions.items():
-            if stage_id in comp_info['stages']:
-                season = comp_info['stages'][stage_id]['season']
-                break
-        add_message(f"🗓️ Temporada detectada: {season}")
-    except Exception as e:
-        season = "N/A"
-        add_message(f"⚠️ No se pudo detectar la temporada: {e}")
-    
-    # Process data
-    all_data = {
-        'player_stats': [],
-        'team_stats': [],
-        'player_xg_stats': [],
-        'xg_events': [],
-        'match_events': [],
-        'team_officials': []
-    }
-    
-    for i, match_id in enumerate(match_ids):
-        add_message(f"⚽ Partido {i+1}/{len(match_ids)}: {match_id}")
-        
-        # MA2 - Player Stats + Team Officials
-        player_stats_df, team_officials_df = process_match_player_stats(match_id, season)
-        if not player_stats_df.empty:
-            all_data['player_stats'].append(player_stats_df)
-        if not team_officials_df.empty:
-            all_data['team_officials'].append(team_officials_df)
-        
-        # MA2 - Team Stats
-        team_stats_df = process_match_team_stats(match_id, season)
-        if not team_stats_df.empty:
-            all_data['team_stats'].append(team_stats_df)
-        
-        # MA3 - Match Events
-        match_events_df = process_match_events(match_id, season)
-        if not match_events_df.empty:
-            all_data['match_events'].append(match_events_df)
-        
-        # MA12 - Player xG Stats
-        player_xg_df = process_xg_player_stats(match_id, season)
-        if not player_xg_df.empty:
-            all_data['player_xg_stats'].append(player_xg_df)
-        
-        # MA12 - xG Events
-        xg_events_df = process_xg_events(match_id, season)
-        if not xg_events_df.empty:
-            all_data['xg_events'].append(xg_events_df)
-        
-        if i < len(match_ids) - 1:
-            time.sleep(DELAY_SECONDS)
-    
-    # Combine DataFrames
-    new_data = {}
-    for data_type, df_list in all_data.items():
-        if df_list:
-            new_data[data_type] = pd.concat(df_list, ignore_index=True)
-            add_message(f"✅ {data_type} (nuevos): {len(new_data[data_type])} filas")
-        else:
-            new_data[data_type] = pd.DataFrame()
-    
-    # Save data
-    add_message("💾 Guardando datos nuevos y combinando con existentes...")
-    save_opta_data(new_data)
-    
-    add_message("🎉 ¡Actualización completada!", "success")
-    add_message(f"📊 {len(new_matches_df)} partidos nuevos procesados")
-    
-    return messages
+        return pd.DataFrame()
 
 def get_max_existing_week(existing_match_ids):
     """Obtiene la jornada máxima que ya existe en los datos"""
@@ -826,109 +757,429 @@ def convert_dates_to_season(start_date, end_date):
 
 
 def process_match_events(match_id, season):
-    """Process MA3 Match Events - VERSIÓN CORREGIDA"""
+    """Process MA3 Match Events - VERSIÓN CORREGIDA CON PARÁMETROS DOCUMENTADOS"""
+    import logging
+    
+    logging.info(f"🚀 Iniciando procesamiento de eventos para partido {match_id}")
+    logging.info(f"📊 Season detectada: {season}")
+    
+    # ✅ SOLO PARÁMETROS DOCUMENTADOS SEGÚN LA DOCUMENTACIÓN OFICIAL
     request_parameters = {
         "_fmt": "json",
         "fx": match_id,
         "_rt": "b"
+        # ❌ ELIMINADOS: detailed, _pgSz, live (NO documentados para MA3)
     }
     
+    logging.info(f"🔧 Parámetros de request (SOLO DOCUMENTADOS):")
+    for key, value in request_parameters.items():
+        logging.info(f"   - {key}: {value}")
+    
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/matchevent/{OPTA_API_KEY}/'
-    response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+    logging.info(f"🌐 URL completa: {sdapi_get_url}")
     
-    if response.status_code != 200:
-        print(f"❌ Error MA3 Match Events: {response.status_code}")
-        return pd.DataFrame()
-    
-    data = response.json()
-    match_info = data.get('matchInfo', {})
-    competition_info = match_info.get('competition', {})
-    stage_info = match_info.get('stage', {})
-    live_data = data.get('liveData', {})
-    home_away_info = get_home_away_info(match_info, live_data)
-    events = live_data.get('event', [])
-    
-    # Find unique qualifier IDs
-    qualifier_ids = set()
-    for event in events:
-        for q in event.get('qualifier', []):
-            qualifier_ids.add(str(q.get('qualifierId', '')))
-    
-    # Initialize columns
-    qualifier_names = [QUALIFIER_MAPPING.get(int(qid), f'qualifier {qid}') for qid in qualifier_ids]
-    columns = [
-        'Match ID', 'Competition ID', 'Competition Name', 'Season', 'Week', 'Stage ID', 'Stage Name',
-        'EventId', 'typeId', 'Event Name', 'timeStamp', 'contestantId', 'Team ID', 'Team Name', 'Team Position', 'Is Home', 'Is Away',
-        'HT Home Score', 'HT Away Score', 'FT Home Score', 'FT Away Score',
-        'periodId', 'timeMin', 'timeSec', 'playerId', 'playerName', 'outcome', 'x', 'y'
-    ] + qualifier_names
-    
-    events_data = []
-    
-    for event in events:
-        contestant_id = event.get('contestantId', None)
-        team_name = home_away_info['team_mapping'].get(contestant_id, {}).get('name', 'N/A') if contestant_id else 'N/A'
-        team_position = home_away_info['team_mapping'].get(contestant_id, {}).get('position', 'N/A') if contestant_id else 'N/A'
-        is_home = contestant_id == home_away_info['home_team_id']
-        is_away = contestant_id == home_away_info['away_team_id']
-        type_id = event.get('typeId', None)
-        event_name = EVENT_TYPE_MAPPING.get(type_id, 'Unknown Event') if type_id else 'Unknown Event'
+    try:
+        # Obtener headers con logging
+        logging.info("🔑 Obteniendo headers de autenticación...")
+        headers = request_headers()
+        logging.info(f"✅ Headers obtenidos exitosamente")
         
-        event_info = {
-            'Match ID': match_info.get('id', 'N/A'),
-            'Competition ID': competition_info.get('id', 'N/A'),
-            'Competition Name': competition_info.get('name', 'N/A'),
-            'Season': season,
-            'Week': match_info.get('week', 'N/A'),
-            'Stage ID': stage_info.get('id', 'N/A'),
-            'Stage Name': stage_info.get('name', 'N/A'),
-            'EventId': event.get('eventId', None),
-            'typeId': type_id,
-            'Event Name': event_name,
-            'periodId': event.get('periodId', None),
-            'timeMin': event.get('timeMin', None),
-            'timeSec': event.get('timeSec', None),
-            'contestantId': contestant_id,
-            'Team ID': contestant_id,
-            'Team Name': team_name,
-            'Team Position': team_position,
-            'Is Home': is_home,
-            'Is Away': is_away,
-            'HT Home Score': home_away_info['ht_home'],
-            'HT Away Score': home_away_info['ht_away'],
-            'FT Home Score': home_away_info['ft_home'],
-            'FT Away Score': home_away_info['ft_away'],
-            'playerId': event.get('playerId', None),
-            'playerName': event.get('playerName', None),
-            'outcome': event.get('outcome', None),
-            'x': event.get('x', None),
-            'y': event.get('y', None),
-            'timeStamp': event.get('timeStamp', None),
+        # Log del token (solo primeros/últimos caracteres por seguridad)
+        auth_header = headers.get('Authorization', '')
+        if len(auth_header) > 20:
+            token_preview = f"{auth_header[:20]}...{auth_header[-10:]}"
+            logging.info(f"🎫 Token preview: {token_preview}")
+        
+        # Hacer la request con parámetros documentados
+        logging.info(f"📡 Enviando request a Opta API con parámetros documentados...")
+        logging.info(f"📡 Match ID: {match_id}")
+        logging.info(f"📡 URL: {sdapi_get_url}")
+        
+        start_time = time.time()
+        response = requests.get(sdapi_get_url, headers=headers, params=request_parameters, timeout=30)
+        response_time = time.time() - start_time
+        
+        logging.info(f"⏱️ Tiempo de respuesta: {response_time:.2f} segundos")
+        logging.info(f"📡 Status Code: {response.status_code}")
+        logging.info(f"📡 Response Headers: {dict(response.headers)}")
+        
+        # MANEJO ESPECÍFICO DE ERRORES
+        if response.status_code == 400:
+            logging.error(f"❌ ERROR 400 - Verificando causa...")
+            try:
+                error_data = response.json()
+                error_code = error_data.get('errorCode', 'N/A')
+                logging.error(f"🔍 Error Code: {error_code}")
+                
+                if error_code == "10217":
+                    logging.error("🔑 ERROR 10217: Feed MA3 no autorizado en tu suscripción")
+                    logging.error("   Opciones:")
+                    logging.error("   1. Contactar Opta para activar MA3")
+                    logging.error("   2. Continuar solo con MA2 y MA12")
+                    return pd.DataFrame()
+                elif error_code == "10203":
+                    logging.error("🔧 ERROR 10203: Parámetros inválidos/ambiguos")
+                    logging.error("   Los parámetros enviados no son válidos para este endpoint")
+                    return pd.DataFrame()
+                else:
+                    logging.error(f"❓ Error desconocido: {error_code}")
+                    
+            except json.JSONDecodeError:
+                logging.error(f"📄 Respuesta no JSON: {response.text}")
+            
+            return pd.DataFrame()
+        
+        elif response.status_code != 200:
+            logging.error(f"❌ ERROR {response.status_code}")
+            logging.error(f"📄 Response: {response.text}")
+            return pd.DataFrame()
+        
+        # ✅ RESPUESTA EXITOSA
+        logging.info(f"✅ Respuesta API exitosa para partido {match_id}")
+        
+        try:
+            data = response.json()
+            logging.info(f"📋 Estructura de respuesta:")
+            logging.info(f"   - Keys principales: {list(data.keys())}")
+            
+            # Verificar estructura de datos
+            match_info = data.get('matchInfo', {})
+            live_data = data.get('liveData', {})
+            
+            logging.info(f"📋 matchInfo keys: {list(match_info.keys())}")
+            logging.info(f"📋 liveData keys: {list(live_data.keys())}")
+            
+            # Obtener eventos de la ubicación estándar
+            events = live_data.get('event', [])
+            logging.info(f"📊 Eventos encontrados: {len(events)}")
+            
+            if not events:
+                logging.warning(f"⚠️ NO SE ENCONTRARON EVENTOS para partido {match_id}")
+                logging.warning(f"📋 Estructura liveData completa: {list(live_data.keys())}")
+                
+                # Guardar respuesta para debug
+                debug_file = f"debug_no_events_{match_id}.json"
+                with open(debug_file, 'w') as f:
+                    json.dump(data, f, indent=2)
+                logging.warning(f"💾 Respuesta guardada en: {debug_file}")
+                
+                return pd.DataFrame()
+            
+            # Procesar información del partido
+            competition_info = match_info.get('competition', {})
+            stage_info = match_info.get('stage', {})
+            home_away_info = get_home_away_info(match_info, live_data)
+            
+            logging.info(f"🏟️ Información del partido:")
+            logging.info(f"   - Competition: {competition_info.get('name', 'N/A')}")
+            logging.info(f"   - Stage: {stage_info.get('name', 'N/A')}")
+            logging.info(f"   - Home Team: {home_away_info.get('home_team_id', 'N/A')}")
+            logging.info(f"   - Away Team: {home_away_info.get('away_team_id', 'N/A')}")
+            
+            # Análisis de tipos de eventos
+            event_types = {}
+            events_without_type = 0
+            events_without_contestant = 0
+            
+            for event in events:
+                type_id = event.get('typeId')
+                if type_id:
+                    event_types[type_id] = event_types.get(type_id, 0) + 1
+                else:
+                    events_without_type += 1
+                    
+                if not event.get('contestantId'):
+                    events_without_contestant += 1
+            
+            logging.info(f"📊 Análisis de tipos de eventos:")
+            for type_id, count in sorted(event_types.items()):
+                event_name = EVENT_TYPE_MAPPING.get(type_id, f'Unknown ({type_id})')
+                logging.info(f"   - {event_name}: {count}")
+            
+            if events_without_type > 0:
+                logging.warning(f"⚠️ {events_without_type} eventos sin typeId")
+            if events_without_contestant > 0:
+                logging.info(f"ℹ️ {events_without_contestant} eventos sin contestantId")
+            
+            # Encontrar qualifiers únicos
+            qualifier_ids = set()
+            invalid_qualifiers = 0
+            
+            for event in events:
+                for q in event.get('qualifier', []):
+                    qid = q.get('qualifierId', '')
+                    if qid and str(qid).isdigit():
+                        qualifier_ids.add(str(qid))
+                    else:
+                        invalid_qualifiers += 1
+                        if invalid_qualifiers <= 5:
+                            logging.warning(f"⚠️ Qualifier ID inválido: {qid}")
+            
+            logging.info(f"🔍 Qualifiers únicos encontrados: {len(qualifier_ids)}")
+            if invalid_qualifiers > 0:
+                logging.warning(f"⚠️ {invalid_qualifiers} qualifiers inválidos")
+            
+            # Inicializar columnas con nombres descriptivos
+            qualifier_names = []
+            for qid in qualifier_ids:
+                try:
+                    qualifier_name = QUALIFIER_MAPPING.get(int(qid), f'qualifier {qid}')
+                    qualifier_names.append(qualifier_name)
+                except ValueError:
+                    logging.error(f"❌ Error convirtiendo qualifier ID: {qid}")
+                    continue
+            
+            columns = [
+                'Match ID', 'Competition ID', 'Competition Name', 'Season', 'Week', 'Stage ID', 'Stage Name',
+                'EventId', 'typeId', 'Event Name', 'timeStamp', 'contestantId', 'Team ID', 'Team Name', 
+                'Team Position', 'Is Home', 'Is Away', 'HT Home Score', 'HT Away Score', 
+                'FT Home Score', 'FT Away Score', 'periodId', 'timeMin', 'timeSec', 
+                'playerId', 'playerName', 'outcome', 'x', 'y'
+            ] + qualifier_names
+            
+            logging.info(f"📋 DataFrame final: {len(columns)} columnas")
+            
+            # Procesar eventos
+            events_data = []
+            processed_events = 0
+            skipped_events = 0
+            
+            for i, event in enumerate(events):
+                try:
+                    contestant_id = event.get('contestantId', None)
+                    team_name = home_away_info['team_mapping'].get(contestant_id, {}).get('name', 'N/A') if contestant_id else 'N/A'
+                    team_position = home_away_info['team_mapping'].get(contestant_id, {}).get('position', 'N/A') if contestant_id else 'N/A'
+                    is_home = contestant_id == home_away_info['home_team_id']
+                    is_away = contestant_id == home_away_info['away_team_id']
+                    type_id = event.get('typeId', None)
+                    event_name = EVENT_TYPE_MAPPING.get(type_id, 'Unknown Event') if type_id else 'Unknown Event'
+                    
+                    event_info = {
+                        'Match ID': match_info.get('id', 'N/A'),
+                        'Competition ID': competition_info.get('id', 'N/A'),
+                        'Competition Name': competition_info.get('name', 'N/A'),
+                        'Season': season,
+                        'Week': match_info.get('week', 'N/A'),
+                        'Stage ID': stage_info.get('id', 'N/A'),
+                        'Stage Name': stage_info.get('name', 'N/A'),
+                        'EventId': event.get('eventId', None),
+                        'typeId': type_id,
+                        'Event Name': event_name,
+                        'timeStamp': event.get('timeStamp', None),
+                        'contestantId': contestant_id,
+                        'Team ID': contestant_id,
+                        'Team Name': team_name,
+                        'Team Position': team_position,
+                        'Is Home': is_home,
+                        'Is Away': is_away,
+                        'HT Home Score': home_away_info['ht_home'],
+                        'HT Away Score': home_away_info['ht_away'],
+                        'FT Home Score': home_away_info['ft_home'],
+                        'FT Away Score': home_away_info['ft_away'],
+                        'periodId': event.get('periodId', None),
+                        'timeMin': event.get('timeMin', None),
+                        'timeSec': event.get('timeSec', None),
+                        'playerId': event.get('playerId', None),
+                        'playerName': event.get('playerName', None),
+                        'outcome': event.get('outcome', None),
+                        'x': event.get('x', None),
+                        'y': event.get('y', None),
+                    }
+                    
+                    # Inicializar todos los qualifiers a "No"
+                    for qid in qualifier_ids:
+                        try:
+                            qualifier_name = QUALIFIER_MAPPING.get(int(qid), f'qualifier {qid}')
+                            event_info[qualifier_name] = "No"
+                        except ValueError:
+                            continue
+
+                    # Actualizar con valores reales de qualifiers
+                    for q in event.get('qualifier', []):
+                        try:
+                            qualifier_id = int(q["qualifierId"])
+                            qualifier_name = QUALIFIER_MAPPING.get(qualifier_id, f'qualifier {qualifier_id}')
+                            
+                            if 'value' in q and q['value'] is not None:
+                                event_info[qualifier_name] = str(q['value'])
+                            else:
+                                event_info[qualifier_name] = "Sí"
+                        except (ValueError, KeyError) as e:
+                            logging.warning(f"⚠️ Error procesando qualifier: {e}")
+                            continue
+                    
+                    events_data.append(event_info)
+                    processed_events += 1
+                    
+                except Exception as e:
+                    logging.error(f"❌ Error procesando evento {i}: {e}")
+                    skipped_events += 1
+                    continue
+            
+            logging.info(f"✅ Procesamiento completado:")
+            logging.info(f"   - Eventos procesados: {processed_events}")
+            logging.info(f"   - Eventos omitidos: {skipped_events}")
+            logging.info(f"   - Total en respuesta: {len(events)}")
+            
+            # Crear DataFrame
+            try:
+                df = pd.DataFrame(events_data, columns=columns)
+                logging.info(f"✅ DataFrame creado: {len(df)} filas, {len(df.columns)} columnas")
+                
+                # Verificar datos críticos
+                critical_columns = ['EventId', 'typeId', 'periodId']
+                for col in critical_columns:
+                    if col in df.columns:
+                        null_count = df[col].isnull().sum()
+                        if null_count > 0:
+                            logging.warning(f"⚠️ Columna '{col}': {null_count} valores nulos")
+                
+                return df
+                
+            except Exception as e:
+                logging.error(f"❌ Error creando DataFrame: {e}")
+                return pd.DataFrame()
+        
+        except json.JSONDecodeError as e:
+            logging.error(f"❌ Error parseando JSON: {e}")
+            logging.error(f"📄 Respuesta cruda: {response.text[:500]}...")
+            return pd.DataFrame()
+            
+    except requests.Timeout as e:
+        logging.error(f"⏰ Timeout en request para partido {match_id}: {e}")
+        return pd.DataFrame()
+        
+    except requests.ConnectionError as e:
+        logging.error(f"🌐 Error de conexión para partido {match_id}: {e}")
+        return pd.DataFrame()
+        
+    except requests.RequestException as e:
+        logging.error(f"📡 Error de request para partido {match_id}: {e}")
+        return pd.DataFrame()
+        
+    except Exception as e:
+        logging.error(f"💥 Error inesperado en partido {match_id}: {e}")
+        logging.error(f"💥 Traceback completo:", exc_info=True)
+        return pd.DataFrame()
+
+# 3. FUNCIÓN DE DIAGNÓSTICO RÁPIDO
+def diagnostico_rapido_eventos(match_id_sample):
+    """Diagnóstico rápido para un partido específico"""
+    logging.info(f"🔍 DIAGNÓSTICO RÁPIDO - Match ID: {match_id_sample}")
+    
+    # Probar diferentes combinaciones de parámetros
+    parameter_combinations = [
+        {"_fmt": "json", "fx": match_id_sample, "_rt": "b"},
+        {"_fmt": "json", "fx": match_id_sample, "_rt": "b", "detailed": "yes"},
+        {"_fmt": "json", "fx": match_id_sample, "_rt": "b", "detailed": "yes", "live": "yes"},
+        {"_fmt": "json", "fx": match_id_sample, "_rt": "b", "detailed": "yes", "_pgSz": "all"},
+    ]
+    
+    for i, params in enumerate(parameter_combinations, 1):
+        try:
+            response = requests.get(
+                f'https://api.performfeeds.com/soccerdata/matchevent/{OPTA_API_KEY}/',
+                headers=request_headers(),
+                params=params
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                live_data = data.get('liveData', {})
+                main_events = live_data.get('event', [])
+                
+                logging.info(f"   Combinación {i}: {len(main_events)} eventos")
+                logging.info(f"   Parámetros: {params}")
+                
+                # Guardar la mejor respuesta
+                if len(main_events) > 0:
+                    with open(f'best_response_{match_id_sample}.json', 'w') as f:
+                        json.dump(data, f, indent=2)
+                    break
+            else:
+                logging.error(f"   Combinación {i}: Error {response.status_code}")
+                
+            time.sleep(1)  # Evitar rate limiting
+            
+        except Exception as e:
+            logging.error(f"   Combinación {i}: Exception {e}")
+
+# 4. FUNCIÓN PARA EJECUTAR AL FINAL DEL SCRIPT
+def ejecutar_diagnosticos():
+    """Ejecutar diagnósticos automáticos"""
+    try:
+        # Obtener un match ID existente
+        df_sample = pd.read_parquet(OPTA_PATH / 'player_stats.parquet')
+        match_id_sample = df_sample['Match ID'].iloc[0]
+        
+        logging.info("🔧 EJECUTANDO DIAGNÓSTICOS AUTOMÁTICOS")
+        diagnostico_rapido_eventos(match_id_sample)
+        verificar_completitud_eventos([match_id_sample])
+        
+    except Exception as e:
+        logging.error(f"Error en diagnósticos: {e}")
+        
+# ✅ FUNCIÓN ADICIONAL: Verificar completitud de datos
+def verificar_completitud_eventos(match_ids_sample=None):
+    """Verifica la completitud de los datos de eventos"""
+    if not match_ids_sample:
+        # Obtener algunos match IDs existentes
+        try:
+            df_sample = pd.read_parquet(OPTA_PATH / 'player_stats.parquet')
+            match_ids_sample = df_sample['Match ID'].unique()[:5]  # Solo 5 para prueba
+        except:
+            logging.error("No se pudieron obtener match IDs para verificación")
+            return
+    
+    logging.info("🔍 VERIFICACIÓN DE COMPLETITUD DE EVENTOS")
+    logging.info("=" * 50)
+    
+    for match_id in match_ids_sample:
+        logging.info(f"\n🔎 Verificando partido: {match_id}")
+        
+        # Obtener eventos directamente de API
+        request_parameters = {
+            "_fmt": "json",
+            "fx": match_id,
+            "_rt": "b"
         }
         
-        # ✅ CORRECCIÓN: Initialize qualifiers to "No" (ausente)
-        for qid in qualifier_ids:
-            qualifier_name = QUALIFIER_MAPPING.get(int(qid), f'qualifier {qid}')
-            event_info[qualifier_name] = "No"
-
-        # ✅ CORRECCIÓN: Update with actual qualifier values
-        for q in event.get('qualifier', []):
-            qualifier_id = int(q["qualifierId"])
-            qualifier_name = QUALIFIER_MAPPING.get(qualifier_id, f'qualifier {qualifier_id}')
+        try:
+            response = requests.get(
+                f'https://api.performfeeds.com/soccerdata/matchevent/{OPTA_API_KEY}/',
+                headers=request_headers(),
+                params=request_parameters
+            )
             
-            # Si tiene valor específico, usar ese valor
-            if 'value' in q and q['value'] is not None:
-                event_info[qualifier_name] = str(q['value'])
+            if response.status_code == 200:
+                data = response.json()
+                api_events = data.get('liveData', {}).get('event', [])
+                
+                # Verificar en archivo parquet
+                try:
+                    df_stored = pd.read_parquet(OPTA_PATH / 'match_events.parquet')
+                    stored_events = df_stored[df_stored['Match ID'] == match_id]
+                    
+                    logging.info(f"   📊 API: {len(api_events)} eventos")
+                    logging.info(f"   💾 Archivo: {len(stored_events)} eventos")
+                    
+                    if len(api_events) != len(stored_events):
+                        logging.warning(f"   ⚠️ DISCREPANCIA: Faltan {len(api_events) - len(stored_events)} eventos")
+                    else:
+                        logging.info(f"   ✅ Completitud verificada")
+                        
+                except Exception as e:
+                    logging.error(f"   ❌ Error leyendo archivo: {e}")
             else:
-                # Si existe pero no tiene valor → "Sí" (presente)
-                event_info[qualifier_name] = "Sí"
+                logging.error(f"   ❌ Error API: {response.status_code}")
+                
+        except Exception as e:
+            logging.error(f"   ❌ Error verificando partido: {e}")
         
-        events_data.append(event_info)
-    
-    return pd.DataFrame(events_data, columns=columns)
+        time.sleep(2)  # Evitar rate limiting
 
-def update_opta_data_web_ranges(competition_id, stage_id, start_week, end_week, progress_callback=None):
-    """Versión web que maneja rangos de jornadas basado en la notebook"""
+def update_opta_data_web(competition_id, stage_id, start_week, end_week, progress_callback=None):
+    """Versión web que devuelve mensajes progresivos con barra de progreso"""
     messages = []
     
     def add_message(msg, msg_type="info"):
@@ -957,7 +1208,8 @@ def update_opta_data_web_ranges(competition_id, stage_id, start_week, end_week, 
     # Get existing match IDs
     add_message("🔍 Revisando archivos existentes...")
     update_progress(10, "Revisando archivos existentes...")
-    existing_match_ids = get_existing_match_ids()
+    existing_match_ids = get_existing_match_ids(messages)
+    
     
     # Get matches by range
     add_message("🔄 Obteniendo partidos...")
@@ -1070,51 +1322,6 @@ def update_opta_data_web_ranges(competition_id, stage_id, start_week, end_week, 
     
     return messages
 
-def get_matches_by_weeks_range(stage_id, start_week, end_week, messages=None, progress_callback=None):
-    """Get matches by range - versión web con progreso"""
-    def add_message(msg):
-        if messages is not None:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            messages.append({
-                'timestamp': timestamp,
-                'message': msg,
-                'type': 'info'
-            })
-        print(msg)
-    
-    all_matches = []
-    add_message(f"🔍 Buscando partidos para Stage ID: {stage_id}")
-    total_weeks = end_week - start_week + 1
-    
-    for week in range(start_week, end_week + 1):
-        # Progreso dentro del rango 20-30%
-        week_progress = 20 + ((week - start_week) / total_weeks) * 10
-        if progress_callback:
-            progress_callback(week_progress, f"Buscando jornada {week}/{end_week}", messages)
-        
-        add_message(f"📅 Jornada {week}...")
-        matches_df = get_match_ids_advanced(
-            max_matches=50,
-            specific_week=str(week),
-            stage_id=stage_id,
-            messages=messages
-        )
-        
-        if not matches_df.empty:
-            add_message(f"   ✅ Encontrados {len(matches_df)} partidos en jornada {week}")
-            all_matches.append(matches_df)
-        else:
-            add_message(f"   ⚠️ No se encontraron partidos en jornada {week}")
-        time.sleep(2)
-    
-    if all_matches:
-        result_df = pd.concat(all_matches, ignore_index=True)
-        add_message(f"📊 Total partidos encontrados: {len(result_df)}")
-        return result_df
-    else:
-        add_message("❌ No se encontraron partidos", "error")
-        return pd.DataFrame()
-        
 def process_xg_player_stats(match_id, season):
     """Process MA12 Player xG Stats - FUNCIÓN QUE FALTABA"""
     request_parameters = {
@@ -1290,9 +1497,124 @@ def process_xg_events(match_id, season):
     
     return pd.DataFrame(xg_events_data, columns=columns)
 
+def diagnosticar_duplicados(data_dict):
+    """Diagnostica problemas de duplicados antes de guardar"""
+    logging.info("🔍 DIAGNÓSTICO DE DUPLICADOS")
+    
+    file_config = {
+        'player_stats': ['Match ID', 'Player ID'],
+        'team_stats': ['Match ID', 'Team ID'],
+        'player_xg_stats': ['Match ID', 'Player ID'],
+        'xg_events': ['Match ID', 'EventId', 'timeStamp'],  # <-- Añadir timeStamp
+        'match_events': ['Match ID', 'EventId', 'timeStamp'],  # <-- Añadir timeStamp
+        'team_officials': ['Match ID', 'Official ID']
+    }
+    
+    for data_type, new_df in data_dict.items():
+        if new_df.empty or data_type not in file_config:
+            continue
+            
+        keys = file_config[data_type]
+        
+        # Verificar NaNs en claves
+        for key in keys:
+            if key in new_df.columns:
+                nan_count = new_df[key].isna().sum()
+                if nan_count > 0:
+                    logging.warning(f"⚠️ {data_type}: {nan_count} filas con {key} = NaN")
+        
+        # Verificar duplicados internos
+        duplicates = new_df.duplicated(subset=keys, keep=False)
+        if duplicates.any():
+            logging.warning(f"⚠️ {data_type}: {duplicates.sum()} filas duplicadas internamente")
+            
+        # Mostrar sample de claves
+        if not new_df.empty:
+            sample_keys = new_df[keys].head(3)
+            logging.info(f"📋 {data_type} - Muestra de claves:\n{sample_keys}")
+
 def save_opta_data(data_dict, messages=None):
-    logging.info("Iniciando guardado de datos")
-    """Save data incrementally - versión mejorada con manejo de errores"""
+    """Versión mejorada con append seguro"""
+    logging.info("Iniciando guardado incremental seguro")
+    
+    def add_message(msg, msg_type="info"):
+        if messages is not None:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            messages.append({'timestamp': timestamp, 'message': msg, 'type': msg_type})
+        print(msg)
+
+    try:
+        OPTA_PATH.mkdir(exist_ok=True, parents=True)
+    except Exception as e:
+        add_message(f"⌚ Error crítico: {str(e)}", "error")
+        return
+
+    # Primero diagnosticar
+    diagnosticar_duplicados(data_dict)
+
+    file_config = {
+        'player_stats': {'filename': 'player_stats.parquet', 'keys': ['Match ID', 'Player ID']},
+        'team_stats': {'filename': 'team_stats.parquet', 'keys': ['Match ID', 'Team ID']},
+        'player_xg_stats': {'filename': 'player_xg_stats.parquet', 'keys': ['Match ID', 'Player ID']},
+        'xg_events': {'filename': 'xg_events.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']},  # <-- Añadir
+        'match_events': {'filename': 'match_events.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']},  # <-- Añadir
+        'team_officials': {'filename': 'team_officials.parquet', 'keys': ['Match ID', 'Official ID']}
+    }
+
+    for data_type, new_df in data_dict.items():
+        if new_df.empty or data_type not in file_config:
+            continue
+
+        config = file_config[data_type]
+        filename = OPTA_PATH / config['filename']
+        unique_keys = config['keys']
+        
+        add_message(f"💾 Procesando: {filename.name}")
+
+        try:
+            # Limpiar NaNs en las claves del nuevo DataFrame
+            for key in unique_keys:
+                if key in new_df.columns:
+                    new_df = new_df.dropna(subset=[key])
+            
+            if filename.exists():
+                existing_df = pd.read_parquet(filename)
+                initial_existing = len(existing_df)
+                
+                # Crear conjunto de claves existentes (como tuplas)
+                existing_keys = set()
+                for _, row in existing_df[unique_keys].iterrows():
+                    existing_keys.add(tuple(row.values))
+                
+                # Filtrar solo filas realmente nuevas
+                mask_new = ~new_df.apply(
+                    lambda row: tuple(row[unique_keys].values) in existing_keys, 
+                    axis=1
+                )
+                truly_new_df = new_df[mask_new]
+                
+                if len(truly_new_df) > 0:
+                    # Solo append las filas nuevas
+                    final_df = pd.concat([existing_df, truly_new_df], ignore_index=True)
+                    add_message(f"   ✅ Añadidas {len(truly_new_df)} filas nuevas")
+                else:
+                    final_df = existing_df
+                    add_message(f"   ℹ️ No hay filas nuevas para añadir")
+                
+                add_message(f"   📊 Total: {initial_existing} → {len(final_df)} filas")
+                final_df.to_parquet(filename, index=False)
+                
+            else:
+                # Archivo nuevo
+                new_df.to_parquet(filename, index=False)
+                add_message(f"   ✨ Archivo creado con {len(new_df)} filas")
+
+        except Exception as e:
+            add_message(f"❌ Error procesando {filename.name}: {e}", "error")
+            logging.error(f"Error: {e}", exc_info=True)
+
+def get_matches_by_weeks(stage_id, max_week, messages=None):
+    """Get matches by weeks - versión web corregida"""
     def add_message(msg):
         if messages is not None:
             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -1303,116 +1625,87 @@ def save_opta_data(data_dict, messages=None):
             })
         print(msg)
     
-    try:
-        # Asegurar que el directorio existe y tiene permisos
-        OPTA_PATH.mkdir(exist_ok=True, parents=True)
-        add_message(f"✅ Directorio {OPTA_PATH} verificado")
-        
-        # Verificar permisos de escritura
-        test_file = OPTA_PATH / "test_permissions.tmp"
-        try:
-            with open(test_file, 'w') as f:
-                f.write("test")
-            test_file.unlink()
-        except Exception as e:
-            add_message(f"❌ Error de permisos en {OPTA_PATH}: {str(e)}", "error")
-            return
-        logging.info(f"Procesando {len(data_dict)} tipos de datos")
-    except Exception as e:
-        add_message(f"❌ Error crítico al preparar directorio: {str(e)}", "error")
-        return
-    
-    file_config = {
-        'player_stats': {
-            'filename': 'player_stats.parquet',
-            'duplicate_keys': ['Match ID', 'Player ID']
-        },
-        # ... resto de la configuración ...
-    }
-    
-    for data_type, df in data_dict.items():
-        logging.info(f"Procesando {data_type} con {len(df)} filas")
-        if not df.empty and data_type in file_config:
-            config = file_config[data_type]
-            filename = OPTA_PATH / config['filename']
-            duplicate_keys = config['duplicate_keys']
-            
-            try:
-                # Convertir columnas qualifier a string
-                base_columns = [
-                    'Match ID', 'Competition ID', 'Competition Name', 'Week', 'Stage ID', 'Stage Name',
-                    'EventId', 'timeStamp', 'contestantId', 'Team ID', 'Team Name', 'periodId', 
-                    'timeMin', 'timeSec', 'playerId', 'playerName', 'typeId', 'Event Name', 'outcome', 'x', 'y'
-                ]
-                qualifier_cols = [col for col in df.columns if col not in base_columns]
-                for col in qualifier_cols:
-                    df[col] = df[col].astype(str)
-                
-                # Si el archivo existe, combinar
-                if filename.exists():
-                    try:
-                        existing_df = pd.read_parquet(filename)
-                        
-                        # Verificar claves disponibles
-                        available_keys = [key for key in duplicate_keys if key in df.columns and key in existing_df.columns]
-                        
-                        if available_keys:
-                            combined_df = pd.concat([existing_df, df], ignore_index=True)
-                            combined_df = combined_df.drop_duplicates(subset=available_keys, keep='last')
-                            
-                            add_message(f"💾 Actualizado: {filename.name} ({len(existing_df)} → {len(combined_df)} filas)")
-                            combined_df.to_parquet(filename, index=False)
-                        else:
-                            combined_df = pd.concat([existing_df, df], ignore_index=True)
-                            add_message(f"💾 Actualizado (sin deduplicación): {filename.name} ({len(existing_df)} → {len(combined_df)} filas)")
-                            combined_df.to_parquet(filename, index=False)
-                    except Exception as e:
-                        logging.error(f"Error crítico en save_opta_data: {str(e)}", exc_info=True)
-                        add_message(f"❌ Error leyendo archivo existente {filename}: {str(e)}", "error")
-                        # Guardar solo los nuevos datos como último recurso
-                        df.to_parquet(filename, index=False)
-                        add_message(f"💾 Creado nuevo archivo: {filename.name} ({len(df)} filas)")
-                else:
-                    add_message(f"💾 Creado: {filename.name} ({len(df)} filas)")
-                    df.to_parquet(filename, index=False)
-                    
-            except Exception as e:
-                add_message(f"❌ Error crítico guardando {filename}: {str(e)}", "error")
-                # Intentar guardar en archivo temporal como último recurso
-                temp_filename = filename.with_suffix('.tmp')
-                try:
-                    df.to_parquet(temp_filename, index=False)
-                    temp_filename.replace(filename)  # Reemplazar atómicamente
-                    add_message(f"💾 Recuperado: {filename.name} guardado mediante método alternativo")
-                except Exception as e2:
-                    add_message(f"❌ Error crítico alternativo: {str(e2)}", "error")
-
-def get_matches_by_weeks(stage_id, max_week):
-    """Get matches by weeks - versión de la notebook"""
     all_matches = []
-    
-    print(f"🔍 Buscando partidos para Stage ID: {stage_id}")
+    add_message(f"🔍 Buscando partidos para Stage ID: {stage_id}")
     
     for week in range(1, max_week + 1):
-        print(f"📅 Jornada {week}...")
+        add_message(f"📅 Jornada {week}...")
         matches_df = get_match_ids_advanced(
             max_matches=50,
             specific_week=str(week),
-            stage_id=stage_id
+            stage_id=stage_id,
+            messages=messages
         )
         
         if not matches_df.empty:
-            print(f"   ✅ Encontrados {len(matches_df)} partidos en jornada {week}")
+            add_message(f"   ✅ Encontrados {len(matches_df)} partidos en jornada {week}")
             all_matches.append(matches_df)
         else:
-            print(f"   ⚠️ No se encontraron partidos en jornada {week}")
+            add_message(f"   ⚠️ No se encontraron partidos en jornada {week}")
+        time.sleep(2)
+    
+    if not all_matches:
+        add_message("❌ No se encontraron partidos", "error")
+        return pd.DataFrame()  # CORREGIDO: era return messages
+    
+    all_matches_df = pd.concat(all_matches, ignore_index=True)
+    add_message(f"📊 Total partidos encontrados: {len(all_matches_df)}")
+    
+    # CORREGIDO: Obtener existing_match_ids aquí
+    existing_match_ids = get_existing_match_ids(messages)
+    
+    # Filter new matches
+    add_message("🔍 Filtrando partidos nuevos...")
+    new_matches_df = filter_new_matches(all_matches_df, existing_match_ids, messages)
+    
+    if new_matches_df.empty:
+        add_message("🎉 ¡No hay partidos nuevos que procesar!", "success")
+        return pd.DataFrame()  # CORREGIDO: era return messages
+    
+    return new_matches_df  # CORREGIDO: retornar el DataFrame filtrado
+
+def get_matches_by_weeks_range(stage_id, start_week, end_week, messages=None, progress_callback=None):
+    """Get matches by range - versión web con progreso"""
+    def add_message(msg):
+        if messages is not None:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            messages.append({
+                'timestamp': timestamp,
+                'message': msg,
+                'type': 'info'
+            })
+        print(msg)
+    
+    all_matches = []
+    add_message(f"🔍 Buscando partidos para Stage ID: {stage_id}")
+    total_weeks = end_week - start_week + 1
+    
+    for week in range(start_week, end_week + 1):
+        week_progress = 20 + ((week - start_week) / total_weeks) * 10
+        if progress_callback:
+            progress_callback(week_progress, f"Buscando jornada {week}/{end_week}", messages)
+        
+        add_message(f"📅 Jornada {week}...")
+        matches_df = get_match_ids_advanced(
+            max_matches=50,
+            specific_week=str(week),
+            stage_id=stage_id,
+            messages=messages
+        )
+        
+        if not matches_df.empty:
+            add_message(f"   ✅ Encontrados {len(matches_df)} partidos en jornada {week}")
+            all_matches.append(matches_df)
+        else:
+            add_message(f"   ⚠️ No se encontraron partidos en jornada {week}")
         time.sleep(2)
     
     if all_matches:
         result_df = pd.concat(all_matches, ignore_index=True)
-        print(f"\n📊 Total partidos encontrados: {len(result_df)}")
+        add_message(f"📊 Total partidos encontrados: {len(result_df)}")
         return result_df
     else:
+        add_message("❌ No se encontraron partidos", "error")
         return pd.DataFrame()
 
 def filter_new_matches(matches_df, existing_match_ids, messages=None):
@@ -1449,182 +1742,13 @@ def filter_new_matches(matches_df, existing_match_ids, messages=None):
     
     return new_matches
 
-def update_opta_data_web(stage_id, max_week, progress_callback=None):
-    """Versión web que devuelve mensajes progresivos con barra de progreso"""
-    messages = []
-    
-    def add_message(msg, msg_type="info"):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        messages.append({
-            'timestamp': timestamp,
-            'message': msg,
-            'type': msg_type
-        })
-        print(msg)
-    
-    def update_progress(progress, status=""):
-        if progress_callback:
-            progress_callback(progress, status, messages)
-    
-    add_message("🎯 ACTUALIZACIÓN DE DATOS OPTA (WEB)")
-    add_message("=" * 50)
-    update_progress(5, "Iniciando proceso...")
-    
-    add_message(f"✅ Configuración:")
-    add_message(f"   🗓️ Stage ID: {stage_id}")
-    add_message(f"   📅 Jornadas: 1-{max_week}")
-    add_message(f"   📊 Feeds: MA2 (Stats), MA3 (Events), MA12 (xG)")
-    
-    # Get existing match IDs
-    add_message("🔍 Revisando archivos existentes...")
-    update_progress(10, "Revisando archivos existentes...")
-    existing_match_ids = get_existing_match_ids()
-    
-    # Get matches
-    add_message("🔄 Obteniendo partidos...")
-    update_progress(20, "Obteniendo partidos...")
-    all_matches_df = get_matches_by_weeks_web(stage_id, max_week, messages=messages, progress_callback=progress_callback)
-    
-    if all_matches_df.empty:
-        add_message("❌ No se encontraron partidos", "error")
-        update_progress(100, "Error: No se encontraron partidos")
-        return messages
-    
-    # Filter new matches
-    add_message("🔍 Filtrando partidos nuevos...")
-    update_progress(30, "Filtrando partidos nuevos...")
-    new_matches_df = filter_new_matches(all_matches_df, existing_match_ids, messages)
-    
-    if new_matches_df.empty:
-        add_message("🎉 ¡No hay partidos nuevos que procesar!", "success")
-        update_progress(100, "Completado: No hay partidos nuevos")
-        return messages
-    
-    add_message(f"📊 Procesando {len(new_matches_df)} partidos nuevos...")
-    match_ids = new_matches_df['Match ID'].tolist()
-    
-    # Process data
-    all_data = {
-        'player_stats': [],
-        'team_stats': [],
-        'player_xg_stats': [],
-        'xg_events': [],
-        'match_events': [],
-        'team_officials': []
-    }
-    
-    # Progreso de procesamiento de partidos (30% a 85%)
-    progress_increment = 55 / len(match_ids)  # 55% dividido entre partidos
-    
-    for i, match_id in enumerate(match_ids):
-        current_progress = 30 + (i * progress_increment)
-        update_progress(current_progress, f"Procesando partido {i+1}/{len(match_ids)}")
-        add_message(f"⚽ Partido {i+1}/{len(match_ids)}: {match_id}")
-        
-        # MA2 - Player Stats + Team Officials
-        player_stats_df, team_officials_df = process_match_player_stats(match_id, season)
-        if not player_stats_df.empty:
-            all_data['player_stats'].append(player_stats_df)
-        if not team_officials_df.empty:
-            all_data['team_officials'].append(team_officials_df)
-        
-        # MA2 - Team Stats
-        team_stats_df = process_match_team_stats(match_id, season)
-        if not team_stats_df.empty:
-            all_data['team_stats'].append(team_stats_df)
-        
-        # MA3 - Match Events
-        match_events_df = process_match_events(match_id, season)
-        if not match_events_df.empty:
-            all_data['match_events'].append(match_events_df)
-        
-        # MA12 - Player xG Stats
-        player_xg_df = process_xg_player_stats(match_id, season)
-        if not player_xg_df.empty:
-            all_data['player_xg_stats'].append(player_xg_df)
-        
-        # MA12 - xG Events
-        xg_events_df = process_xg_events(match_id, season)
-        if not xg_events_df.empty:
-            all_data['xg_events'].append(xg_events_df)
-        
-        if i < len(match_ids) - 1:
-            time.sleep(DELAY_SECONDS)
-    
-    # Combine DataFrames
-    update_progress(85, "Combinando datos...")
-    new_data = {}
-    for data_type, df_list in all_data.items():
-        if df_list:
-            new_data[data_type] = pd.concat(df_list, ignore_index=True)
-            add_message(f"✅ {data_type} (nuevos): {len(new_data[data_type])} filas")
-        else:
-            new_data[data_type] = pd.DataFrame()
-    
-    # Save data
-    add_message("💾 Guardando datos nuevos y combinando con existentes...")
-    update_progress(95, "Guardando datos...")
-    save_opta_data(new_data)
-    
-    add_message("🎉 ¡Actualización completada!", "success")
-    add_message(f"📊 {len(new_matches_df)} partidos nuevos procesados")
-    update_progress(100, "¡Actualización completada!")
-    
-    return messages
-
-
-def get_matches_by_weeks_web(stage_id, max_week, messages=None, progress_callback=None):
-    """Get matches by weeks - versión web con progreso"""
-    def add_message(msg):
-        if messages is not None:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            messages.append({
-                'timestamp': timestamp,
-                'message': msg,
-                'type': 'info'
-            })
-        print(msg)
-    
-    all_matches = []
-    add_message(f"🔍 Buscando partidos para Stage ID: {stage_id}")
-    
-    for week in range(1, max_week + 1):
-        # Progreso dentro del rango 20-30%
-        week_progress = 20 + (week / max_week) * 10
-        if progress_callback:
-            progress_callback(week_progress, f"Buscando jornada {week}/{max_week}", messages)
-        
-        add_message(f"📅 Jornada {week}...")
-        matches_df = get_match_ids_advanced(
-            max_matches=50,
-            specific_week=str(week),
-            stage_id=stage_id,
-            messages=messages
-        )
-        
-        if not matches_df.empty:
-            add_message(f"   ✅ Encontrados {len(matches_df)} partidos en jornada {week}")
-            all_matches.append(matches_df)
-        else:
-            add_message(f"   ⚠️ No se encontraron partidos en jornada {week}")
-        time.sleep(2)
-    
-    if all_matches:
-        result_df = pd.concat(all_matches, ignore_index=True)
-        add_message(f"📊 Total partidos encontrados: {len(result_df)}")
-        return result_df
-    else:
-        add_message("❌ No se encontraron partidos", "error")
-        return pd.DataFrame()
-
-
 def update_opta_data():
-    """Main function to update Opta data"""
+    """Main function to update Opta data - CORREGIDA"""
     print("🎯 ACTUALIZACIÓN DE DATOS OPTA")
     print("=" * 50)
     
     # Get available stages
-    print("🔄 Obteniendo temporadas disponibles...")
+    print("📄 Obteniendo temporadas disponibles...")
     stages = get_available_stages()
     
     if not stages:
@@ -1689,8 +1813,8 @@ def update_opta_data():
     # Get existing match IDs
     existing_match_ids = get_existing_match_ids()
     
-    # Get matches
-    print("\n🔄 Obteniendo partidos...")
+    # Get matches - CORREGIDO: usar la función simple
+    print("\n📄 Obteniendo partidos...")
     all_matches_df = get_matches_by_weeks(stage_id, max_week)
     
     if all_matches_df.empty:
@@ -1716,10 +1840,10 @@ def update_opta_data():
             if stage_id in comp_info['stages']:
                 season = comp_info['stages'][stage_id]['season']
                 break
-        add_message(f"🗓️ Temporada detectada: {season}")
+        print(f"🗓️ Temporada detectada: {season}")  # CORREGIDO: era add_message
     except Exception as e:
         season = "N/A"
-        add_message(f"⚠️ No se pudo detectar la temporada: {e}")
+        print(f"⚠️ No se pudo detectar la temporada: {e}")  # CORREGIDO: era add_message
     
     # Process data
     all_data = {

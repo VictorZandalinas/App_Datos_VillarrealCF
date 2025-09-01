@@ -840,7 +840,7 @@ def iniciar_actualizacion_opta(n_clicks, liga_seleccionada, temporada_selecciona
         
         # Iniciar hilo como daemon para que no bloquee la salida
         thread = threading.Thread(
-            target=lambda: actualizar_datos.update_opta_data_web_ranges(
+            target=lambda: actualizar_datos.update_opta_data_web(
                 competition_id=liga_seleccionada,
                 stage_id=temporada_seleccionada,
                 start_week=jornada_inicial,
