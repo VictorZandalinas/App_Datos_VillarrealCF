@@ -3,6 +3,7 @@
 """
 SISTEMA DE ACTUALIZACIÓN DE DATOS
 Opta API + MediaCoach Data Updater
+MODIFICADO para incluir procesamiento de secuencias de Balón Parado (ABP)
 """
 
 import json
@@ -43,7 +44,7 @@ DELAY_SECONDS = 60
 OPTA_PATH = Path('datos_opta_parquet')
 MEDIACOACH_PATH = Path('datos_mediacoach_parquet')
 
-# Event Types Mapping
+# Event Types Mapping (sin cambios)
 EVENT_TYPE_MAPPING = {
     1: "Pass", 2: "Offside Pass", 3: "Take On", 4: "Foul", 5: "Out",
     6: "Corner Awarded", 7: "Tackle", 8: "Interception", 10: "Save",
@@ -65,7 +66,7 @@ EVENT_TYPE_MAPPING = {
     81: "Obstacle", 82: "Control", 83: "Attempted tackle", 84: "Deleted After Review"
 }
 
-# Qualifier Types Mapping (basado en la documentación)
+# Qualifier Types Mapping (sin cambios)
 QUALIFIER_MAPPING = {
     1: "Long ball", 2: "Cross", 3: "Head pass", 4: "Through ball", 5: "Free kick taken",
     6: "Corner taken", 7: "Players caught offside", 8: "Goal disallowed", 9: "Penalty",
@@ -190,7 +191,235 @@ QUALIFIER_MAPPING = {
 }
 
 # ====================================
-# OPTA API FUNCTIONS
+# ABP SEQUENCE PROCESSING FUNCTIONS
+# ====================================
+
+def _get_corner_sequences(match_events_df, team_name):
+    """
+    Extrae secuencias de corners para un equipo específico en un partido.
+    Lógica adaptada de abp1_opta_estadisticas_abp.py
+    """
+    # Filtrar corners del equipo
+    team_corners = match_events_df[
+        (match_events_df['Team Name'] == team_name) &
+        (match_events_df.get('Corner taken') == 'Sí')
+    ].copy()
+
+    corner_sequences = []
+    
+    for _, corner_event in team_corners.iterrows():
+        corner_idx = corner_event.name
+        
+        sequence_events = []
+        current_time = corner_event['timeMin'] * 60 + corner_event['timeSec']
+        pass_count = 0
+        last_pass_timestamp = corner_event['timeStamp']
+
+        for next_idx in range(corner_idx + 1, len(match_events_df)):
+            next_event = match_events_df.iloc[next_idx]
+            next_time = next_event['timeMin'] * 60 + next_event['timeSec']
+            time_diff = next_time - current_time
+
+            if time_diff > 5 or next_event.get('periodId', 1) != corner_event.get('periodId', 1):
+                break
+            if next_event['Event Name'] in ['Corner Awarded', 'Out', 'Smother', 'Foul', 'Save', 'Offside', 'End Period']:
+                break
+            if next_event['Event Name'] == 'Pass' and float(next_event.get('x', 100)) < 55:
+                break
+            
+            if next_event['Event Name'] == 'Pass' and next_event['Team Name'] == team_name:
+                if next_event['timeStamp'] > last_pass_timestamp:
+                    pass_count += 1
+                    last_pass_timestamp = next_event['timeStamp']
+                    
+                    if pass_count >= 5:
+                        passes_back_field = 0
+                        for check_idx in range(corner_idx + 1, next_idx + 1):
+                            check_event = match_events_df.iloc[check_idx]
+                            if (check_event['Event Name'] == 'Pass' and
+                                check_event['Team Name'] == team_name and
+                                float(check_event.get('x', 0)) < 70):
+                                passes_back_field += 1
+                        
+                        if passes_back_field >= 2:
+                            break
+            
+            sequence_events.append(next_event)
+            current_time = next_time
+        
+        # Guardar la secuencia completa (evento inicial + eventos siguientes)
+        full_sequence = [corner_event.to_dict()] + [e.to_dict() for e in sequence_events]
+        corner_sequences.extend(full_sequence)
+        
+    return corner_sequences
+
+def _get_freekick_indirect_sequences(match_events_df, team_name):
+    """
+    Extrae secuencias de faltas indirectas para un equipo.
+    Lógica adaptada de abp1_opta_estadisticas_abp.py
+    """
+    team_freekicks_indirect = match_events_df[
+        (match_events_df['Team Name'] == team_name) &
+        (match_events_df.get('Free kick taken') == 'Sí') &
+        (match_events_df.get('Zone', '').isin(['Center', 'Right', 'Left']))
+    ].copy()
+
+    freekick_sequences = []
+    
+    for _, fk_event in team_freekicks_indirect.iterrows():
+        fk_idx = fk_event.name
+        
+        sequence_events = []
+        current_time = fk_event['timeMin'] * 60 + fk_event['timeSec']
+        pass_count = 0
+        last_pass_timestamp = fk_event['timeStamp']
+
+        for next_idx in range(fk_idx + 1, len(match_events_df)):
+            next_event = match_events_df.iloc[next_idx]
+            next_time = next_event['timeMin'] * 60 + next_event['timeSec']
+            time_diff = next_time - current_time
+
+            if time_diff > 5 or next_event.get('periodId', 1) != fk_event.get('periodId', 1):
+                break
+            if next_event['Event Name'] in ['Corner Awarded', 'Out', 'Smother', 'Foul', 'Save', 'Offside', 'End Period']:
+                break
+            if next_event['Event Name'] == 'Pass' and float(next_event.get('x', 100)) < 55:
+                break
+            
+            if next_event['Event Name'] == 'Pass' and next_event['Team Name'] == team_name:
+                if next_event['timeStamp'] > last_pass_timestamp:
+                    pass_count += 1
+                    last_pass_timestamp = next_event['timeStamp']
+                    
+                    if pass_count >= 5:
+                        passes_back_field = 0
+                        for check_idx in range(fk_idx + 1, next_idx + 1):
+                            check_event = match_events_df.iloc[check_idx]
+                            if (check_event['Event Name'] == 'Pass' and
+                                check_event['Team Name'] == team_name and
+                                float(check_event.get('x', 0)) < 70):
+                                passes_back_field += 1
+                        
+                        if passes_back_field >= 2:
+                            break
+            
+            sequence_events.append(next_event)
+            current_time = next_time
+        
+        full_sequence = [fk_event.to_dict()] + [e.to_dict() for e in sequence_events]
+        freekick_sequences.extend(full_sequence)
+        
+    return freekick_sequences
+
+def _get_freekick_direct_sequences(match_events_df, team_name):
+    """
+    Extrae eventos de falta directa (la secuencia es el propio evento).
+    """
+    team_freekicks = match_events_df[
+        (match_events_df['Team Name'] == team_name) &
+        (match_events_df.get('Free kick') == 'Sí')
+    ]
+    return team_freekicks.to_dict('records')
+
+
+def update_abp_events_standalone():
+    """
+    Función robusta para crear o actualizar `abp_events.parquet`.
+    Compara `match_events.parquet` con `abp_events.parquet` y procesa solo los partidos que falten.
+    """
+    logging.info("=============================================")
+    logging.info("✅ INICIANDO ACTUALIZACIÓN DE EVENTOS DE ABP")
+    logging.info("=============================================")
+
+    match_events_path = OPTA_PATH / 'match_events.parquet'
+    abp_events_path = OPTA_PATH / 'abp_events.parquet'
+    unique_keys = ['Match ID', 'EventId', 'timeStamp', 'playerId']
+
+    if not match_events_path.exists():
+        logging.error("❌ No se encontró 'match_events.parquet'. No se puede procesar ABP.")
+        return
+
+    # Cargar todos los eventos de partido existentes
+    all_match_events_df = pd.read_parquet(match_events_path)
+    all_match_ids = set(all_match_events_df['Match ID'].unique())
+    logging.info(f"🔍 Encontrados {len(all_match_ids)} partidos en 'match_events.parquet'.")
+
+    # Obtener IDs de partidos ya procesados en ABP
+    processed_match_ids = set()
+    if abp_events_path.exists():
+        try:
+            processed_match_ids = set(pd.read_parquet(abp_events_path)['Match ID'].unique())
+            logging.info(f"🔍 Encontrados {len(processed_match_ids)} partidos ya procesados en 'abp_events.parquet'.")
+        except Exception as e:
+            logging.warning(f"⚠️ No se pudo leer 'abp_events.parquet' existente: {e}. Se reconstruirá.")
+
+    # Determinar qué partidos necesitan ser procesados
+    match_ids_to_process = all_match_ids - processed_match_ids
+
+    if not match_ids_to_process:
+        logging.info("🎉 ¡Excelente! 'abp_events.parquet' ya está completamente actualizado.")
+        return
+    
+    logging.info(f"📊 Se procesarán {len(match_ids_to_process)} partidos nuevos/faltantes para ABP.")
+    
+    # Filtrar solo los eventos de los partidos a procesar
+    events_to_process_df = all_match_events_df[all_match_events_df['Match ID'].isin(match_ids_to_process)].copy()
+
+    # Asegurarse que las columnas requeridas existen
+    required_cols = ['Team Name', 'Corner taken', 'Free kick taken', 'Free kick', 'Zone', 'x', 'timeStamp', 'timeMin', 'timeSec', 'periodId', 'Event Name']
+    for col in required_cols:
+        if col not in events_to_process_df.columns:
+            logging.warning(f"ABP: La columna requerida '{col}' no existe. Se creará vacía.")
+            events_to_process_df[col] = pd.NA
+
+    # Procesar secuencias
+    all_new_abp_rows = []
+    for match_id in match_ids_to_process:
+        match_df = events_to_process_df[events_to_process_df['Match ID'] == match_id]
+        match_df = match_df.sort_values(['periodId', 'timeMin', 'timeSec']).reset_index(drop=True)
+        
+        teams = match_df['Team Name'].dropna().unique()
+
+        for team_name in teams:
+            all_new_abp_rows.extend(_get_corner_sequences(match_df, team_name))
+            all_new_abp_rows.extend(_get_freekick_indirect_sequences(match_df, team_name))
+            all_new_abp_rows.extend(_get_freekick_direct_sequences(match_df, team_name))
+
+    if not all_new_abp_rows:
+        logging.info("ABP: No se encontraron secuencias de balón parado en los partidos analizados.")
+        return
+
+    # Crear DataFrame y eliminar duplicados internos
+    new_abp_df = pd.DataFrame(all_new_abp_rows)
+    new_abp_df = new_abp_df.drop_duplicates(subset=unique_keys)
+    
+    logging.info(f"ABP: Se encontraron {len(new_abp_df)} eventos únicos en secuencias de ABP.")
+
+    # Guardado incremental y seguro
+    try:
+        if abp_events_path.exists():
+            # Cargar el archivo existente y simplemente añadir lo nuevo
+            existing_abp_df = pd.read_parquet(abp_events_path)
+            final_df = pd.concat([existing_abp_df, new_abp_df], ignore_index=True)
+            # Asegurarse de que no haya duplicados después de concatenar
+            final_df = final_df.drop_duplicates(subset=unique_keys, keep='last')
+            logging.info(f"ABP: Añadidas {len(final_df) - len(existing_abp_df)} nuevas filas a 'abp_events.parquet'.")
+        else:
+            final_df = new_abp_df
+            logging.info(f"ABP: Creando nuevo archivo 'abp_events.parquet' con {len(final_df)} filas.")
+
+        # Asegurarse que el DataFrame final tenga todas las columnas del original
+        final_df = final_df.reindex(columns=all_match_events_df.columns)
+
+        final_df.to_parquet(abp_events_path, index=False)
+        logging.info(f"✅ 'abp_events.parquet' actualizado. Total de filas: {len(final_df)}.")
+
+    except Exception as e:
+        logging.error(f"❌ Error al guardar 'abp_events.parquet': {e}", exc_info=True)
+
+
+# ====================================
+# OPTA API FUNCTIONS (sin cambios)
 # ====================================
 
 def request_headers():
@@ -1228,7 +1457,9 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
     
     if new_matches_df.empty:
         add_message("🎉 ¡No hay partidos nuevos que procesar!", "success")
-        update_progress(100, "Completado: No hay partidos nuevos")
+        # >>>>> MODIFICACIÓN: Aún sin partidos nuevos, intentamos actualizar ABP <<<<<
+        update_abp_events_standalone()
+        update_progress(100, "Completado: No hay partidos nuevos, ABP verificado.")
         return messages
     
     add_message(f"📊 Procesando {len(new_matches_df)} partidos nuevos...")
@@ -1315,6 +1546,10 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
     add_message("💾 Guardando datos nuevos y combinando con existentes...")
     update_progress(95, "Guardando datos...")
     save_opta_data(new_data)
+    
+    # >>>>> MODIFICACIÓN: Llamar a la función robusta de ABP <<<<<
+    update_progress(98, "Procesando secuencias de Balón Parado...")
+    update_abp_events_standalone()
     
     add_message("🎉 ¡Actualización completada!", "success")
     add_message(f"📊 {len(new_matches_df)} partidos nuevos procesados")
@@ -1664,50 +1899,6 @@ def get_matches_by_weeks(stage_id, max_week, messages=None):
     
     return new_matches_df  # CORREGIDO: retornar el DataFrame filtrado
 
-def get_matches_by_weeks_range(stage_id, start_week, end_week, messages=None, progress_callback=None):
-    """Get matches by range - versión web con progreso"""
-    def add_message(msg):
-        if messages is not None:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            messages.append({
-                'timestamp': timestamp,
-                'message': msg,
-                'type': 'info'
-            })
-        print(msg)
-    
-    all_matches = []
-    add_message(f"🔍 Buscando partidos para Stage ID: {stage_id}")
-    total_weeks = end_week - start_week + 1
-    
-    for week in range(start_week, end_week + 1):
-        week_progress = 20 + ((week - start_week) / total_weeks) * 10
-        if progress_callback:
-            progress_callback(week_progress, f"Buscando jornada {week}/{end_week}", messages)
-        
-        add_message(f"📅 Jornada {week}...")
-        matches_df = get_match_ids_advanced(
-            max_matches=50,
-            specific_week=str(week),
-            stage_id=stage_id,
-            messages=messages
-        )
-        
-        if not matches_df.empty:
-            add_message(f"   ✅ Encontrados {len(matches_df)} partidos en jornada {week}")
-            all_matches.append(matches_df)
-        else:
-            add_message(f"   ⚠️ No se encontraron partidos en jornada {week}")
-        time.sleep(2)
-    
-    if all_matches:
-        result_df = pd.concat(all_matches, ignore_index=True)
-        add_message(f"📊 Total partidos encontrados: {len(result_df)}")
-        return result_df
-    else:
-        add_message("❌ No se encontraron partidos", "error")
-        return pd.DataFrame()
-
 def filter_new_matches(matches_df, existing_match_ids, messages=None):
     """Filter DataFrame to keep only new matches"""
     def add_message(msg):
@@ -1817,16 +2008,17 @@ def update_opta_data():
     print("\n📄 Obteniendo partidos...")
     all_matches_df = get_matches_by_weeks(stage_id, max_week)
     
-    if all_matches_df.empty:
-        print("❌ No se encontraron partidos")
-        return
-    
     # Filter new matches
-    print("\n🔍 Filtrando partidos nuevos...")
-    new_matches_df = filter_new_matches(all_matches_df, existing_match_ids)
+    if not all_matches_df.empty:
+        print("\n🔍 Filtrando partidos nuevos...")
+        new_matches_df = filter_new_matches(all_matches_df, existing_match_ids)
+    else:
+        new_matches_df = pd.DataFrame()
     
     if new_matches_df.empty:
-        print("🎉 ¡No hay partidos nuevos que procesar!")
+        print("🎉 ¡No hay partidos nuevos que descargar!")
+        # AUNQUE NO HAYA PARTIDOS, ACTUALIZAMOS ABP POR SI ACASO
+        update_abp_events_standalone()
         return
     
     print(f"\n📊 Procesando {len(new_matches_df)} partidos nuevos...")
@@ -1840,10 +2032,10 @@ def update_opta_data():
             if stage_id in comp_info['stages']:
                 season = comp_info['stages'][stage_id]['season']
                 break
-        print(f"🗓️ Temporada detectada: {season}")  # CORREGIDO: era add_message
+        print(f"🗓️ Temporada detectada: {season}")
     except Exception as e:
         season = "N/A"
-        print(f"⚠️ No se pudo detectar la temporada: {e}")  # CORREGIDO: era add_message
+        print(f"⚠️ No se pudo detectar la temporada: {e}")
     
     # Process data
     all_data = {
@@ -1858,6 +2050,7 @@ def update_opta_data():
     for i, match_id in enumerate(match_ids):
         print(f"⚽ Partido {i+1}/{len(match_ids)}: {match_id}")
         
+        # ... (código de procesamiento de MA2, MA3, MA12 sin cambios) ...
         # MA2 - Player Stats + Team Officials
         player_stats_df, team_officials_df = process_match_player_stats(match_id, season)
         if not player_stats_df.empty:
@@ -1901,8 +2094,12 @@ def update_opta_data():
     print(f"\n💾 Guardando datos...")
     save_opta_data(final_data)
     
+    # >>>>> MODIFICACIÓN: Llamar a la función robusta de ABP <<<<<
+    update_abp_events_standalone()
+    
     print(f"\n🎉 ¡Actualización de Opta completada!")
     print(f"📊 {len(new_matches_df)} partidos procesados")
+
 
 # ====================================
 # MEDIACOACH DATA UPDATER
@@ -1916,7 +2113,6 @@ def update_mediacoach_data():
     print("📧 Contacta con el administrador para más información")
     
     # TODO: Implement MediaCoach data update logic
-    # This will be implemented when MediaCoach notebook is provided
 
 # ====================================
 # MAIN INTERFACE
@@ -1931,24 +2127,27 @@ def main():
     
     while True:
         print("\n📋 OPCIONES DISPONIBLES:")
-        print("  1. 📈 Actualizar datos de Opta")
-        print("  2. 🎮 Actualizar datos de MediaCoach")
-        print("  3. 🔄 Actualizar ambos")
-        print("  4. 🚪 Salir")
+        print("  1. 📈 Actualizar datos de Opta (incluye ABP)")
+        print("  2. ⚽ Actualizar/Crear Parquet de Eventos ABP solamente")
+        print("  3. 🎮 Actualizar datos de MediaCoach")
+        print("  4. 🔄 Actualizar ambos (Opta y MediaCoach)")
+        print("  5. 🚪 Salir")
         
         try:
-            choice = input("\n🎯 Selecciona una opción (1-4): ").strip()
+            choice = input("\n🎯 Selecciona una opción (1-5): ").strip()
             
             if choice == '1':
                 update_opta_data()
             elif choice == '2':
-                update_mediacoach_data()
+                update_abp_events_standalone()
             elif choice == '3':
+                update_mediacoach_data()
+            elif choice == '4':
                 print("🔄 Actualizando ambos sistemas...")
                 update_opta_data()
                 print("\n" + "="*50)
                 update_mediacoach_data()
-            elif choice == '4':
+            elif choice == '5':
                 print("👋 ¡Hasta luego!")
                 break
             else:
