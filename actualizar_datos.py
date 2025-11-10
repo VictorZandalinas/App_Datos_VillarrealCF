@@ -326,6 +326,7 @@ def update_abp_events_standalone():
     """
     Función robusta para crear o actualizar `abp_events.parquet`.
     Compara `match_events.parquet` con `abp_events.parquet` y procesa solo los partidos que falten.
+    También genera `open_play_events.parquet` con todos los eventos que NO son ABP.
     """
     logging.info("=============================================")
     logging.info("✅ INICIANDO ACTUALIZACIÓN DE EVENTOS DE ABP")
@@ -358,6 +359,36 @@ def update_abp_events_standalone():
 
     if not match_ids_to_process:
         logging.info("🎉 ¡Excelente! 'abp_events.parquet' ya está completamente actualizado.")
+        
+        # Aún así, regenerar open_play por si acaso
+        logging.info("🏃 Regenerando 'open_play_events.parquet'...")
+        try:
+            existing_abp_df = pd.read_parquet(abp_events_path)
+            
+            all_match_events_df['event_key'] = (
+                all_match_events_df['Match ID'].astype(str) + '_' +
+                all_match_events_df['EventId'].astype(str) + '_' +
+                all_match_events_df['timeStamp'].astype(str)
+            )
+            
+            existing_abp_df['event_key'] = (
+                existing_abp_df['Match ID'].astype(str) + '_' +
+                existing_abp_df['EventId'].astype(str) + '_' +
+                existing_abp_df['timeStamp'].astype(str)
+            )
+            
+            open_play_df = all_match_events_df[
+                ~all_match_events_df['event_key'].isin(existing_abp_df['event_key'])
+            ].copy()
+            
+            open_play_df = open_play_df.drop(columns=['event_key'])
+            open_play_path = OPTA_PATH / 'open_play_events.parquet'
+            open_play_df.to_parquet(open_play_path, index=False)
+            logging.info(f"✅ 'open_play_events.parquet' actualizado con {len(open_play_df)} eventos.")
+            
+        except Exception as e:
+            logging.error(f"❌ Error al actualizar 'open_play_events.parquet': {e}")
+        
         return
     
     logging.info(f"📊 Se procesarán {len(match_ids_to_process)} partidos nuevos/faltantes para ABP.")
@@ -416,7 +447,558 @@ def update_abp_events_standalone():
 
     except Exception as e:
         logging.error(f"❌ Error al guardar 'abp_events.parquet': {e}", exc_info=True)
+        return
 
+    # ========================================
+    # PROCESAR OPEN PLAY EVENTS (todos los eventos que NO son ABP)
+    # ========================================
+    logging.info("🏃 PROCESANDO EVENTOS DE JUEGO ABIERTO (Open Play)...")
+    
+    open_play_path = OPTA_PATH / 'open_play_events.parquet'
+    
+    try:
+        # Crear identificadores únicos para comparación
+        all_match_events_df['event_key'] = (
+            all_match_events_df['Match ID'].astype(str) + '_' +
+            all_match_events_df['EventId'].astype(str) + '_' +
+            all_match_events_df['timeStamp'].astype(str)
+        )
+        
+        final_df['event_key'] = (
+            final_df['Match ID'].astype(str) + '_' +
+            final_df['EventId'].astype(str) + '_' +
+            final_df['timeStamp'].astype(str)
+        )
+        
+        # Filtrar: Open Play = todos los eventos que NO están en ABP
+        open_play_df = all_match_events_df[
+            ~all_match_events_df['event_key'].isin(final_df['event_key'])
+        ].copy()
+        
+        # Eliminar columna auxiliar
+        open_play_df = open_play_df.drop(columns=['event_key'])
+        
+        # Guardar (sobrescribir completo)
+        open_play_df.to_parquet(open_play_path, index=False)
+        logging.info(f"✅ 'open_play_events.parquet' creado con {len(open_play_df)} eventos de juego abierto.")
+        
+    except Exception as e:
+        logging.error(f"❌ Error al crear 'open_play_events.parquet': {e}", exc_info=True)
+
+def calculate_and_save_abp_statistics():
+    """
+    Calcula estadísticas de ABP desde abp_events y las guarda en estadisticas_abp.parquet
+    Procesa solo las combinaciones (Team Name, Week) nuevas de forma incremental.
+    """
+    logging.info("🔢 CALCULANDO ESTADÍSTICAS DE ABP...")
+    
+    abp_events_path = OPTA_PATH / 'abp_events.parquet'
+    xg_events_path = OPTA_PATH / 'xg_events.parquet'
+    stats_output_path = OPTA_PATH / 'estadisticas_abp.parquet'
+    
+    if not abp_events_path.exists():
+        logging.error("❌ No se encontró abp_events.parquet")
+        return
+    
+    if not xg_events_path.exists():
+        logging.error("❌ No se encontró xg_events.parquet")
+        return
+    
+    # Cargar datos
+    abp_events_df = pd.read_parquet(abp_events_path)
+    xg_events_df = pd.read_parquet(xg_events_path)
+    
+    # Normalizar timestamps
+    def normalize_timestamp(timestamp):
+        if pd.isna(timestamp):
+            return timestamp
+        timestamp_str = str(timestamp).strip()
+        if timestamp_str.endswith('Z'):
+            timestamp_str = timestamp_str[:-1]
+        try:
+            dt = pd.to_datetime(timestamp_str)
+            return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        except:
+            return timestamp_str
+    
+    abp_events_df['timeStamp'] = abp_events_df['timeStamp'].apply(normalize_timestamp)
+    xg_events_df['timeStamp'] = xg_events_df['timeStamp'].apply(normalize_timestamp)
+    
+    # Verificar qué combinaciones (Team, Week) ya están procesadas
+    if stats_output_path.exists():
+        existing_stats = pd.read_parquet(stats_output_path)
+        existing_combinations = set(zip(existing_stats['Team Name'], existing_stats['Week']))
+        logging.info(f"📊 Encontradas {len(existing_combinations)} combinaciones (Team, Week) ya procesadas.")
+    else:
+        existing_combinations = set()
+        logging.info("📝 No existe archivo previo. Se procesarán todas las combinaciones.")
+    
+    # Obtener combinaciones únicas de (Team, Week)
+    all_combinations = abp_events_df[['Team Name', 'Week']].drop_duplicates()
+    
+    # Filtrar solo las combinaciones nuevas
+    new_combinations = []
+    for _, row in all_combinations.iterrows():
+        if (row['Team Name'], row['Week']) not in existing_combinations:
+            new_combinations.append(row)
+    
+    if not new_combinations:
+        logging.info("🎉 ¡Estadísticas ABP ya están actualizadas! No hay nuevas combinaciones (Team, Week).")
+        return
+    
+    team_week_combinations = pd.DataFrame(new_combinations)
+    logging.info(f"🆕 Se procesarán {len(team_week_combinations)} nuevas combinaciones (Team, Week).")
+    
+    stats_list = []
+
+    for _, row in team_week_combinations.iterrows():
+        team = row['Team Name']
+        week = row['Week']
+        
+        # Filtrar eventos de ese equipo en esa jornada
+        team_week_events = abp_events_df[
+            (abp_events_df['Team Name'] == team) & 
+            (abp_events_df['Week'] == week)
+        ]
+        
+        team_stats = {
+            'Team Name': team, 
+            'Week': week
+        }
+        # Obtener el Match ID único de esta jornada
+        match_id = team_week_events['Match ID'].iloc[0]
+
+        # === CORNERS ===
+        # Corners a favor
+        corners_favor_count = len(team_week_events[
+            team_week_events['Corner taken'] == 'Sí'
+        ])
+
+        team_stats['corners_a_favor'] = corners_favor_count
+        
+        # Corners en contra
+        corners_contra_count = len(abp_events_df[
+            (abp_events_df['Match ID'] == match_id) &
+            (abp_events_df['Team Name'] != team) &
+            (abp_events_df['Corner taken'] == 'Sí')
+        ])
+        team_stats['corners_en_contra'] = corners_contra_count
+        
+        # xG de corner a favor
+        corner_sequences = _abp_get_corner_sequences(abp_events_df, team, [match_id])
+        total_corner_xg = 0
+        total_corner_shots = 0
+        
+        for seq in corner_sequences:
+            if seq['shot_events']:
+                xg_values = _abp_get_xg_for_shot_events(seq['shot_events'], xg_events_df)
+                total_corner_xg += sum(xg_values)
+                total_corner_shots += len(seq['shot_events'])
+        
+        team_stats['xg_corner_a_favor'] = total_corner_xg
+        
+        # xG de corner en contra
+        corner_xg_contra = 0
+        corner_shots_contra = 0
+        
+        rival_teams = abp_events_df[
+            (abp_events_df['Match ID'] == match_id) & 
+            (abp_events_df['Team Name'] != team)
+        ]['Team Name'].unique()
+
+        for rival_team in rival_teams:
+            rival_sequences = _abp_get_corner_sequences(abp_events_df, rival_team, [match_id])
+            for seq in rival_sequences:
+                if seq['shot_events']:
+                    xg_values = _abp_get_xg_for_shot_events(seq['shot_events'], xg_events_df)
+                    corner_xg_contra += sum(xg_values)
+                    corner_shots_contra += len(seq['shot_events'])
+        
+        team_stats['xg_corner_en_contra'] = corner_xg_contra
+        
+        # Tiros por corner
+        team_stats['tiros_por_corner_favor'] = (total_corner_shots / corners_favor_count) if corners_favor_count > 0 else 0
+        team_stats['tiros_por_corner_contra'] = (corner_shots_contra / corners_contra_count) if corners_contra_count > 0 else 0
+        
+        # xG por corner
+        team_stats['xg_por_corner_favor'] = (total_corner_xg / corners_favor_count) if corners_favor_count > 0 else 0
+        team_stats['xg_por_corner_contra'] = (corner_xg_contra / corners_contra_count) if corners_contra_count > 0 else 0
+        
+        # === FALTAS DIRECTAS ===
+        # Faltas a favor
+        faltas_favor_count = len(team_week_events[
+            team_week_events['Free kick'] == 'Sí'
+        ])
+        team_stats['faltas_a_favor'] = faltas_favor_count
+        
+        # Faltas en contra
+        faltas_contra_count = len(abp_events_df[
+            (abp_events_df['Match ID'] == match_id) &
+            (abp_events_df['Team Name'] != team) &
+            (abp_events_df['Free kick'] == 'Sí')
+        ])
+        team_stats['faltas_en_contra'] = faltas_contra_count
+        
+        # xG de falta a favor
+        fk_sequences = _abp_get_freekick_sequences(abp_events_df, team, [match_id])
+        total_fk_xg = 0
+        total_fk_shots = 0
+        
+        for seq in fk_sequences:
+            if seq['shot_events']:
+                xg_values = _abp_get_xg_for_shot_events(seq['shot_events'], xg_events_df)
+                total_fk_xg += sum(xg_values)
+                total_fk_shots += len(seq['shot_events'])
+        
+        team_stats['xg_falta_a_favor'] = total_fk_xg
+        
+        # xG de falta en contra
+        fk_xg_contra = 0
+        fk_shots_contra = 0
+        
+        rival_teams = abp_events_df[
+            (abp_events_df['Match ID'] == match_id) & 
+            (abp_events_df['Team Name'] != team)
+        ]['Team Name'].unique()
+
+        for rival_team in rival_teams:
+            rival_fk_sequences = _abp_get_freekick_sequences(abp_events_df, rival_team, [match_id])
+            for seq in rival_fk_sequences:
+                if seq['shot_events']:
+                    xg_values = _abp_get_xg_for_shot_events(seq['shot_events'], xg_events_df)
+                    fk_xg_contra += sum(xg_values)
+                    fk_shots_contra += len(seq['shot_events'])
+        
+        team_stats['xg_falta_en_contra'] = fk_xg_contra
+        
+        # Tiros por falta
+        team_stats['tiros_por_falta_favor'] = (total_fk_shots / faltas_favor_count) if faltas_favor_count > 0 else 0
+        team_stats['tiros_por_falta_contra'] = (fk_shots_contra / faltas_contra_count) if faltas_contra_count > 0 else 0
+        
+        # xG por falta
+        team_stats['xg_por_falta_favor'] = (total_fk_xg / faltas_favor_count) if faltas_favor_count > 0 else 0
+        team_stats['xg_por_falta_contra'] = (fk_xg_contra / faltas_contra_count) if faltas_contra_count > 0 else 0
+        
+        # === FALTAS INDIRECTAS ===
+        # Faltas indirectas a favor
+        faltas_indirectas_favor_count = len(team_week_events[
+            (team_week_events['Free kick taken'] == 'Sí') &
+            (team_week_events['Zone'].isin(['Center', 'Right', 'Left']))
+        ])
+        team_stats['faltas_indirectas_a_favor'] = faltas_indirectas_favor_count
+
+        # Faltas indirectas en contra
+        faltas_indirectas_contra_count = len(abp_events_df[
+            (abp_events_df['Match ID'] == match_id) &
+            (abp_events_df['Team Name'] != team) &
+            (abp_events_df['Free kick taken'] == 'Sí') &
+            (abp_events_df['Zone'].isin(['Center', 'Right', 'Left']))
+        ])
+        team_stats['faltas_indirectas_en_contra'] = faltas_indirectas_contra_count
+
+        # xG de falta indirecta a favor
+        fk_indirect_sequences = _abp_get_freekick_indirect_sequences(abp_events_df, team, [match_id])
+        total_fk_indirect_xg = 0
+        total_fk_indirect_shots = 0
+
+        for seq in fk_indirect_sequences:
+            if seq['shot_events']:
+                xg_values = _abp_get_xg_for_shot_events(seq['shot_events'], xg_events_df)
+                total_fk_indirect_xg += sum(xg_values)
+                total_fk_indirect_shots += len(seq['shot_events'])
+
+        team_stats['xg_falta_indirecta_a_favor'] = total_fk_indirect_xg
+
+        # xG de falta indirecta en contra
+        fk_indirect_xg_contra = 0
+        fk_indirect_shots_contra = 0
+
+        rival_teams = abp_events_df[
+            (abp_events_df['Match ID'] == match_id) & 
+            (abp_events_df['Team Name'] != team)
+        ]['Team Name'].unique()
+
+        for rival_team in rival_teams:
+            rival_fk_indirect_sequences = _abp_get_freekick_indirect_sequences(abp_events_df, rival_team, [match_id])
+            for seq in rival_fk_indirect_sequences:
+                if seq['shot_events']:
+                    xg_values = _abp_get_xg_for_shot_events(seq['shot_events'], xg_events_df)
+                    fk_indirect_xg_contra += sum(xg_values)
+                    fk_indirect_shots_contra += len(seq['shot_events'])
+
+        team_stats['xg_falta_indirecta_en_contra'] = fk_indirect_xg_contra
+
+        # Tiros por falta indirecta
+        team_stats['tiros_por_falta_indirecta_favor'] = (total_fk_indirect_shots / faltas_indirectas_favor_count) if faltas_indirectas_favor_count > 0 else 0
+        team_stats['tiros_por_falta_indirecta_contra'] = (fk_indirect_shots_contra / faltas_indirectas_contra_count) if faltas_indirectas_contra_count > 0 else 0
+
+        # xG por falta indirecta
+        team_stats['xg_por_falta_indirecta_favor'] = (total_fk_indirect_xg / faltas_indirectas_favor_count) if faltas_indirectas_favor_count > 0 else 0
+        team_stats['xg_por_falta_indirecta_contra'] = (fk_indirect_xg_contra / faltas_indirectas_contra_count) if faltas_indirectas_contra_count > 0 else 0
+
+        stats_list.append(team_stats)
+
+    # Crear DataFrame final
+    combined_stats = pd.DataFrame(stats_list)
+    combined_stats = combined_stats.fillna(0)
+    
+    # Calcular rankings
+    combined_stats['ranking_corners_favor'] = combined_stats['corners_a_favor'].rank(ascending=False, method='min').astype(int)
+    combined_stats['ranking_xg_total'] = (
+        combined_stats['xg_corner_a_favor'] + 
+        combined_stats['xg_falta_a_favor'] +
+        combined_stats['xg_falta_indirecta_a_favor']
+    ).rank(ascending=False, method='min').astype(int)
+    combined_stats['ranking_faltas_favor'] = combined_stats['faltas_a_favor'].rank(ascending=False, method='min').astype(int)
+    combined_stats['ranking_faltas_indirectas_favor'] = combined_stats['faltas_indirectas_a_favor'].rank(ascending=False, method='min').astype(int)
+    
+    # Guardar con append incremental
+    if stats_output_path.exists():
+        existing_stats = pd.read_parquet(stats_output_path)
+        final_stats = pd.concat([existing_stats, combined_stats], ignore_index=True)
+        logging.info(f"✅ Añadidas {len(combined_stats)} nuevas filas (Team, Week)")
+        logging.info(f"📊 Total: {len(existing_stats)} → {len(final_stats)} filas")
+    else:
+        final_stats = combined_stats
+        logging.info(f"✅ Archivo creado con {len(final_stats)} filas")
+
+    final_stats.to_parquet(stats_output_path, index=False)
+    logging.info(f"💾 'estadisticas_abp.parquet' guardado correctamente.")
+
+
+def _abp_get_corner_sequences(abp_events_df, team_name, match_ids=None):
+    """Extrae secuencias de corners para análisis de estadísticas ABP"""
+    df = abp_events_df.copy()
+    
+    if match_ids is not None:
+        df = df[df['Match ID'].isin(match_ids)]
+    
+    # Filtrar corners del equipo
+    team_corners = df[
+        (df['Team Name'] == team_name) & 
+        (df['Corner taken'] == 'Sí')
+    ].copy()
+    
+    corner_sequences = []
+    
+    for _, corner_event in team_corners.iterrows():
+        match_id = corner_event['Match ID']
+        match_events = df[df['Match ID'] == match_id].sort_values(['timeMin', 'timeSec']).reset_index()
+        
+        # Encontrar el índice del corner
+        corner_idx = None
+        for idx, event in match_events.iterrows():
+            if (event['Team Name'] == team_name and 
+                event['timeMin'] == corner_event['timeMin'] and 
+                event['timeSec'] == corner_event['timeSec'] and
+                event['Corner taken'] == 'Sí'):
+                corner_idx = idx
+                break
+        
+        if corner_idx is None:
+            continue
+            
+        # Analizar secuencia después del corner
+        sequence_events = []
+        current_time = corner_event['timeMin'] * 60 + corner_event['timeSec']
+        pass_count = 0
+        last_pass_timestamp = corner_event['timeStamp']
+
+        for next_idx in range(corner_idx + 1, len(match_events)):
+            next_event = match_events.iloc[next_idx]
+            next_time = next_event['timeMin'] * 60 + next_event['timeSec']
+            time_diff = next_time - current_time
+            
+            # Más de 5 segundos o cambio de período
+            if time_diff > 5 or next_event.get('periodId', 1) != corner_event.get('periodId', 1):
+                break
+            
+            # Eventos que terminan la secuencia
+            if next_event['Event Name'] in ['Corner Awarded', 'Out','Smother','Foul','Save','Offside', 'End Period']:
+                break
+                
+            # Pass con x < 55
+            if next_event['Event Name'] == 'Pass' and float(next_event.get('x', 100)) < 55:
+                break
+            
+            # Contar pases
+            if next_event['Event Name'] == 'Pass' and next_event['Team Name'] == team_name:
+                if next_event['timeStamp'] > last_pass_timestamp:
+                    pass_count += 1
+                    last_pass_timestamp = next_event['timeStamp']
+                    
+                    if pass_count >= 5:
+                        passes_back_field = 0
+                        for check_idx in range(corner_idx + 1, next_idx + 1):
+                            check_event = match_events.iloc[check_idx]
+                            if (check_event['Event Name'] == 'Pass' and 
+                                check_event['Team Name'] == team_name and
+                                float(check_event.get('x', 0)) < 70):
+                                passes_back_field += 1
+                        
+                        if passes_back_field >= 2:
+                            break
+            
+            sequence_events.append(next_event)
+            current_time = next_time
+        
+        # Buscar eventos de finalización
+        shot_events = []
+        for event in sequence_events:
+            if event['Event Name'] in ['Miss', 'Goal', 'Post', 'Attempt Saved']:
+                shot_events.append(event)
+        
+        corner_sequences.append({
+            'corner_event': corner_event,
+            'sequence_events': sequence_events,
+            'shot_events': shot_events
+        })
+    
+    return corner_sequences
+
+
+def _abp_get_freekick_indirect_sequences(abp_events_df, team_name, match_ids=None):
+    """Extrae secuencias de faltas indirectas para análisis de estadísticas ABP"""
+    df = abp_events_df.copy()
+    
+    if match_ids is not None:
+        df = df[df['Match ID'].isin(match_ids)]
+    
+    # Filtrar faltas indirectas
+    team_freekicks_indirect = df[
+        (df['Team Name'] == team_name) & 
+        (df['Free kick taken'] == 'Sí') &
+        (df['Zone'].isin(['Center', 'Right', 'Left']))
+    ].copy()
+    
+    freekick_sequences = []
+    
+    for _, fk_event in team_freekicks_indirect.iterrows():
+        match_id = fk_event['Match ID']
+        match_events = df[df['Match ID'] == match_id].sort_values(['timeMin', 'timeSec']).reset_index()
+        
+        # Encontrar el índice de la falta
+        fk_idx = None
+        for idx, event in match_events.iterrows():
+            if (event['Team Name'] == team_name and 
+                event['timeMin'] == fk_event['timeMin'] and 
+                event['timeSec'] == fk_event['timeSec'] and
+                event['Free kick taken'] == 'Sí'):
+                fk_idx = idx
+                break
+        
+        if fk_idx is None:
+            continue
+            
+        # Analizar secuencia (igual que corners)
+        sequence_events = []
+        current_time = fk_event['timeMin'] * 60 + fk_event['timeSec']
+        pass_count = 0
+        last_pass_timestamp = fk_event['timeStamp']
+        
+        for next_idx in range(fk_idx + 1, len(match_events)):
+            next_event = match_events.iloc[next_idx]
+            next_time = next_event['timeMin'] * 60 + next_event['timeSec']
+            time_diff = next_time - current_time
+            
+            if time_diff > 5 or next_event.get('periodId', 1) != fk_event.get('periodId', 1):
+                break
+            
+            if next_event['Event Name'] in ['Corner Awarded', 'Out','Smother','Foul','Save','Offside', 'End Period']:
+                break
+                
+            if next_event['Event Name'] == 'Pass' and float(next_event.get('x', 100)) < 55:
+                break
+
+            if next_event['Event Name'] == 'Pass' and next_event['Team Name'] == team_name:
+                if next_event['timeStamp'] > last_pass_timestamp:
+                    pass_count += 1
+                    last_pass_timestamp = next_event['timeStamp']
+                    
+                    if pass_count >= 5:
+                        passes_back_field = 0
+                        for check_idx in range(fk_idx + 1, next_idx + 1):
+                            check_event = match_events.iloc[check_idx]
+                            if (check_event['Event Name'] == 'Pass' and 
+                                check_event['Team Name'] == team_name and
+                                float(check_event.get('x', 0)) < 70):
+                                passes_back_field += 1
+                        
+                        if passes_back_field >= 2:
+                            break
+            
+            sequence_events.append(next_event)
+            current_time = next_time
+        
+        # Buscar eventos de finalización
+        shot_events = []
+        for event in sequence_events:
+            if event['Event Name'] in ['Miss', 'Goal', 'Post', 'Attempt Saved']:
+                shot_events.append(event)
+        
+        freekick_sequences.append({
+            'freekick_event': fk_event,
+            'sequence_events': sequence_events,
+            'shot_events': shot_events
+        })
+    
+    return freekick_sequences
+
+
+def _abp_get_freekick_sequences(abp_events_df, team_name, match_ids=None):
+    """Extrae secuencias de faltas directas para análisis de estadísticas ABP"""
+    df = abp_events_df.copy()
+    
+    if match_ids is not None:
+        df = df[df['Match ID'].isin(match_ids)]
+    
+    # Filtrar faltas directas
+    team_freekicks = df[
+        (df['Team Name'] == team_name) & 
+        (df['Free kick'] == 'Sí')
+    ].copy()
+    
+    freekick_sequences = []
+    
+    for _, fk_event in team_freekicks.iterrows():
+        # Buscar eventos de finalización directamente en la falta
+        shot_events = []
+        if fk_event['Event Name'] in ['Goal', 'Attempt Saved']:
+            shot_events.append(fk_event)
+        
+        freekick_sequences.append({
+            'freekick_event': fk_event,
+            'shot_events': shot_events
+        })
+    
+    return freekick_sequences
+
+
+def _abp_get_xg_for_shot_events(shot_events, xg_events_df):
+    """Obtiene xG para eventos de tiro mediante merge por timeStamp"""
+    if not shot_events or xg_events_df is None or xg_events_df.empty:
+        return []
+    
+    xg_values = []
+    
+    for event in shot_events:
+        # Hacer merge por Match ID, Team ID y timeStamp
+        matching_xg = xg_events_df[
+            (xg_events_df['Match ID'] == event['Match ID']) &
+            (xg_events_df['Team ID'] == event['Team ID']) &
+            (xg_events_df['timeStamp'] == event['timeStamp'])
+        ]
+        
+        if not matching_xg.empty:
+            try:
+                xg_val = float(matching_xg.iloc[0]['qualifier 321'])
+                xg_values.append(xg_val)
+            except (ValueError, TypeError, KeyError):
+                xg_values.append(0.0)
+        else:
+            xg_values.append(0.0)
+    
+    return xg_values
 
 # ====================================
 # OPTA API FUNCTIONS (sin cambios)
@@ -1459,6 +2041,7 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
         add_message("🎉 ¡No hay partidos nuevos que procesar!", "success")
         # >>>>> MODIFICACIÓN: Aún sin partidos nuevos, intentamos actualizar ABP <<<<<
         update_abp_events_standalone()
+        calculate_and_save_abp_statistics()
         update_progress(100, "Completado: No hay partidos nuevos, ABP verificado.")
         return messages
     
@@ -1550,6 +2133,7 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
     # >>>>> MODIFICACIÓN: Llamar a la función robusta de ABP <<<<<
     update_progress(98, "Procesando secuencias de Balón Parado...")
     update_abp_events_standalone()
+    calculate_and_save_abp_statistics()
     
     add_message("🎉 ¡Actualización completada!", "success")
     add_message(f"📊 {len(new_matches_df)} partidos nuevos procesados")
@@ -2019,6 +2603,7 @@ def update_opta_data():
         print("🎉 ¡No hay partidos nuevos que descargar!")
         # AUNQUE NO HAYA PARTIDOS, ACTUALIZAMOS ABP POR SI ACASO
         update_abp_events_standalone()
+        calculate_and_save_abp_statistics()
         return
     
     print(f"\n📊 Procesando {len(new_matches_df)} partidos nuevos...")
@@ -2096,6 +2681,7 @@ def update_opta_data():
     
     # >>>>> MODIFICACIÓN: Llamar a la función robusta de ABP <<<<<
     update_abp_events_standalone()
+    calculate_and_save_abp_statistics()
     
     print(f"\n🎉 ¡Actualización de Opta completada!")
     print(f"📊 {len(new_matches_df)} partidos procesados")
@@ -2140,6 +2726,7 @@ def main():
                 update_opta_data()
             elif choice == '2':
                 update_abp_events_standalone()
+                calculate_and_save_abp_statistics()
             elif choice == '3':
                 update_mediacoach_data()
             elif choice == '4':
