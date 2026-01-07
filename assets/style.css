@@ -1,334 +1,137 @@
-/* Estilos generales */
+/* --- ESTILOS GENERALES --- */
 body {
     background-color: #f8f9fa;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 0;
 }
 
-/* Login moderno con animación */
+/* --- LOGIN HELICÓPTERO (AERIAL VIEW EFFECT) --- */
 .login-container {
     position: relative;
     width: 100%;
     height: 100vh;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+/* Esta es la capa que se mueve */
 .login-background {
     position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    background-image: url('fondo_login.jpg');  /* Cambiado a .jpg */
+    width: 110%; /* Un poco más grande para que no se vean bordes blancos al moverse */
+    height: 110%;
+    top: -5%;
+    left: -5%;
+    background-image: url('fondo_login.jpg'); 
     background-size: cover;
     background-position: center;
     z-index: -2;
-    animation: zoomAnimation 20s ease infinite;
+    /* Animación de helicóptero: 30 segundos para que sea suave */
+    animation: helicopterFlight 30s ease-in-out infinite alternate;
+    will-change: transform;
 }
 
-@keyframes zoomAnimation {
+@keyframes helicopterFlight {
     0% {
-        transform: scale(1);
+        transform: scale(1) translate(0, 0) rotate(0deg);
     }
-    50% {
-        transform: scale(1.1);
+    33% {
+        transform: scale(1.1) translate(-2%, -1%) rotate(0.5deg);
+    }
+    66% {
+        transform: scale(1.15) translate(1%, -2%) rotate(-0.5deg);
     }
     100% {
-        transform: scale(1);
+        transform: scale(1.2) translate(-1%, 1%) rotate(0deg);
     }
 }
 
-
+/* Oscurece un poco la imagen para que el formulario resalte */
 .login-bg-gradient {
     position: absolute;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.1) !important; /* Overlay más oscuro para contraste */
+    background: rgba(0, 0, 0, 0.3); 
     z-index: -1;
 }
 
 .login-card {
-    background: rgba(255, 255, 255, 0.5) !important; /* Cambia el 0.5 para ajustar la transparencia (0 = transparente, 1 = opaco) */
-    backdrop-filter: blur(10px); /* Efecto de desenfoque para mejor legibilidad */
+    background: rgba(255, 255, 255, 0.75) !important;
+    backdrop-filter: blur(15px);
     border: none;
     border-radius: 20px;
     padding: 40px 30px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Sombra suave para contraste */
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 10;
 }
 
-.login-title {
-    font-weight: 700;
-    color: #333;
-    font-size: 2rem;
-}
-
-.modern-input {
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    transition: all 0.3s ease;
-    font-size: 16px;
-}
-
-.modern-input:focus {
-    border-color: #1E90FF;
-    box-shadow: 0 0 0 0.2rem rgba(30, 144, 255, 0.25);
-}
-
-.modern-button {
-    background: linear-gradient(45deg, #1E90FF, #4169E1);
-    border: none;
-    border-radius: 10px;
-    font-size: 16px;
-    letter-spacing: 1px;
-    transition: all 0.3s ease;
-}
-
-.modern-button:hover {
-    background: linear-gradient(45deg, #4169E1, #1E90FF);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.4);
-}
-
-/* Navbar personalizado */
+/* --- NAVBAR --- */
 .navbar {
     background: linear-gradient(90deg, #032ff1f8 0%, #4206e6f8 100%) !important;
+    padding: 0.5rem 1rem;
 }
 
 .nav-link-custom {
     color: rgba(255, 255, 255, 0.8) !important;
     transition: all 0.3s ease;
-    margin: 0 10px;
-    border-radius: 5px;
-    padding: 8px 15px !important;
+    margin-left: 15px;
+    font-weight: 500;
 }
 
 .nav-link-custom:hover {
     color: white !important;
-    background: rgba(255, 255, 255, 0.1);
     transform: translateY(-2px);
 }
 
-/* Cards de jornadas - TAMAÑO REDUCIDO */
+/* --- CARDS JORNADAS (DISEÑO VILLARREAL) --- */
+/* Cápsula ultra compacta */
 .jornada-card {
-    /* Mantén el gradiente amarillo como fondo base */
     background: linear-gradient(135deg, #FFD700 0%, #FFC700 100%);
-    
-    /* Añade la imagen de fondo con posicionamiento personalizado */
-    position: relative;
-    overflow: hidden; /* Recorta el exceso de la imagen */
-    border-left: 6px solid #1E90FF !important;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    position: relative;
-    overflow: hidden;
-}
-
-/* Pseudoelemento para la imagen de fondo con efecto diagonal */
-.jornada-card::before {
-    content: '';
-    position: absolute;
-    top: 10%;  /* Desplazamiento vertical */
-    right: 10%; /* Desplazamiento horizontal (muestra solo el borde derecho) */
-    width: 50%; /* Ancho amplio para cubrir diagonal */
-    height: 20%; /* Alto amplio para cubrir diagonal */
-    background: url('fondo_jornada.png') no-repeat;
-    background-size: contain; /* Ajusta la imagen sin deformarla */
-    background-position: right center; /* Alinea al borde derecho */
-    transform: rotate(15deg); /* Inclinación diagonal (ajusta el ángulo) */
-    opacity: 0.7; /* Transparencia para mezclar con el gradiente */
-    z-index: 0; /* Capa inferior */
-}
-
-.jornada-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 6px;
-    height: 100%;
-    background: linear-gradient(180deg, #1E90FF, #4169E1);
-    z-index: 1;
-}
-
-.jornada-card:hover {
-    transform: translateY(-5px) scale(1.02);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important;
+    border-left: 3px solid #1E90FF !important;
+    border-radius: 8px;
+    min-height: 120px;
 }
 
 .jornada-card .card-body {
-    padding: 0.5rem !important; /* Era 0.8rem */
-    position: relative;
-    z-index: 2;
+    padding: 4px !important;
 }
 
-.jornada-card h5 {
-    font-size: 0.85rem !important; /* Era 1rem */
-    margin-bottom: 0.3rem !important; /* Era 0.5rem */
+.jornada-card h6 {
+    font-size: 0.65rem !important;
+    color: #333;
 }
 
-/* Hacer el gráfico más pequeño */
+/* Gráfico mini */
 .jornada-card .js-plotly-plot {
-    height: 90px !important; /* Era 120px */
+    height: 65px !important;
 }
 
-/* Logos más pequeños */
-.jornada-card img {
-    height: 14px !important; /* Era 16px */
+/* Estadísticas de partidos */
+.fuente-stats {
+    font-size: 0.55rem !important; /* Un poco más pequeño para que quepa "part." */
+    font-weight: 700;
+    color: #333;
+    white-space: nowrap; /* Evita que el texto salte de línea */
 }
 
-/* Texto más pequeño */
-.jornada-card .fw-bold {
-    font-size: 0.75rem !important; /* Era 0.85rem */
+.fuente-stats img {
+    height: 9px !important;
+    width: auto;
+    margin-right: 2px;
 }
 
-/* Diseño de columnas más ajustado */
-@media (min-width: 992px) {
-    .col-lg-2 {
-        flex: 0 0 16.66% !important; /* 6 columnas por fila */
-        max-width: 16.66% !important;
-    }
-}
-
-/* Gráficos más modernos */
-.js-plotly-plot .plotly .modebar {
-    display: none !important;
-}
-
-/* Modal */
-.modal-content {
-    border-radius: 15px;
-    border: none;
-}
-
-.modal-header {
-    background: linear-gradient(90deg, #1E90FF, #4169E1);
-    color: white;
-    border-radius: 15px 15px 0 0;
-    border: none;
-}
-
-.modal-title {
-    font-weight: 600;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .login-card {
-        margin: 20px;
-        padding: 30px 20px;
-    }
-    
-    .login-title {
-        font-size: 1.5rem;
-    }
-    
-    .nav-link-custom {
-        margin: 0 5px;
-        padding: 6px 10px !important;
-        font-size: 14px;
-    }
-    
-    .jornada-card h5 {
-        font-size: 0.9rem !important;
-    }
-}
-
-/* Animaciones de entrada */
+/* --- UTILIDADES Y ANIMACIONES --- */
 @keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.jornada-card {
-    animation: fadeInUp 0.6s ease-out;
-    animation-fill-mode: both;
-}
-
-.jornada-card:nth-child(1) { animation-delay: 0.05s; }
-.jornada-card:nth-child(2) { animation-delay: 0.1s; }
-.jornada-card:nth-child(3) { animation-delay: 0.15s; }
-.jornada-card:nth-child(4) { animation-delay: 0.2s; }
-.jornada-card:nth-child(5) { animation-delay: 0.25s; }
-.jornada-card:nth-child(6) { animation-delay: 0.3s; }
-.jornada-card:nth-child(7) { animation-delay: 0.35s; }
-.jornada-card:nth-child(8) { animation-delay: 0.4s; }
-.jornada-card:nth-child(9) { animation-delay: 0.45s; }
-.jornada-card:nth-child(10) { animation-delay: 0.5s; }
-
-/* Scrollbar personalizada */
-::-webkit-scrollbar {
-    width: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #1E90FF, #4169E1);
-    border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #4169E1, #1E90FF);
-}
-
-/* Efectos de brillo */
-.login-card::before {
-    content: "";
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    background: linear-gradient(45deg, #FFD700, #1E90FF, #FFA500, #4169E1);
-    background-size: 400% 400%;
-    border-radius: 20px;
-    opacity: 0;
-    animation: gradientShift 15s ease infinite;
-    transition: opacity 0.3s ease;
-    z-index: -1;
-}
-
-.login-card:hover::before {
-    opacity: 0.3;
-}
-
-/* Efecto de brillo en cards */
-.jornada-card::after {
-    content: '';
-    position: absolute;
-    top: -10%;  /* Negativo para que se salga por arriba */
-    right: -15%; /* Negativo para que se salga por la derecha */
-    width: 60%; 
-    height: 60%; 
-    background: url('fondo_jornada.png') no-repeat;
-    background-size: contain;
-    background-position: center;
-    transform: rotate(25deg); /* Más torcido */
-    opacity: 0.4; /* Más transparente */
-    z-index: 1; /* Por encima del fondo pero debajo del texto */
-}  
-
-.jornada-card:hover::after {
-    animation: shine 0.5s ease-in-out;
-}
-
-@keyframes shine {
-    0% {
-        transform: translateX(-100%) translateY(-100%) rotate(45deg);
-        opacity: 0;
-    }
-    50% {
-        opacity: 1;
-    }
-    100% {
-        transform: translateX(100%) translateY(100%) rotate(45deg);
-        opacity: 0;
-    }
+    background: #1E90FF;
+    border-radius: 10px;
 }

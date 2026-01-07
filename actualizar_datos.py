@@ -20,6 +20,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import subprocess
 import logging
 
 # Configurar logging al inicio del script
@@ -41,8 +42,11 @@ OPTA_SECRET_KEY = '1u3x3eovxa0vh1lwmutbygq8xn'
 DELAY_SECONDS = 60
 
 # Paths
-OPTA_PATH = Path('datos_opta_parquet')
-MEDIACOACH_PATH = Path('datos_mediacoach_parquet')
+BASE_PATH = Path(__file__).parent
+OPTA_PATH = Path('extraccion_opta/datos_opta_parquet')
+MEDIACOACH_PATH = Path('extraccion_mediacoach/datos_mediacoach_parquet') # Preparado para el futuro
+SPORTIAN_PATH = Path('extraccion_sportian/datos_sportian_parquet')       # Preparado para el futuro
+
 
 # Event Types Mapping (sin cambios)
 EVENT_TYPE_MAPPING = {
@@ -1987,6 +1991,65 @@ def verificar_completitud_eventos(match_ids_sample=None):
         
         time.sleep(2)  # Evitar rate limiting
 
+def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callback=None):
+    """Ejecuta el script descarga_completa.py y captura su progreso"""
+    import subprocess
+    import sys
+    import os
+
+    # 1. Construir la ruta al script orquestador
+    # Asumimos que app.py está en la raíz
+    base_path = os.getcwd()
+    script_path = os.path.join(base_path, 'extraccion_mediacoach', 'descarga_completa.py')
+    
+    # 2. Comando exacto con los argumentos que espera tu nuevo descarga_completa.py
+    cmd = [
+        sys.executable, script_path,
+        '--liga', str(liga),
+        '--temporada', str(temporada),
+        '--j_inicio', str(j_inicio),
+        '--j_fin', str(j_fin)
+    ]
+
+    print(f"🚀 Lanzando orquestador: {' '.join(cmd)}")
+
+    # 3. Ejecutar y leer la salida en tiempo real
+    process = subprocess.Popen(
+        cmd, 
+        stdout=subprocess.PIPE, 
+        stderr=subprocess.STDOUT, 
+        text=True,
+        bufsize=1,
+        universal_newlines=True
+    )
+
+    messages = []
+    
+    # Leemos línea a línea lo que imprime tu script (los PROGRESS:XX que pusimos)
+    for line in process.stdout:
+        clean_line = line.strip()
+        if not clean_line: continue
+        
+        print(f"STDOUT: {clean_line}") # Para ver en la terminal del Mac
+        
+        # Detectar el porcentaje para la barra de progreso
+        progreso_actual = 0
+        if "PROGRESS:" in clean_line:
+            try:
+                # Extrae el número entre PROGRESS: y -
+                progreso_actual = int(clean_line.split("PROGRESS:")[1].split("-")[0])
+            except: pass
+        
+        # Enviar a la web
+        if progress_callback:
+            messages.append({'timestamp': datetime.now().strftime("%H:%M:%S"), 'message': clean_line})
+            # Limitamos a los últimos 50 mensajes para no saturar la web
+            progress_callback(progreso_actual, clean_line, messages[-50:])
+
+    process.wait()
+    if progress_callback:
+        progress_callback(100, "✅ Proceso MediaCoach finalizado con éxito.", messages)
+
 def update_opta_data_web(competition_id, stage_id, start_week, end_week, progress_callback=None):
     """Versión web INTELIGENTE: Detecta si es Copa para ignorar las jornadas"""
     messages = []
@@ -2787,5 +2850,99 @@ def main():
         except Exception as e:
             print(f"❌ Error inesperado: {e}")
 
+# Credenciales exactas de tu archivo clave
+SUBSCRIPTION_KEY = '729f9154234d4ff3bb0a692c6a0510c4'
+API_URL_BASE = "https://club-api.mediacoach.es"
+
+def ejecutar_curl_comando_vcf(comando):
+    """Lógica idéntica a tu script: usa curl del sistema"""
+    try:
+        process = subprocess.Popen(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            return None
+        return json.loads(stdout)
+    except:
+        return None
+
+def get_mediacoach_token():
+    """Obtiene el token usando requests (esta parte sí funcionaba)"""
+    url = 'https://id.mediacoach.es/connect/token'
+    data = {
+        'client_id': '58191b89-cee4-11ed-a09d-ee50c5eb4bb5',
+        'scope': 'b2bapiclub-api',
+        'grant_type': 'password',
+        'username': 'b2bvillarealcf@mediacoach.es',
+        'password': 'r728-FHj3RE!'
+    }
+    try:
+        r = requests.post(url, data=data, timeout=10)
+        return r.json().get('access_token')
+    except: return None
+
+def get_mediacoach_seasons_api():
+    """Prueba endpoints usando CURL y mapea los IDs correctamente"""
+    token = get_mediacoach_token()
+    if not token: return []
+    
+    credenciales = f"--header 'Ocp-Apim-Subscription-Key: {SUBSCRIPTION_KEY}' --header 'Authorization: Bearer {token}'"
+    endpoints = ["/Championships", "/Championships/seasons", "/seasons", "/api/seasons"]
+    
+    for ep in endpoints:
+        print(f"🔍 Probando endpoint MediaCoach: {ep}")
+        comando = f"curl -s --location '{API_URL_BASE}{ep}' {credenciales}"
+        data = ejecutar_curl_comando_vcf(comando)
+        
+        if data and isinstance(data, list):
+            print(f"✅ Éxito en endpoint: {ep}. Procesando {len(data)} elementos.")
+            
+            opciones = []
+            for i, t in enumerate(data):
+                # Buscamos el nombre en varias posibles llaves
+                label = t.get('name') or t.get('Name') or t.get('seasonName') or f"Temporada {i+1}"
+                
+                # Buscamos el ID en varias posibles llaves (ESTO ES LO QUE FALLABA)
+                value = t.get('id') or t.get('Id') or t.get('seasonId')
+                
+                # Si no hay ID, usamos el índice como último recurso para que no sea null
+                if value is None:
+                    value = str(i)
+
+                competiciones = t.get('competitions', [])
+
+                opciones.append({
+                    'label': label, 
+                    'value': value,
+                    'competitions': competiciones  # ← AÑADIR ESTO
+                })
+            
+            return opciones
+    
+    return [{'label': 'Temporada 24-25 (Backup)', 'value': '3a134240-833f-41dd-c6b0-3d6b87479c15'}]
+
+def get_mediacoach_competitions_api(season_id):
+    """Obtiene ligas desde las temporadas ya cargadas"""
+    if not season_id: 
+        return []
+    
+    # Obtener temporadas de nuevo para extraer las competiciones
+    temporadas = get_mediacoach_seasons_api()
+    
+    for temp in temporadas:
+        if temp['value'] == season_id:
+            competiciones = temp.get('competitions', [])
+            if competiciones:
+                opciones = []
+                for c in competiciones:
+                    nombre = c.get('name') or c.get('Name') or "Liga desconocida"
+                    opciones.append({'label': nombre, 'value': nombre})
+                return opciones
+    
+    # Backup si no encuentra
+    return [
+        {'label': 'La Liga', 'value': 'La Liga'},
+        {'label': 'La Liga 2', 'value': 'La Liga 2'}
+    ]
+    
 if __name__ == "__main__":
     main()

@@ -5,3 +5,9 @@ pandas==2.1.4
 pyarrow==14.0.2
 gunicorn==21.2.0
 python-dotenv==1.0.0
+matplotlib==3.10.8
+seaborn
+mplsoccer
+PyPDF2
+scikit-learn
+fastdtw==0.3.4
