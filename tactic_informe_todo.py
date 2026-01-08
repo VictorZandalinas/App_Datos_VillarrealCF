@@ -298,9 +298,23 @@ def main():
     equipos_disponibles = EQUIPOS_OPTA
 
     if len(sys.argv) > 2:
-        indice = int(sys.argv[1]) - 1
-        equipo_canonico = equipos_disponibles[indice]
+        # Dash pasa el NOMBRE del equipo, no el índice
+        nombre_recibido = sys.argv[1]
         jornada = sys.argv[2]
+        
+        # Buscar el equipo por nombre
+        equipo_canonico = None
+        for key in TEAM_NAME_MAPPING.keys():
+            if nombre_recibido.lower() == key.lower():
+                equipo_canonico = key
+                break
+        
+        if not equipo_canonico:
+            print(f"❌ Error: No se encontró '{nombre_recibido}'")
+            sys.exit(1)
+        
+        print(f"✅ Ejecución desde Dash: {equipo_canonico} - Jornada {jornada}")
+        indice = EQUIPOS_OPTA.index(equipo_canonico)
     else:
         for i, equipo in enumerate(equipos_disponibles, 1): print(f"{i:2d}. {equipo}")
         indice = int(input("\n➤ Selecciona un equipo: ")) - 1
@@ -355,39 +369,34 @@ def main():
         print(f"    |-> Selección de Equipo: '{seleccion_enviada}' (para {nombre_equipo_para_script})")
         print(f"    |-> Jornada: '{jornada}'")
 
+        j_inicio_val = int(sys.argv[2]) if len(sys.argv) > 3 else 1
+        j_fin_val = int(sys.argv[3]) if len(sys.argv) > 3 else int(jornada)
+
         injected_code = f"""
-import matplotlib, pandas as pd, sys, numpy as np, re
-matplotlib.use('Agg')
+        import matplotlib, pandas as pd, sys, numpy as np, re
+        matplotlib.use('Agg')
 
-_orig_read = pd.read_parquet
-def _patched_read(*args, **kwargs):
-    df = _orig_read(*args, **kwargs)
-    
-    # Palabras clave que suelen usar tus parquets
-    patrones_columna = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']
-    
-    for col in df.columns:
-        # Si la columna se llama algo parecido a "jornada" o "week"
-        if any(p in col.lower() for p in patrones_columna):
-            try:
-                # 1. Convertimos a string y limpiamos rastro de 'J' o 'j' (para casos como 'J1', 'j10')
-                # 2. Convertimos a número (coerce pone NaN si no puede)
-                # 3. Quitamos decimales si los hay
-                s_values = df[col].astype(str).str.lower().str.replace('j', '').str.strip()
-                n_values = pd.to_numeric(s_values, errors='coerce')
-                
-                # Solo aplicamos el filtro si la columna realmente parece tener números de jornada
-                # (evitamos filtrar columnas de texto largo por error)
-                if n_values.notna().any():
-                    df = df[n_values <= {jornada}]
-                    # print(f"--- [PARCHE] Archivo filtrado por columna '{{col}}' <= {jornada} ---")
-            except:
-                pass
-    return df
+        _orig_read = pd.read_parquet
+        def _patched_read(*args, **kwargs):
+            df = _orig_read(*args, **kwargs)
+            patrones_columna = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']
+            
+            for col in df.columns:
+                if any(p in col.lower() for p in patrones_columna):
+                    try:
+                        s_values = df[col].astype(str).str.lower().str.replace('j', '').str.strip()
+                        n_values = pd.to_numeric(s_values, errors='coerce')
+                        
+                        if n_values.notna().any():
+                            # FILTRADO POR RANGO (Sin tocar el disco)
+                            df = df[(n_values >= {j_inicio_val}) & (n_values <= {j_fin_val})]
+                    except:
+                        pass
+            return df
 
-pd.read_parquet = _patched_read
-exec(open('{script_py}', encoding='utf-8').read())
-"""
+        pd.read_parquet = _patched_read
+        exec(open('{script_py}', encoding='utf-8').read())
+        """
         comando = ["python3", "-c", injected_code]
 
 

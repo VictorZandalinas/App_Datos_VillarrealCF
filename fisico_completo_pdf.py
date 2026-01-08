@@ -169,34 +169,49 @@ class GeneradorMaestro:
         return lista_limpia, team_mapping
 
     def recopilar_parametros(self):
-        import sys
         print("\n" + "="*60 + "\n🎯 CONFIGURACIÓN DE REPORTES FÍSICOS\n" + "="*60)
         
         equipos_raw = sorted(self.df_mediacoach_original['Equipo'].unique())
         self.equipos_unificados, self.mapeo_equipos = self.unificar_equipos(equipos_raw)
 
-        if len(sys.argv) > 2:
+        if len(sys.argv) > 3:
             try:
-                idx_dash = int(sys.argv[1]) - 1
-                self.equipo_principal = self.equipos_unificados[idx_dash]
+                # Dash pasa el NOMBRE del equipo + rango de jornadas
+                nombre_recibido = sys.argv[1]
+                jornada_inicio = int(sys.argv[2])
+                jornada_fin = int(sys.argv[3])
                 
-                # --- BORRADO PROVISIONAL EN MEMORIA ---
-                jornada_max_web = int(sys.argv[2])
-                print(f"✂️ Borrando datos provisionalmente por encima de la jornada: {jornada_max_web}")
+                # Buscar equipo por nombre
+                equipo_encontrado = None
+                for eq in self.equipos_unificados:
+                    if nombre_recibido.lower() == eq.lower():
+                        equipo_encontrado = eq
+                        break
                 
-                # Filtramos el dataframe original para que para el resto del proceso 
-                # las jornadas superiores NO EXISTAN.
-                self.df_mediachcoach_original = self.df_mediacoach_original[
-                    self.df_mediacoach_original['Jornada_num'] <= jornada_max_web
+                if not equipo_encontrado:
+                    print(f"❌ Error: No se encontró el equipo '{nombre_recibido}'")
+                    return False
+                
+                self.equipo_principal = equipo_encontrado
+                self.jornada_max_seleccionada = jornada_fin
+                
+                # Filtrar por RANGO de jornadas
+                self.df_mediacoach_original = self.df_mediacoach_original[
+                    (self.df_mediacoach_original['Jornada_num'] >= jornada_inicio) &
+                    (self.df_mediacoach_original['Jornada_num'] <= jornada_fin)
                 ].copy()
                 
-                # Actualizamos la fecha límite a la del último partido disponible tras el borrado
+                # Actualizamos la fecha límite a la del último partido disponible tras el filtrado
                 self.fecha_limite = self.df_mediacoach_original['Fecha'].max()
                 self.tipo_partido = None 
                 
-                print(f"✅ Dash detectado: {self.equipo_principal} (Tope en J{jornada_max_web})")
+                print(f"✂️ Filtrando datos de jornada {jornada_inicio} a {jornada_fin}")
+                print(f"✅ Dash detectado: {self.equipo_principal} (Jornadas {jornada_inicio}-{jornada_fin})")
+                
             except Exception as e:
                 print(f"❌ Error filtrando jornadas en Físico: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
         else:
             # Lógica manual (input consola)

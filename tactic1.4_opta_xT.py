@@ -48,7 +48,7 @@ class XTFlowReport:
         print("🔄 Cargando eventos...")
         cols = ['Match ID', 'Team Name', 'Event Name', 'typeId', 'outcome', 
                 'timeMin', 'timeSec', 'periodId', 'timeStamp', 'x', 'y', 
-                'Pass End X', 'Pass End Y', 'playerName'] 
+                'Pass End X', 'Pass End Y', 'playerName', 'Week'] 
         try:
             self.df = pd.read_parquet(self.path, columns=cols)
         except:

@@ -300,7 +300,6 @@ def buscar_escudo_equipo(equipo):
 # --- 3. SCRIPT PRINCIPAL ---
 
 def main():
-    import sys  # Asegúrate de tener sys importado
     print("=" * 70)
     print("📋 CONFIGURACIÓN DEL REPORTE ABP")
     print("=" * 70)
@@ -310,16 +309,27 @@ def main():
     equipos_disponibles = EQUIPOS_OPTA
 
     # --- LÓGICA DE ENTRADA DASH / MANUAL ---
-    if len(sys.argv) > 2:
-        # Si recibe argumentos desde Dash
-        try:
-            indice = int(sys.argv[1]) - 1
-            equipo_canonico = equipos_disponibles[indice]
-            jornada = sys.argv[2]
-            print(f"✅ Ejecución desde Dash: {equipo_canonico} - Jornada {jornada}")
-        except Exception as e:
-            print(f"❌ Error en argumentos Dash: {e}")
+    if len(sys.argv) > 3:
+        nombre_recibido = sys.argv[1]
+        jornada_inicio = int(sys.argv[2])
+        jornada_fin = int(sys.argv[3])
+        jornada = jornada_fin  # Para mantener compatibilidad con el código existente
+        
+        # Buscar el equipo por nombre en TEAM_NAME_MAPPING
+        equipo_canonico = None
+        for key in TEAM_NAME_MAPPING.keys():
+            if nombre_recibido.lower() == key.lower():
+                equipo_canonico = key
+                break
+        
+        if not equipo_canonico:
+            print(f"❌ Error: No se encontró el equipo '{nombre_recibido}'")
             sys.exit(1)
+        
+        print(f"✅ Ejecución desde Dash: {equipo_canonico} - Jornadas {jornada_inicio} a {jornada_fin}")
+        
+        # Obtener índice para variables que lo necesiten
+        indice = EQUIPOS_OPTA.index(equipo_canonico)
     else:
         # Si se ejecuta manualmente en consola
         print("\n--- EQUIPOS DISPONIBLES (basado en Opta) ---")
@@ -413,39 +423,34 @@ def main():
         print(f"    |-> Selección de Equipo: '{seleccion_enviada}' (para {nombre_equipo_para_script})")
         print(f"    |-> Jornada: '{jornada}'")
 
+        j_inicio_val = int(sys.argv[2]) if len(sys.argv) > 3 else 1
+        j_fin_val = int(sys.argv[3]) if len(sys.argv) > 3 else int(jornada)
+
         injected_code = f"""
-import matplotlib, pandas as pd, sys, numpy as np, re
-matplotlib.use('Agg')
+        import matplotlib, pandas as pd, sys, numpy as np, re
+        matplotlib.use('Agg')
 
-_orig_read = pd.read_parquet
-def _patched_read(*args, **kwargs):
-    df = _orig_read(*args, **kwargs)
-    
-    # Palabras clave que suelen usar tus parquets
-    patrones_columna = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']
-    
-    for col in df.columns:
-        # Si la columna se llama algo parecido a "jornada" o "week"
-        if any(p in col.lower() for p in patrones_columna):
-            try:
-                # 1. Convertimos a string y limpiamos rastro de 'J' o 'j' (para casos como 'J1', 'j10')
-                # 2. Convertimos a número (coerce pone NaN si no puede)
-                # 3. Quitamos decimales si los hay
-                s_values = df[col].astype(str).str.lower().str.replace('j', '').str.strip()
-                n_values = pd.to_numeric(s_values, errors='coerce')
-                
-                # Solo aplicamos el filtro si la columna realmente parece tener números de jornada
-                # (evitamos filtrar columnas de texto largo por error)
-                if n_values.notna().any():
-                    df = df[n_values <= {jornada}]
-                    # print(f"--- [PARCHE] Archivo filtrado por columna '{{col}}' <= {jornada} ---")
-            except:
-                pass
-    return df
+        _orig_read = pd.read_parquet
+        def _patched_read(*args, **kwargs):
+            df = _orig_read(*args, **kwargs)
+            patrones_columna = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']
+            
+            for col in df.columns:
+                if any(p in col.lower() for p in patrones_columna):
+                    try:
+                        s_values = df[col].astype(str).str.lower().str.replace('j', '').str.strip()
+                        n_values = pd.to_numeric(s_values, errors='coerce')
+                        
+                        if n_values.notna().any():
+                            # FILTRADO POR RANGO (Sin tocar el disco)
+                            df = df[(n_values >= {j_inicio_val}) & (n_values <= {j_fin_val})]
+                    except:
+                        pass
+            return df
 
-pd.read_parquet = _patched_read
-exec(open('{script_py}', encoding='utf-8').read())
-"""
+        pd.read_parquet = _patched_read
+        exec(open('{script_py}', encoding='utf-8').read())
+        """
         comando = ["python3", "-c", injected_code]
 
 
@@ -532,16 +537,11 @@ exec(open('{script_py}', encoding='utf-8').read())
             else:
                 print(f"   -> ⚠️  Fichero vacío o no existe, omitido.")
 
-        # Luego reemplaza merger.write() por:
-        # 1. Primero definimos el nombre del archivo
         fecha_actual = datetime.now().strftime("%Y%m%d_%H%M")
         output_final_pdf = f"Informe_ABP_Completo_{equipo_canonico.replace(' ', '_')}_J{jornada}_{fecha_actual}.pdf"
 
-        # 2. Luego guardamos el archivo usando 'writer' (que es donde guardaste las páginas)
         with open(output_final_pdf, "wb") as f:
             writer.write(f)
-        
-        # Eliminamos las referencias a 'merger' porque ahora usas PdfWriter
         
         print(f"\n✅ ¡REPORTE FINAL GENERADO! -> {output_final_pdf}")
     else:

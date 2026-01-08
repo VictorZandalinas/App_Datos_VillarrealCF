@@ -12,6 +12,7 @@ from datetime import datetime
 from functools import lru_cache # Para optimización
 import actualizar_datos
 import subprocess
+import shutil
 import glob
 
 # --- En app.py, debajo de las rutas ---
@@ -33,6 +34,27 @@ FILE_SPORTIAN = BASE_PATH / 'extraccion_sportian/corners_tracking.parquet'
 progress_data = {'active': False, 'progress': 0, 'status': 'Esperando...', 'messages': []}
 report_progress = {'active': False, 'progress': 0, 'status': '', 'final_path': ''}
 
+# CONFIGURACIÓN DE BLOQUES DE INFORMES
+BLOQUES_CONFIG = {
+    'ABP': {
+        'parquet': 'extraccion_opta/datos_opta_parquet/abp_events.parquet',
+        'col_equipo': 'Team Name',  # ⚠️ NO es 'Team', es 'Team Name'
+        'col_jornada': 'Week',
+        'script': 'abp_informe_todo.py'
+    },
+    'FISICO': {
+        'parquet': 'extraccion_mediacoach/data/rendimiento_fisico.parquet',
+        'col_equipo': 'Equipo',
+        'col_jornada': 'Jornada',
+        'script': 'fisico_completo_pdf.py'
+    },
+    'TACTICO': {
+        'parquet': 'extraccion_opta/datos_opta_parquet/abp_events.parquet',
+        'col_equipo': 'Team Name',  # ⚠️ NO es 'Team', es 'Team Name'
+        'col_jornada': 'Week',
+        'script': 'tactic_informe_todo.py'
+    }
+}
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.index_string = '''
@@ -97,7 +119,6 @@ def temp_sportian(fecha_str):
 
 # --- LÓGICA DE DATOS OPTIMIZADA (CON CACHÉ) ---
 
-@lru_cache(maxsize=1)
 def obtener_resumen_datos():
     """Lee los datos de todas las fuentes, normaliza y cuenta partidos únicos."""
     data_list = []
@@ -243,22 +264,7 @@ def crear_layout_principal():
                     dbc.CardHeader(html.H5("📑 Generador de Informes PDF", className="text-dark fw-bold mb-0")),
                     
                     dbc.CardBody([
-                        # 2. SELECTORES DE EQUIPO Y JORNADA
-                        dbc.Row([
-                            dbc.Col([
-                                html.Label("Equipo:", className="fw-bold small"),
-                                dcc.Dropdown(
-                                    id='report-team-idx',
-                                    options=[{'label': e, 'value': i+1} for i, e in enumerate(EQUIPOS_REPORTE)],
-                                    placeholder="Seleccionar equipo..."
-                                )
-                            ], width=8),
-                            dbc.Col([
-                                html.Label("Hasta Jornada:", className="fw-bold small"),
-                                dcc.Input(id='report-matchday', type='number', value=1, className="form-control")
-                            ], width=4),
-                        ], className="mb-3"),
-
+                        
                         # 3. RUTA DE GUARDADO LOCAL
                         html.Div([
                             html.Label("Ruta de guardado en el disco local:", className="fw-bold small"),
@@ -266,34 +272,40 @@ def crear_layout_principal():
                                      value=os.path.expanduser("~/Downloads"), type="text"),
                             html.Small("Se guardará en esta carpeta de tu ordenador.", className="text-muted")
                         ], className="mb-4"),
+                        
+                        # 3.5 CONTENEDOR COLAPSABLE PARA SELECCIÓN
+                        html.Div(id='report-selectors-container', children=[], style={'display': 'none'}),
+                        
+                        # Store para guardar el bloque seleccionado
+                        dcc.Store(id='selected-report-block', data=None),
 
                         # 4. BOTONES CON ICONOS 4 VECES MÁS GRANDES (100px)
                         dbc.Row([
                             dbc.Col([
                                 dbc.Button([
                                     html.Div([
-                                        html.Img(src="/assets/abp_icono.png", height="100px", className="mb-2"),
+                                        html.Img(src="/assets/abp_icono.png", height="150px", className="mb-2"),
                                         html.Span("Informe ABP", className="fw-bold")
                                     ], className="d-flex flex-column align-items-center justify-content-center")
-                                ], id="btn-rep-abp", color="danger", outline=True, className="w-100 py-3 shadow-sm")
+                                ], id="btn-rep-abp", n_clicks=0, color="danger", outline=True, className="w-100 py-3 shadow-sm")
                             ], width=4),
                             
                             dbc.Col([
                                 dbc.Button([
                                     html.Div([
-                                        html.Img(src="/assets/fisico_icono.png", height="100px", className="mb-2"),
+                                        html.Img(src="/assets/fisico_icono.png", height="150px", className="mb-2"),
                                         html.Span("Informe Físico", className="fw-bold")
                                     ], className="d-flex flex-column align-items-center justify-content-center")
-                                ], id="btn-rep-fisico", color="success", outline=True, className="w-100 py-3 shadow-sm")
+                                ], id="btn-rep-fisico", n_clicks=0, color="success", outline=True, className="w-100 py-3 shadow-sm")
                             ], width=4),
                             
                             dbc.Col([
                                 dbc.Button([
                                     html.Div([
-                                        html.Img(src="/assets/tactica_icono.png", height="100px", className="mb-2"),
+                                        html.Img(src="/assets/tactica_icono.png", height="150px", className="mb-2"),
                                         html.Span("Informe Táctico", className="fw-bold")
                                     ], className="d-flex flex-column align-items-center justify-content-center")
-                                ], id="btn-rep-tactic", color="primary", outline=True, className="w-100 py-3 shadow-sm")
+                                ], id="btn-rep-tactic", n_clicks=0, color="primary", outline=True, className="w-100 py-3 shadow-sm")
                             ], width=4),
                         ], className="g-3 mb-4"),
 
@@ -317,7 +329,8 @@ def crear_layout_principal():
         ], id="modal", is_open=False)
     ], fluid=True)
 
-def run_report_process(script_name, equipo_idx, jornada, destination_folder):
+
+def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_folder):
     global report_progress
     report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
     
@@ -325,10 +338,9 @@ def run_report_process(script_name, equipo_idx, jornada, destination_folder):
     import shutil
     import subprocess
 
-    # Usamos -u para que el print sea unbuffered (tiempo real)
-    cmd = [sys.executable, "-u", script_name, str(equipo_idx), str(jornada)]
+    # ✅ Ahora enviamos al script tanto la jornada de inicio como la de fin
+    cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
     
-    # bufsize=1 y universal_newlines=True para leer línea a línea
     process = subprocess.Popen(
         cmd, 
         stdout=subprocess.PIPE, 
@@ -342,21 +354,15 @@ def run_report_process(script_name, equipo_idx, jornada, destination_folder):
         status_msg = line.strip()
         if not status_msg: continue
         
-        # Imprimir en la terminal del Mac para debug
         print(f"DEBUG SCRIPT: {status_msg}")
 
-        # Buscamos el patrón: --- [1/12] Ejecutando: abp1.py ---
-        # Esta expresión regular extrae el número de página y el total
         match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
         
         if match:
             pag_actual = int(match.group(1))
             pag_total = int(match.group(2))
             nombre_pag = match.group(3)
-            
-            # Calculamos porcentaje (hasta el 95%)
             porcentaje = int((pag_actual / pag_total) * 95)
-            
             report_progress['progress'] = porcentaje
             report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
         
@@ -365,8 +371,8 @@ def run_report_process(script_name, equipo_idx, jornada, destination_folder):
             report_progress['status'] = "Uniendo páginas en el PDF final..."
 
     process.wait()
-    
-    # Buscar el PDF generado y moverlo a la ruta deseada
+
+    # Buscar el PDF generado y moverlo
     lista_pdfs = glob.glob("*.pdf")
     if lista_pdfs:
         archivo_reciente = max(lista_pdfs, key=os.path.getctime)
@@ -383,6 +389,119 @@ def run_report_process(script_name, equipo_idx, jornada, destination_folder):
     
     report_progress['progress'] = 100
     report_progress['active'] = False
+
+def run_report_process_with_restore(script_name, equipo_nombre, j_inicio, j_fin, destination_folder, parquet_original, parquet_backup):
+    """Ejecuta el script y SIEMPRE restaura el parquet original al final"""
+    global report_progress
+    
+    try:
+        # Ejecutar el proceso normal
+        report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
+        
+        import sys
+        import subprocess
+        
+        cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
+        
+        process = subprocess.Popen(
+            cmd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT, 
+            text=True, 
+            bufsize=1, 
+            universal_newlines=True
+        )
+        
+        for line in process.stdout:
+            status_msg = line.strip()
+            if not status_msg: continue
+            
+            print(f"DEBUG SCRIPT: {status_msg}")
+            
+            match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
+            
+            if match:
+                pag_actual = int(match.group(1))
+                pag_total = int(match.group(2))
+                nombre_pag = match.group(3)
+                porcentaje = int((pag_actual / pag_total) * 95)
+                report_progress['progress'] = porcentaje
+                report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
+            
+            elif "Uniendo todos los reportes" in status_msg:
+                report_progress['progress'] = 96
+                report_progress['status'] = "Uniendo páginas en el PDF final..."
+        
+        process.wait()
+        
+        # RESTAURAR BACKUP INMEDIATAMENTE después de terminar el script
+        print("🔄 Restaurando datos originales...")
+        report_progress['status'] = '🔄 Restaurando datos originales...'
+        
+        try:
+            if parquet_backup.exists():
+                shutil.copy2(parquet_backup, parquet_original)
+                parquet_backup.unlink()
+                print(f"✅ Datos restaurados correctamente: {parquet_original.name}")
+                
+                # LIMPIAR CACHÉ para que se recarguen los datos reales
+                obtener_resumen_datos.cache_clear()
+                print(f"🧹 Caché limpiado - los gráficos mostrarán datos reales")
+            else:
+                print("⚠️ No se encontró backup para restaurar")
+        except Exception as e:
+            print(f"⚠️ Error restaurando backup: {e}")
+        
+        # Buscar el PDF generado y moverlo
+        report_progress['progress'] = 98
+        report_progress['status'] = 'Buscando PDF generado...'
+        
+        lista_pdfs = glob.glob("*.pdf")
+        if lista_pdfs:
+            archivo_reciente = max(lista_pdfs, key=os.path.getctime)
+            if os.path.exists(destination_folder):
+                final_dest = os.path.join(destination_folder, archivo_reciente)
+                try:
+                    shutil.move(archivo_reciente, final_dest)
+                    report_progress['final_path'] = final_dest
+                    report_progress['status'] = f"✅ Informe guardado con éxito (datos restaurados)"
+                except Exception as e:
+                    report_progress['status'] = f"⚠️ PDF generado pero no se pudo mover: {archivo_reciente}"
+            else:
+                report_progress['status'] = f"✅ Informe generado en carpeta del proyecto: {archivo_reciente}"
+        else:
+            report_progress['status'] = "⚠️ No se encontró PDF generado"
+        
+        report_progress['progress'] = 100
+        
+    except Exception as e:
+        report_progress['status'] = f'❌ Error: {str(e)}'
+        report_progress['progress'] = 100
+        
+        # RESTAURAR BACKUP incluso si hay error
+        print("🔄 Restaurando datos tras error...")
+        try:
+            if parquet_backup.exists():
+                shutil.copy2(parquet_backup, parquet_original)
+                parquet_backup.unlink()
+                print(f"✅ Datos restaurados tras error")
+        except Exception as restore_error:
+            print(f"⚠️ Error crítico restaurando backup: {restore_error}")
+
+    
+    finally:
+        # Doble verificación: asegurar que el backup se borra si aún existe
+        try:
+            if parquet_backup.exists():
+                shutil.copy2(parquet_backup, parquet_original)
+                parquet_backup.unlink()
+                print(f"✅ Limpieza final: backup restaurado y eliminado")
+        except:
+            pass
+        
+        report_progress['active'] = False
+        obtener_resumen_datos.cache_clear()
+
 
 def crear_pagina_actualizacion():
     return dbc.Container([
@@ -497,51 +616,138 @@ def control_acceso(logged):
     Output('app-wrapper', 'children'),
     [Input('url', 'pathname')]
 )
-def navegar_internamente(path):
+def navegar_internamente(path): 
+    
     if path == '/actualizar':
         return crear_pagina_actualizacion()
     return crear_layout_principal()
 
-# 1. Callback para iniciar el proceso
+# CALLBACK 1: Mostrar selectores al hacer clic en botón
 @app.callback(
-    Output('report-interval', 'disabled'),
-    [Input("btn-rep-abp", "n_clicks"),
-     Input("btn-rep-fisico", "n_clicks"),
-     Input("btn-rep-tactic", "n_clicks")],
-    [State("report-team-idx", "value"),
-     State("report-matchday", "value"),
-     State("report-save-path", "value")],
+    [Output('report-selectors-container', 'children'),
+     Output('report-selectors-container', 'style'),
+     Output('selected-report-block', 'data')],
+    [Input('btn-rep-abp', 'n_clicks'),
+     Input('btn-rep-fisico', 'n_clicks'),
+     Input('btn-rep-tactic', 'n_clicks')],
     prevent_initial_call=True
 )
-def start_report(n1, n2, n3, eq_idx, jor, path):
+def mostrar_selectores(n_abp, n_fisico, n_tactic):
     ctx = dash.callback_context
-    if not eq_idx: return True
+    if not ctx.triggered:
+        return [], {'display': 'none'}, None
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    scripts = {
-        "btn-rep-abp": "abp_informe_todo.py",
-        "btn-rep-fisico": "fisico_completo_pdf.py",
-        "btn-rep-tactic": "tactic_informe_todo.py"
-    }
+    button_id_base = button_id.replace('btn-rep-', '').upper()
+    # Mapear nombres de botones a claves de configuración
+    bloque = 'TACTICO' if button_id_base == 'TACTIC' else button_id_base
+        
+    config = BLOQUES_CONFIG[bloque]
     
-    threading.Thread(target=run_report_process, args=(scripts[button_id], eq_idx, jor, path), daemon=True).start()
-    return False
+    # Cargar equipos y jornadas del parquet
+    try:
+        df = pd.read_parquet(config['parquet'])
+        equipos = sorted(df[config['col_equipo']].unique())
+        
+        # Normalizar jornadas
+        if 'Jornada_num' not in df.columns:
+            df['Jornada_num'] = df[config['col_jornada']].apply(
+                lambda x: int(str(x).replace('J', '').replace('j', '').strip()) if pd.notna(x) and str(x).strip() else 0
+            )
+        jornadas = sorted(df['Jornada_num'].unique())
+        
+    except Exception as e:
+        print(f"Error cargando datos: {e}")
+        equipos, jornadas = [], []
+    
+    contenido = dbc.Card([
+        dbc.CardBody([
+            html.H6(f"📊 Configuración Informe {bloque}", className="text-center mb-3 fw-bold"),
+            dbc.Row([
+                dbc.Col([
+                    html.Label("Equipo:", className="fw-bold small"),
+                    dcc.Dropdown(
+                        id='report-team-selector',
+                        options=[{'label': e, 'value': e} for e in equipos],
+                        placeholder="Seleccionar equipo..."
+                    )
+                ], width=7),
+                dbc.Col([
+                    html.Label("Desde Jornada:", className="fw-bold small"),
+                    dcc.Dropdown(
+                        id='report-jornada-inicio',
+                        options=[{'label': f"J{j}", 'value': j} for j in jornadas],
+                        placeholder="Inicio..."
+                    )
+                ], width=3),
+                dbc.Col([
+                    html.Label("Hasta Jornada:", className="fw-bold small"),
+                    dcc.Dropdown(
+                        id='report-jornada-fin',
+                        options=[{'label': f"J{j}", 'value': j} for j in jornadas],
+                        placeholder="Fin..."
+                    )
+                ], width=3),
+            ], className="mb-3"),
+            dbc.Button("🚀 Generar Informe", id="btn-generate-report", 
+                      color="success", className="w-100", disabled=True)
+        ])
+    ], className="border-primary mt-3")
+    
+    return contenido, {'display': 'block'}, bloque
 
-# 2. Callback para actualizar la barra de progreso
+# CALLBACK 2: Habilitar botón generar cuando hay equipo y jornada
+@app.callback(
+    Output('btn-generate-report', 'disabled'),
+    [Input('report-team-selector', 'value'),
+     Input('report-jornada-inicio', 'value'),
+     Input('report-jornada-fin', 'value')]
+)
+def habilitar_generar(equipo, j_inicio, j_fin):
+    return not (equipo and j_inicio and j_fin)
+
+# REEMPLAZA el callback ejecutar_generacion en app.py por este:
+@app.callback(
+    [Output('report-progress-container', 'style'),
+     Output('report-interval', 'disabled')],
+    Input('btn-generate-report', 'n_clicks'),
+    [State('selected-report-block', 'data'),
+     State('report-team-selector', 'value'),
+     State('report-jornada-inicio', 'value'),
+     State('report-jornada-fin', 'value'),
+     State('report-save-path', 'value')],
+    prevent_initial_call=True
+)
+def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin, ruta):
+    if not all([bloque, equipo, j_inicio, j_fin]):
+        raise dash.exceptions.PreventUpdate
+    
+    config = BLOQUES_CONFIG[bloque]
+    
+    # ⚠️ IMPORTANTE: Ya NO sobrescribimos el parquet original.
+    # Simplemente lanzamos el hilo. 
+    # Pasamos j_inicio y j_fin para que el script los use internamente.
+    threading.Thread(
+        target=run_report_process, # Usamos la versión normal sin restores físicos
+        args=(config['script'], equipo, j_inicio, j_fin, ruta),
+        daemon=True
+    ).start()
+    
+    return {'display': 'block'}, False
+
+# CALLBACK 4: Actualizar la barra de progreso (MANTENER ESTE)
 @app.callback(
     [Output("report-progress-bar", "value"),
-     Output("report-status-text", "children"),
-     Output("report-progress-container", "style")],
+     Output("report-status-text", "children")],
     [Input("report-interval", "n_intervals")]
 )
 def update_report_ui(n):
     global report_progress
     if not report_progress['active'] and report_progress['progress'] == 0:
-        return 0, "", {"display": "none"}
+        return 0, ""
     
-    display = {"display": "block"}
-    return report_progress['progress'], report_progress['status'], display
-
+    return report_progress['progress'], report_progress['status']
+    
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),
     [Input('mediacoach-liga-dropdown', 'value'), 
@@ -584,7 +790,6 @@ def start_mediacoach_update(n, liga, season_id, season_options, ji, jf):
         global progress_data
         progress_data.update({'progress': p, 'status': s, 'messages': msgs})
         if p >= 100: progress_data['active'] = False
-        obtener_resumen_datos.cache_clear()
 
     # Lanzamos el proceso en un hilo separado para que la web no se congele
     threading.Thread(
@@ -792,7 +997,6 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
         progress_data.update({'progress': p, 'status': s, 'messages': msgs})
         if p >= 100: 
             progress_data['active'] = False
-            obtener_resumen_datos.cache_clear()
 
     threading.Thread(
         target=actualizar_datos.update_opta_data_web, 
