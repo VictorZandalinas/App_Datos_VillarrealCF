@@ -740,6 +740,8 @@ def habilitar_generar(equipo, j_inicio, j_fin):
     prevent_initial_call=True
 )
 def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
+    print(f">>> BOTÓN PULSADO: Bloque={bloque}, Equipo={equipo}, Inicio={j_inicio}, Fin={j_fin}")
+
     if not all([bloque, equipo, j_inicio, j_fin]):
         raise dash.exceptions.PreventUpdate
     
