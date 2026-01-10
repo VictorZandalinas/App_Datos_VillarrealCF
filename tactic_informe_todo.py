@@ -376,25 +376,24 @@ def main():
         j_inicio_val = int(sys.argv[2]) if len(sys.argv) > 3 else 1
         j_fin_val = int(sys.argv[3]) if len(sys.argv) > 3 else int(jornada)
 
-        injected_code = (
-            "import matplotlib, pandas as pd, sys, numpy as np, re\n"
-            "matplotlib.use('Agg')\n"
-            "_orig_read = pd.read_parquet\n"
-            "def _patched_read(*args, **kwargs):\n"
-            "    df = _orig_read(*args, **kwargs)\n"
-            "    patrones = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']\n"
-            "    for col in df.columns:\n"
-            "        if any(p in col.lower() for p in patrones):\n"
-            "            try:\n"
-            "                s_v = df[col].astype(str).str.lower().str.replace('j', '').str.strip()\n"
-            "                n_v = pd.to_numeric(s_v, errors='coerce')\n"
-            "                if n_v.notna().any():\n"
-            "                    df = df[(n_v >= " + str(j_inicio_val) + ") & (n_v <= " + str(j_fin_val) + ")]\n"
-            "            except: pass\n"
-            "    return df\n"
-            "pd.read_parquet = _patched_read\n"
-            "exec(open('" + script_py + "', encoding='utf-8').read())"
-        )
+        injected_code = "import matplotlib, pandas as pd, sys, numpy as np, re; " \
+                        "matplotlib.use('Agg'); " \
+                        "_orig = pd.read_parquet; " \
+                        "def _patched(*args, **kwargs): " \
+                        "    df = _orig(*args, **kwargs); " \
+                        "    pats = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']; " \
+                        "    for col in df.columns: " \
+                        "        if any(p in col.lower() for p in pats): " \
+                        "            try: " \
+                        "                sv = df[col].astype(str).str.lower().str.replace('j', '').str.strip(); " \
+                        "                nv = pd.to_numeric(sv, errors='coerce'); " \
+                        "                if nv.notna().any(): " \
+                        "                    df = df[(nv >= " + str(j_inicio_val) + ") & (nv <= " + str(j_fin_val) + ")]; " \
+                        "            except: pass; " \
+                        "    return df; " \
+                        "pd.read_parquet = _patched; " \
+                        "exec(open('" + script_py + "', encoding='utf-8').read())"
+
         
         comando = ["python3", "-c", injected_code]
         
