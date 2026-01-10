@@ -1,0 +1,135 @@
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+findfont: Font family 'Georgia' not found.
+🔍 Escaneando la carpeta en busca de scripts 'abp' para ejecutar...
+✅ 11 scripts encontrados:
+    1. tactic1_opta_clasificacion_liga.py
+    2. tactic1.1_mediacoach_resumen_con_balon.py
+    3. tactic1.2_mediacoach_resumen_sin_balon.py
+    4. tactic1.3_mediacoach_evolucion_resumen_general.py
+    5. tactic1.4_opta_xT.py
+    6. tactic2_opta_mapa_pases.py
+    7. tactic2.1_opta_mapa_pases_campo_contrario.py
+    8. tactic2.2_opta_contraataque.py
+    9. tactic3_opta_saque_puerta_secuencias.py
+   10. tactic3.1_opta_inicios_blocaje_portero.py
+   11. tactic4_saques_banda_ofensivos.py
+======================================================================
+📋 INICIANDO GENERACIÓN DE INFORME
+======================================================================
+🧹 Limpiando PDFs antiguos...
+✅ Eliminados 1 PDFs antiguos:
+   🗑️  Informe_Completo_Real_Madrid_J4.pdf
+✅ Web: Real Oviedo (J1-J1)
+🎨 Generando portada...
+🎯 Escudo encontrado para 'Real Oviedo': Real Oviedo.png (similitud: 0.92)
+✅ Portada generada exitosamente.
+
+--- [1/11] Ejecutando: tactic1_opta_clasificacion_liga.py ---
+SALIDA: accion_opta/datos_opta_parquet/team_stats.parquet: Could not open Parquet input source '<Buffer>': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.
+
+
+--- [2/11] Ejecutando: tactic1.1_mediacoach_resumen_con_balon.py ---
+SALIDA: ==================
+
+
+Visualización generada. Mostrando vista previa...
+Reporte guardado: analisis_con_balon_Real_Oviedo_vs_Villarreal_CF_promedio_20260110_124627.pdf
+
+Proceso completado exitosamente.
+
+✅ PDF 'analisis_con_balon_Real_Oviedo_vs_Villarreal_CF_promedio_20260110_124627.pdf' capturado.
+
+--- [3/11] Ejecutando: tactic1.2_mediacoach_resumen_sin_balon.py ---
+SALIDA: ==================
+
+
+Visualización generada. Mostrando vista previa...
+Reporte guardado: analisis_sin_balon_Real_Oviedo_vs_Villarreal_CF_promedio_20260110_124633.pdf
+
+Proceso completado exitosamente.
+
+✅ PDF 'analisis_sin_balon_Real_Oviedo_vs_Villarreal_CF_promedio_20260110_124633.pdf' capturado.
+
+--- [4/11] Ejecutando: tactic1.3_mediacoach_evolucion_resumen_general.py ---
+SALIDA: l Oviedo vs Villarreal CF
+
+Visualización generada. Mostrando vista previa...
+Reporte guardado: evolucion_rendimiento_Real_Oviedo_vs_Villarreal_CF_20260110_124638.pdf
+
+Proceso completado exitosamente.
+
+✅ PDF 'evolucion_rendimiento_Real_Oviedo_vs_Villarreal_CF_20260110_124638.pdf' capturado.
+
+--- [5/11] Ejecutando: tactic1.4_opta_xT.py ---
+SALIDA: eal Madrid
+16. Real Oviedo
+17. Real Sociedad
+18. Sevilla
+19. Valencia
+20. Villarreal
+
+Selecciona número: 
+📊 Generando Reporte Completo para Real Oviedo...
+✅ Guardado: reporte_xt_final_Real_Oviedo.pdf
+
+✅ PDF 'reporte_xt_final_Real_Oviedo.pdf' capturado.
+
+--- [6/11] Ejecutando: tactic2_opta_mapa_pases.py ---
+SALIDA: ERADOR DE RED DE PASES ===
+❌ Error al inicializar: Could not open Parquet input source '<Buffer>': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.
+
+
+--- [7/11] Ejecutando: tactic2.1_opta_mapa_pases_campo_contrario.py ---
+SALIDA: Traceback (most recent call last):
+  File "<string>", line 17, in <module>
+  File "<string>", line 20, in <module>
+ModuleNotFoundError: No module named 'sklearn'
+
+
+--- [8/11] Ejecutando: tactic2.2_opta_contraataque.py ---
+SALIDA: Traceback (most recent call last):
+  File "<string>", line 17, in <module>
+  File "<string>", line 6, in <module>
+ModuleNotFoundError: No module named 'sklearn'
+
+
+--- [9/11] Ejecutando: tactic3_opta_saque_puerta_secuencias.py ---
+SALIDA: Traceback (most recent call last):
+  File "<string>", line 17, in <module>
+  File "<string>", line 6, in <module>
+ModuleNotFoundError: No module named 'sklearn'
+
+
+--- [10/11] Ejecutando: tactic3.1_opta_inicios_blocaje_portero.py ---
+SALIDA: Traceback (most recent call last):
+  File "<string>", line 17, in <module>
+  File "<string>", line 6, in <module>
+ModuleNotFoundError: No module named 'sklearn'
+
+
+--- [11/11] Ejecutando: tactic4_saques_banda_ofensivos.py ---
+SALIDA: in footer. Either the file is corrupted or this is not a parquet file.
+
+Asegúrate de que el archivo 'open_play_events.parquet' existe en:
+  extraccion_opta/datos_opta_parquet/open_play_events.parquet
+
+
+🔄 Uniendo reportes...
+
+✅ GENERADO: Informe_Completo_Real_Oviedo_J1.pdf
