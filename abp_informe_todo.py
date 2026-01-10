@@ -306,54 +306,42 @@ def main():
 
     limpiar_pdfs_antiguos()
 
-    # 1. GESTIÓN DE ARGUMENTOS (WEB vs MANUAL)
     if len(sys.argv) > 3:
-        # Capturamos lo que viene de la web (ej: "20. Villarreal")
         nombre_sucio = sys.argv[1]
         jornada_inicio = int(sys.argv[2])
         jornada_fin = int(sys.argv[3])
         jornada = jornada_fin
-        
-        # LIMPIEZA: Quitamos el número y el punto del principio ("20. " -> "Villarreal")
         nombre_recibido = re.sub(r'^\d+\.\s*', '', nombre_sucio).strip()
-        
         equipo_canonico = None
         for key in TEAM_NAME_MAPPING.keys():
             if nombre_recibido.lower() == key.lower():
                 equipo_canonico = key
                 break
-        
         if not equipo_canonico:
-            print(f"❌ Error: No se encontró el equipo '{nombre_recibido}'")
+            print(f"❌ Error: No se encontró '{nombre_recibido}'")
             sys.exit(1)
-        
         indice = EQUIPOS_OPTA.index(equipo_canonico)
-        print(f"✅ Web detectada: {equipo_canonico} (J{jornada_inicio} a J{jornada_fin})")
+        print(f"✅ Web: {equipo_canonico} (J{jornada_inicio}-J{jornada_fin})")
     else:
-        # Modo manual (consola)
         for i, eq in enumerate(EQUIPOS_OPTA, 1): print(f"{i:2d}. {eq}")
         indice = int(input("\n➤ Selecciona equipo: ")) - 1
         equipo_canonico = EQUIPOS_OPTA[indice]
         jornada = input("➤ Jornada: ").strip()
         jornada_inicio, jornada_fin = 1, int(jornada)
 
-    # 2. PREPARACIÓN DE CARPETAS
     temp_dir = "reportes_temporales"
     if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
     os.makedirs(temp_dir)
-    
     ruta_portada = os.path.join(temp_dir, "00_portada.pdf")
     generar_portada_temporal(equipo_canonico, int(jornada), ruta_portada)
     pdfs_para_unir = [ruta_portada]
     
-    # 3. BUCLE DE EJECUCIÓN DE SCRIPTS
     for i, script_py in enumerate(REPORTES_A_GENERAR, 1):
         print(f"\n--- [{i}/{len(REPORTES_A_GENERAR)}] Ejecutando: {script_py} ---")
         if not os.path.exists(script_py): continue
         
         pdfs_antes = set(f for f in os.listdir('.') if f.endswith(".pdf"))
         
-        # Determinar respuestas según el tipo de script
         if 'mediacoach' in script_py.lower():
             idx_mc = EQUIPOS_MEDIACOACH.index(TEAM_NAME_MAPPING[equipo_canonico]['mediacoach'])
             respuestas = f"{idx_mc + 1}\n{jornada}\n"
@@ -363,30 +351,30 @@ def main():
         else:
             respuestas = f"{indice + 1}\n{jornada}\n"
 
-        # 4. SOLUCIÓN ERROR INDENTACIÓN (Código en una sola línea de strings)
-        injected_code = "import matplotlib, pandas as pd, sys, numpy as np, re; " \
-                        "matplotlib.use('Agg'); " \
-                        "_orig = pd.read_parquet; " \
-                        "def _patched(*args, **kwargs): " \
-                        "    df = _orig(*args, **kwargs); " \
-                        "    pats = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']; " \
-                        "    for col in df.columns: " \
-                        "        if any(p in col.lower() for p in pats): " \
-                        "            try: " \
-                        "                sv = df[col].astype(str).str.lower().str.replace('j', '').str.strip(); " \
-                        "                nv = pd.to_numeric(sv, errors='coerce'); " \
-                        "                if nv.notna().any(): " \
-                        "                    df = df[(nv >= " + str(j_inicio_val) + ") & (nv <= " + str(j_fin_val) + ")]; " \
-                        "            except: pass; " \
-                        "    return df; " \
-                        "pd.read_parquet = _patched; " \
-                        "exec(open('" + script_py + "', encoding='utf-8').read())"
-        
-        # Ejecutar proceso
+        # --- CÓDIGO INYECTADO CORREGIDO PARA LINUX ---
+        # Usamos una estructura simple que Python -c entienda sin errores de indentación
+        injected_code = f"import matplotlib, pandas as pd, sys, numpy as np, re; matplotlib.use('Agg'); " \
+                        f"def p(f, j1, j2): " \
+                        f"    orig = pd.read_parquet; " \
+                        f"    def _r(*a, **k): " \
+                        f"        df = orig(*a, **k); " \
+                        f"        for c in df.columns: " \
+                        f"            if any(x in c.lower() for x in ['jornada', 'week', 'match', 'stg', 'fecha']): " \
+                        f"                try: " \
+                        f"                    v = pd.to_numeric(df[c].astype(str).str.lower().str.replace('j', '').str.strip(), errors='coerce'); " \
+                        f"                    df = df[(v >= j1) & (v <= j2)] if v.notna().any() else df; " \
+                        f"                except: pass; " \
+                        f"        return df; " \
+                        f"    pd.read_parquet = _r; " \
+                        f"    exec(open(f, encoding='utf-8').read()); " \
+                        f"p('{script_py}', {jornada_inicio}, {jornada_fin})"
+
         proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         stdout, _ = proceso.communicate(input=respuestas, timeout=180)
         
-        # Detectar PDF generado y moverlo
+        # Guardar en log para depurar
+        print(f"SALIDA: {stdout[-200:]}") 
+
         pdfs_despues = set(f for f in os.listdir('.') if f.endswith(".pdf"))
         nuevos = pdfs_despues - pdfs_antes
         if nuevos:
@@ -394,24 +382,19 @@ def main():
             ruta_dest = os.path.join(temp_dir, f"{i:02d}_{os.path.basename(pdf_gen)}")
             shutil.move(pdf_gen, ruta_dest)
             pdfs_para_unir.append(ruta_dest)
-            print(f"✅ PDF '{pdf_gen}' generado y movido.")
+            print(f"✅ PDF '{pdf_gen}' capturado.")
 
-    # 5. UNIÓN FINAL
     if len(pdfs_para_unir) > 1:
-        print("\n🔄 Uniendo todos los reportes...")
+        print("\n🔄 Uniendo reportes...")
         writer = PdfWriter()
         pdfs_para_unir.sort(key=natural_sort_key)
-        
         for p_path in pdfs_para_unir:
             if os.path.exists(p_path) and os.path.getsize(p_path) > 100:
                 reader = PdfReader(p_path)
-                for page in reader.pages:
-                    writer.add_page(page)
-
+                for page in reader.pages: writer.add_page(page)
         output_name = f"Informe_Completo_{equipo_canonico.replace(' ', '_')}_J{jornada}.pdf"
-        with open(output_name, "wb") as f:
-            writer.write(f)
-        print(f"\n✅ REPORTE FINAL GENERADO: {output_name}")
+        with open(output_name, "wb") as f: writer.write(f)
+        print(f"\n✅ GENERADO: {output_name}")
     
     shutil.rmtree(temp_dir)
 
