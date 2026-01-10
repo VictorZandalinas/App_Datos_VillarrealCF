@@ -394,20 +394,16 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
             final_dest = os.path.join(destination_folder, archivo_reciente)
             try:
                 shutil.move(archivo_reciente, final_dest)
-                # IMPORTANTE: Guardamos la ruta y LUEGO marcamos 100%
-                report_progress['final_path'] = final_dest
+                # Guardamos la ruta ABSOLUTA
+                report_progress['final_path'] = os.path.abspath(final_dest)
                 report_progress['status'] = f"✅ Informe listo"
-                report_progress['progress'] = 100  # <--- Movido aquí
+                report_progress['progress'] = 100 
             except Exception as e:
                 report_progress['status'] = f"⚠️ Error al mover: {e}"
-                report_progress['progress'] = 100 # Marcamos 100 para que termine
+                report_progress['progress'] = 100
         else:
-            report_progress['final_path'] = archivo_reciente
-            report_progress['status'] = f"✅ Generado en raíz"
-            report_progress['progress'] = 100 # <--- Movido aquí
-    else:
-        report_progress['status'] = "❌ No se encontró el PDF"
-        report_progress['progress'] = 100
+            report_progress['final_path'] = os.path.abspath(archivo_reciente)
+            report_progress['progress'] = 100
 
     report_progress['active'] = False
 
@@ -762,32 +758,32 @@ def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
 @app.callback(
     [Output("report-progress-bar", "value"),
      Output("report-status-text", "children"),
-     Output("download-pdf-report", "data")], # Esta es la salida al navegador
+     Output("download-pdf-report", "data")], # Salida al descargador del navegador
     [Input("report-interval", "n_intervals")],
     prevent_initial_call=True
 )
 def update_report_ui(n):
     global report_progress
     
-    # Si no hay nada pasando, no hacemos nada
+    # 1. Si no hay nada en marcha, no hacer nada
     if not report_progress['active'] and report_progress['progress'] == 0:
         return 0, "Esperando...", None
     
-    # SI LLEGAMOS AL 100% Y HAY RUTA DE ARCHIVO
+    # 2. CUANDO LLEGA AL 100% Y HAY RUTA DE ARCHIVO
     if report_progress['progress'] == 100 and report_progress.get('final_path'):
-        path = report_progress['final_path']
+        path_archivo = report_progress['final_path']
         
-        # 1. Comprobamos que el archivo existe en el disco del servidor
-        if os.path.exists(path):
-            # 2. Preparamos la descarga
-            data_descarga = dcc.send_file(path)
+        if os.path.exists(path_archivo):
+            # Preparamos la descarga para el navegador
+            descarga = dcc.send_file(path_archivo)
             
-            # 3. Limpiamos la ruta para que no se descargue otra vez en el próximo intervalo
-            report_progress['final_path'] = None
+            # IMPORTANTE: Borramos la ruta de la memoria del servidor 
+            # para que no intente descargarlo otra vez en el próximo segundo
+            report_progress['final_path'] = None 
             
-            return 100, "✅ Descargando archivo...", data_descarga
-    
-    # Mientras se genera, devolvemos el progreso normal y None en la descarga
+            return 100, "✅ Descargando informe...", descarga
+            
+    # 3. Mientras está procesando (menor a 100)
     return report_progress['progress'], report_progress['status'], None
     
 @app.callback(
