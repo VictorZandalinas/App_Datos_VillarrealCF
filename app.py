@@ -732,7 +732,7 @@ def habilitar_generar(equipo, j_inicio, j_fin):
     [Output('report-progress-container', 'style'),
      Output('report-interval', 'disabled')],
     Input('btn-generate-report', 'n_clicks'),
-    [State('selected-report-block', 'data'),t
+    [State('selected-report-block', 'data'),
      State('report-team-selector', 'value'),
      State('report-jornada-inicio', 'value'),
      State('report-jornada-fin', 'value')],

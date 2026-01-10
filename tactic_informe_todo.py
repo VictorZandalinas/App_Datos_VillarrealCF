@@ -343,21 +343,25 @@ def main():
 
         # --- CÓDIGO INYECTADO CORREGIDO PARA LINUX ---
         # Usamos una estructura simple que Python -c entienda sin errores de indentación
-        injected_code = f"import matplotlib, pandas as pd, sys, numpy as np, re; matplotlib.use('Agg'); " \
-                        f"def p(f, j1, j2): " \
-                        f"    orig = pd.read_parquet; " \
-                        f"    def _r(*a, **k): " \
-                        f"        df = orig(*a, **k); " \
-                        f"        for c in df.columns: " \
-                        f"            if any(x in c.lower() for x in ['jornada', 'week', 'match', 'stg', 'fecha']): " \
-                        f"                try: " \
-                        f"                    v = pd.to_numeric(df[c].astype(str).str.lower().str.replace('j', '').str.strip(), errors='coerce'); " \
-                        f"                    df = df[(v >= j1) & (v <= j2)] if v.notna().any() else df; " \
-                        f"                except: pass; " \
-                        f"        return df; " \
-                        f"    pd.read_parquet = _r; " \
-                        f"    exec(open(f, encoding='utf-8').read()); " \
-                        f"p('{script_py}', {jornada_inicio}, {jornada_fin})"
+        injected_code = textwrap.dedent(f"""
+            import matplotlib, pandas as pd, sys, numpy as np, re
+            matplotlib.use('Agg')
+            orig = pd.read_parquet
+            def _r(*a, **k):
+                df = orig(*a, **k)
+                for c in df.columns:
+                    if any(x in c.lower() for x in ['jornada', 'week', 'match', 'stg', 'fecha']):
+                        try:
+                            v = pd.to_numeric(df[c].astype(str).str.lower().str.replace('j', '').str.strip(), errors='coerce')
+                            if v.notna().any():
+                                # Aquí usamos los nombres que tú tienes: jornada_inicio y jornada_fin
+                                df = df[(v >= {jornada_inicio}) & (v <= {jornada_fin})]
+                        except: pass
+                return df
+            pd.read_parquet = _r
+            exec(open('{script_py}', encoding='utf-8').read())
+        """)
+
 
         proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         stdout, _ = proceso.communicate(input=respuestas, timeout=180)
