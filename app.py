@@ -15,6 +15,7 @@ import subprocess
 import shutil
 import glob
 
+
 # --- En app.py, debajo de las rutas ---
 EQUIPOS_REPORTE = [
     "1. Alavés", "2. Athletic Club", "3. Atlético de Madrid", "4. Barcelona", "5. Celta de Vigo",
@@ -118,29 +119,38 @@ def temp_sportian(fecha_str):
     except: return "Desconocida"
 
 # --- LÓGICA DE DATOS OPTIMIZADA (CON CACHÉ) ---
+def obtener_huella_archivos():
+    """Calcula una huella única basada en el nombre y fecha de modificación de los archivos."""
+    archivos = [FILE_MEDIACOACH, FILE_OPTA, FILE_SPORTIAN]
+    huella_parts = []
+    for f in archivos:
+        if f.exists():
+            # Tomamos el nombre y la fecha de última modificación (st_mtime)
+            huella_parts.append(f"{f.name}_{f.stat().st_mtime}")
+        else:
+            huella_parts.append(f"{f.name}_missing")
+    return "|".join(huella_parts)
 
-def obtener_resumen_datos():
-    """Lee los datos de todas las fuentes, normaliza y cuenta partidos únicos."""
+@lru_cache(maxsize=1)
+def obtener_resumen_datos_cached(huella):
+    """
+    Lee los datos de todas las fuentes, normaliza y cuenta partidos únicos.
+    Solo se ejecuta si la 'huella' cambia.
+    """
+    print(f"🔄 [CACHE] Recargando datos desde el disco. Nueva huella detectada.")
     data_list = []
     
-    # 1. MediaCoach (Ajustado a minúsculas según tu error)
+    # 1. MediaCoach
     if FILE_MEDIACOACH.exists():
         try:
-            # Columnas exactas del archivo: liga, temporada, jornada, partido
             df = pd.read_parquet(FILE_MEDIACOACH, columns=['liga', 'temporada', 'jornada', 'partido'])
-            
-            # Normalizamos los datos del archivo
             df['j_norm'] = df['jornada'].apply(normalizar_jornada)
             df['liga_norm'] = df['liga'].apply(normalizar_liga)
             df['temp_norm'] = df['temporada'].apply(temp_mediacoach)
-            
             df = df.dropna(subset=['j_norm'])
-            # Aseguramos que 'partido' no sea nulo antes de contar
             df['partido'] = df['partido'].fillna('sin_id') 
             
-            # Agrupamos por los campos normalizados y contamos partidos únicos
             res = df.groupby(['liga_norm', 'temp_norm', 'j_norm'])['partido'].nunique().reset_index()
-            
             for _, row in res.iterrows():
                 data_list.append({
                     'liga': row['liga_norm'],
@@ -149,9 +159,8 @@ def obtener_resumen_datos():
                     'fuente': 'mediacoach',
                     'n_partidos': int(row['partido'])
                 })
-            print(f"✅ MediaCoach: {len(res)} jornadas procesadas.")
         except Exception as e: 
-            print(f"❌ Error MediaCoach: {e}")
+            print(f"❌ Error procesando MediaCoach: {e}")
 
     # 2. Opta
     if FILE_OPTA.exists():
@@ -168,7 +177,8 @@ def obtener_resumen_datos():
                     'fuente': 'opta',
                     'n_partidos': int(row['Match ID'])
                 })
-        except Exception as e: print(f"❌ Error Opta: {e}")
+        except Exception as e: 
+            print(f"❌ Error procesando Opta: {e}")
 
     # 3. Sportian
     if FILE_SPORTIAN.exists():
@@ -185,9 +195,16 @@ def obtener_resumen_datos():
                     'fuente': 'sportian',
                     'n_partidos': int(row['ID_Partido'])
                 })
-        except Exception as e: print(f"❌ Error Sportian: {e}")
+        except Exception as e: 
+            print(f"❌ Error procesando Sportian: {e}")
 
+    print(f"✅ Datos cargados exitosamente: {len(data_list)} registros de jornadas.")
     return pd.DataFrame(data_list)
+
+def obtener_resumen_datos():
+    """Función de acceso público que utiliza la huella para el caché."""
+    huella = obtener_huella_archivos()
+    return obtener_resumen_datos_cached(huella)
 
 # --- LAYOUTS ---
 
@@ -220,6 +237,7 @@ def crear_layout_principal():
     temporadas = sorted(df['temporada'].unique(), reverse=True) if not df.empty else []
     
     return dbc.Container([
+        # --- NAVBAR ---
         dbc.Navbar([
             dbc.Container([
                 dbc.NavbarBrand([
@@ -236,50 +254,20 @@ def crear_layout_principal():
             ])
         ], color="dark", dark=True, className="mb-4 shadow"),
         
+        # --- BLOQUE 1: GENERADOR DE INFORMES (AHORA ARRIBA) ---
         dbc.Row([
             dbc.Col([
                 dbc.Card([
-                    dbc.CardBody([
-                        dbc.Row([
-                            dbc.Col([
-                                html.Label("Liga:", className="fw-bold mb-2"),
-                                dcc.Dropdown(id='liga-dropdown', options=[{'label': l, 'value': l} for l in ligas],
-                                             value=ligas[0] if ligas else None, clearable=False)
-                            ], width=6),
-                            dbc.Col([
-                                html.Label("Temporada:", className="fw-bold mb-2"),
-                                dcc.Dropdown(id='temporada-dropdown', options=[{'label': t, 'value': t} for t in temporadas],
-                                             value=temporadas[0] if temporadas else None, clearable=False)
-                            ], width=6),
-                        ])
-                    ])
-                ], className="shadow-sm mb-4")
-            ], width=8, className="mx-auto")
-        ]),
-        # --- Dentro de crear_layout_principal() en app.py ---
-        dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    # 1. TÍTULO EN NEGRO
                     dbc.CardHeader(html.H5("📑 Generador de Informes PDF", className="text-dark fw-bold mb-0")),
                     
                     dbc.CardBody([
-                        
-                        # 3. RUTA DE GUARDADO LOCAL
-                        html.Div([
-                            html.Label("Ruta de guardado en el disco local:", className="fw-bold small"),
-                            dbc.Input(id='report-save-path', placeholder="Ej: /Users/imac/Desktop/Informes", 
-                                     value=os.path.expanduser("~/Downloads"), type="text"),
-                            html.Small("Se guardará en esta carpeta de tu ordenador.", className="text-muted")
-                        ], className="mb-4"),
-                        
-                        # 3.5 CONTENEDOR COLAPSABLE PARA SELECCIÓN
+                        # Espacio dinámico para selectores de Equipo y Jornadas
                         html.Div(id='report-selectors-container', children=[], style={'display': 'none'}),
                         
-                        # Store para guardar el bloque seleccionado
+                        # Almacén del bloque seleccionado
                         dcc.Store(id='selected-report-block', data=None),
 
-                        # 4. BOTONES CON ICONOS 4 VECES MÁS GRANDES (100px)
+                        # BOTONES PRINCIPALES DE INFORMES
                         dbc.Row([
                             dbc.Col([
                                 dbc.Button([
@@ -309,7 +297,7 @@ def crear_layout_principal():
                             ], width=4),
                         ], className="g-3 mb-4"),
 
-                        # 5. BARRA DE PROGRESO Y ESTADO
+                        # ESTADO Y PROGRESO
                         html.Div(id="report-progress-container", children=[
                             html.P(id="report-status-text", className="small mb-1 fw-bold text-muted", children="Esperando selección..."),
                             dbc.Progress(id="report-progress-bar", value=0, striped=True, animated=True, color="info", style={"height": "15px"}),
@@ -318,17 +306,43 @@ def crear_layout_principal():
                         dcc.Interval(id='report-interval', interval=800, disabled=True),
                         dcc.Download(id="download-pdf-report")
                     ])
-                ], className="shadow mb-4 border-dark")
+                ], className="shadow mb-5 border-dark")
             ], width=10, className="mx-auto")
         ]),
+
+        # --- BLOQUE 2: FILTROS DE VISUALIZACIÓN (AHORA ABAJO) ---
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Visualizar Liga:", className="fw-bold mb-2"),
+                                dcc.Dropdown(id='liga-dropdown', options=[{'label': l, 'value': l} for l in ligas],
+                                             value=ligas[0] if ligas else None, clearable=False)
+                            ], width=6),
+                            dbc.Col([
+                                html.Label("Visualizar Temporada:", className="fw-bold mb-2"),
+                                dcc.Dropdown(id='temporada-dropdown', options=[{'label': t, 'value': t} for t in temporadas],
+                                             value=temporadas[0] if temporadas else None, clearable=False)
+                            ], width=6),
+                        ])
+                    ])
+                ], className="shadow-sm mb-4 bg-light")
+            ], width=8, className="mx-auto")
+        ]),
+        
+        # GRID DE JORNADAS
         html.Div(id='jornadas-container'),
+        
+        # MODAL GENÉRICO
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Información")),
             dbc.ModalBody("Esta función se implementará próximamente."),
             dbc.ModalFooter(dbc.Button("Cerrar", id="close-modal"))
         ], id="modal", is_open=False)
+        
     ], fluid=True)
-
 
 def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_folder):
     global report_progress
@@ -380,14 +394,21 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
             final_dest = os.path.join(destination_folder, archivo_reciente)
             try:
                 shutil.move(archivo_reciente, final_dest)
+                # IMPORTANTE: Guardamos la ruta y LUEGO marcamos 100%
                 report_progress['final_path'] = final_dest
-                report_progress['status'] = f"✅ Informe guardado con éxito."
+                report_progress['status'] = f"✅ Informe listo"
+                report_progress['progress'] = 100  # <--- Movido aquí
             except Exception as e:
-                report_progress['status'] = f"⚠️ PDF generado pero no se pudo mover: {archivo_reciente}"
+                report_progress['status'] = f"⚠️ Error al mover: {e}"
+                report_progress['progress'] = 100 # Marcamos 100 para que termine
         else:
-            report_progress['status'] = f"✅ Informe generado en carpeta del proyecto: {archivo_reciente}"
-    
-    report_progress['progress'] = 100
+            report_progress['final_path'] = archivo_reciente
+            report_progress['status'] = f"✅ Generado en raíz"
+            report_progress['progress'] = 100 # <--- Movido aquí
+    else:
+        report_progress['status'] = "❌ No se encontró el PDF"
+        report_progress['progress'] = 100
+
     report_progress['active'] = False
 
 def run_report_process_with_restore(script_name, equipo_nombre, j_inicio, j_fin, destination_folder, parquet_original, parquet_backup):
@@ -706,7 +727,7 @@ def mostrar_selectores(n_abp, n_fisico, n_tactic):
 def habilitar_generar(equipo, j_inicio, j_fin):
     return not (equipo and j_inicio and j_fin)
 
-# REEMPLAZA el callback ejecutar_generacion en app.py por este:
+# EN APP.PY (DENTRO DEL CALLBACK DE GENERAR INFORME)
 @app.callback(
     [Output('report-progress-container', 'style'),
      Output('report-interval', 'disabled')],
@@ -714,22 +735,22 @@ def habilitar_generar(equipo, j_inicio, j_fin):
     [State('selected-report-block', 'data'),
      State('report-team-selector', 'value'),
      State('report-jornada-inicio', 'value'),
-     State('report-jornada-fin', 'value'),
-     State('report-save-path', 'value')],
+     State('report-jornada-fin', 'value')],
+    # HEMOS QUITADO EL State de 'report-save-path'
     prevent_initial_call=True
 )
-def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin, ruta):
+def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
     if not all([bloque, equipo, j_inicio, j_fin]):
         raise dash.exceptions.PreventUpdate
     
     config = BLOQUES_CONFIG[bloque]
     
-    # ⚠️ IMPORTANTE: Ya NO sobrescribimos el parquet original.
-    # Simplemente lanzamos el hilo. 
-    # Pasamos j_inicio y j_fin para que el script los use internamente.
+    # Definimos la ruta fija del servidor donde se creará el PDF temporalmente
+    ruta_servidor = "/root/App_Datos_VillarrealCF/informes_generados"
+    
     threading.Thread(
-        target=run_report_process, # Usamos la versión normal sin restores físicos
-        args=(config['script'], equipo, j_inicio, j_fin, ruta),
+        target=run_report_process, 
+        args=(config['script'], equipo, j_inicio, j_fin, ruta_servidor),
         daemon=True
     ).start()
     
@@ -738,15 +759,34 @@ def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin, ruta):
 # CALLBACK 4: Actualizar la barra de progreso (MANTENER ESTE)
 @app.callback(
     [Output("report-progress-bar", "value"),
-     Output("report-status-text", "children")],
-    [Input("report-interval", "n_intervals")]
+     Output("report-status-text", "children"),
+     Output("download-pdf-report", "data")], # Esta es la salida al navegador
+    [Input("report-interval", "n_intervals")],
+    prevent_initial_call=True
 )
 def update_report_ui(n):
     global report_progress
-    if not report_progress['active'] and report_progress['progress'] == 0:
-        return 0, ""
     
-    return report_progress['progress'], report_progress['status']
+    # Si no hay nada pasando, no hacemos nada
+    if not report_progress['active'] and report_progress['progress'] == 0:
+        return 0, "Esperando...", None
+    
+    # SI LLEGAMOS AL 100% Y HAY RUTA DE ARCHIVO
+    if report_progress['progress'] == 100 and report_progress.get('final_path'):
+        path = report_progress['final_path']
+        
+        # 1. Comprobamos que el archivo existe en el disco del servidor
+        if os.path.exists(path):
+            # 2. Preparamos la descarga
+            data_descarga = dcc.send_file(path)
+            
+            # 3. Limpiamos la ruta para que no se descargue otra vez en el próximo intervalo
+            report_progress['final_path'] = None
+            
+            return 100, "✅ Descargando archivo...", data_descarga
+    
+    # Mientras se genera, devolvemos el progreso normal y None en la descarga
+    return report_progress['progress'], report_progress['status'], None
     
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),
@@ -1016,6 +1056,10 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
 )
 def update_ui(n):
     global progress_data
+
+    if not progress_data['active'] and progress_data['progress'] >= 100:
+        obtener_resumen_datos_cached.cache_clear()
+
     # Convertimos los mensajes en párrafos HTML para la consola verde
     msgs = [html.P(f"[{m['timestamp']}] {m['message']}") for m in progress_data['messages']]
     
@@ -1036,4 +1080,4 @@ def logout(n):
 def toggle_modal(n1, n2, is_open): return not is_open if (n1 or n2) else is_open
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=True)
+    app.run(host='0.0.0.0', port=8050, debug=True)
