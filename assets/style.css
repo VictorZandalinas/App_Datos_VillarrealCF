@@ -4,6 +4,29 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
     padding: 0;
+    position: relative;
+}
+
+/* MARCA DE AGUA EXPANDIDA POR TODA LA HOJA */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    background-image: url('departamento_datos.png');
+    
+    /* CONFIGURACIÓN PARA EXPANDIR */
+    background-size: cover;      /* Esto hace que la imagen se estire para cubrir toda la pantalla */
+    background-position: center; /* La mantiene centrada al estirarse */
+    background-repeat: no-repeat;
+    
+    /* TRANSPARENCIA Y CAPAS */
+    opacity: 0.15;    /* 0.05 es ideal para que no moleste a la vista (5% de visibilidad) */
+    z-index: -1000;   /* Lo enviamos al fondo absoluto */
+    pointer-events: none; 
 }
 
 /* --- LOGIN HELICÓPTERO (AERIAL VIEW EFFECT) --- */

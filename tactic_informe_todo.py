@@ -19,6 +19,7 @@ import shutil
 from matplotlib import patheffects
 from datetime import datetime
 from difflib import get_close_matches
+import textwrap
 
 # Intenta importar las librerías necesarias y da un aviso si faltan.
 try:
@@ -302,6 +303,9 @@ def main():
         nombre_recibido = sys.argv[1]
         jornada = sys.argv[2]
         
+        # LIMPIEZA: Quitamos el "1. ", "20. ", etc. para que coincida con el mapeo
+        nombre_recibido = re.sub(r'^\d+\.\s*', '', nombre_sucio).strip()
+
         # Buscar el equipo por nombre
         equipo_canonico = None
         for key in TEAM_NAME_MAPPING.keys():
@@ -372,34 +376,27 @@ def main():
         j_inicio_val = int(sys.argv[2]) if len(sys.argv) > 3 else 1
         j_fin_val = int(sys.argv[3]) if len(sys.argv) > 3 else int(jornada)
 
-        injected_code = f"""
-        import matplotlib, pandas as pd, sys, numpy as np, re
-        matplotlib.use('Agg')
-
-        _orig_read = pd.read_parquet
-        def _patched_read(*args, **kwargs):
-            df = _orig_read(*args, **kwargs)
-            patrones_columna = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']
-            
-            for col in df.columns:
-                if any(p in col.lower() for p in patrones_columna):
-                    try:
-                        s_values = df[col].astype(str).str.lower().str.replace('j', '').str.strip()
-                        n_values = pd.to_numeric(s_values, errors='coerce')
-                        
-                        if n_values.notna().any():
-                            # FILTRADO POR RANGO (Sin tocar el disco)
-                            df = df[(n_values >= {j_inicio_val}) & (n_values <= {j_fin_val})]
-                    except:
-                        pass
-            return df
-
-        pd.read_parquet = _patched_read
-        exec(open('{script_py}', encoding='utf-8').read())
-        """
+        injected_code = (
+            "import matplotlib, pandas as pd, sys, numpy as np, re\n"
+            "matplotlib.use('Agg')\n"
+            "_orig_read = pd.read_parquet\n"
+            "def _patched_read(*args, **kwargs):\n"
+            "    df = _orig_read(*args, **kwargs)\n"
+            "    patrones = ['jornada', 'week', 'matchday', 'match_week', 'stg', 'fecha']\n"
+            "    for col in df.columns:\n"
+            "        if any(p in col.lower() for p in patrones):\n"
+            "            try:\n"
+            "                s_v = df[col].astype(str).str.lower().str.replace('j', '').str.strip()\n"
+            "                n_v = pd.to_numeric(s_v, errors='coerce')\n"
+            "                if n_v.notna().any():\n"
+            "                    df = df[(n_v >= " + str(j_inicio_val) + ") & (n_v <= " + str(j_fin_val) + ")]\n"
+            "            except: pass\n"
+            "    return df\n"
+            "pd.read_parquet = _patched_read\n"
+            "exec(open('" + script_py + "', encoding='utf-8').read())"
+        )
+        
         comando = ["python3", "-c", injected_code]
-
-
         
         my_env = os.environ.copy()
         
