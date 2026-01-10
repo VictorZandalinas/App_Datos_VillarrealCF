@@ -24,7 +24,7 @@ import textwrap
 
 # Intenta importar las librerías necesarias y da un aviso si faltan.
 try:
-    from PyPDF2 import PdfMerger
+    from PyPDF2 import PdfMerger, PdfReader, PdfWriter 
     import matplotlib
     matplotlib.use('Agg') # <-- CRÍTICO: Evita que matplotlib abra ventanas.
     import matplotlib.pyplot as plt

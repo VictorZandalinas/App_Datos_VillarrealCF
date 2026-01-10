@@ -21,9 +21,13 @@ from datetime import datetime
 from difflib import get_close_matches
 import textwrap
 
+def log(mensaje):
+    print(mensaje)
+    sys.stdout.flush()
+
 # Intenta importar las librerías necesarias y da un aviso si faltan.
 try:
-    from PyPDF2 import PdfMerger
+    from PyPDF2 import PdfReader, PdfWriter
     import matplotlib
     matplotlib.use('Agg') # <-- CRÍTICO: Evita que matplotlib abra ventanas.
     import matplotlib.pyplot as plt
@@ -327,14 +331,14 @@ def main():
     pdfs_para_unir = [ruta_portada]
     
     for i, script_py in enumerate(REPORTES_A_GENERAR, 1):
-        print(f"\n--- [{i}/{len(REPORTES_A_GENERAR)}] Ejecutando: {script_py} ---")
+        log(f"\n--- [{i}/{len(REPORTES_A_GENERAR)}] Ejecutando: {script_py} ---")
         if not os.path.exists(script_py): continue
         
         pdfs_antes = set(f for f in os.listdir('.') if f.endswith(".pdf"))
         
         if 'mediacoach' in script_py.lower():
             idx_mc = EQUIPOS_MEDIACOACH.index(TEAM_NAME_MAPPING[equipo_canonico]['mediacoach'])
-            respuestas = f"{idx_mc + 1}\n{jornada}\n"
+            respuestas = f"{idx_mc + 1}\n{jornada}\n{jornada}\n"
         elif 'sportian' in script_py.lower():
             idx_sp = EQUIPOS_SPORTIAN.index(TEAM_NAME_MAPPING[equipo_canonico]['sportian'])
             respuestas = f"{idx_sp + 1}\n"
