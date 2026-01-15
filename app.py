@@ -762,24 +762,32 @@ def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
     [Output("report-progress-bar", "value"),
      Output("report-status-text", "children"),
      Output("download-pdf-report", "data"),
-     Output("report-interval", "disabled", allow_duplicate=True)], # <--- AÑADE ESTA SALIDA
+     Output("report-interval", "disabled", allow_duplicate=True)], # <--- AÑADIR ESTO
     [Input("report-interval", "n_intervals")],
     prevent_initial_call=True
 )
 def update_report_ui(n):
     global report_progress
     
+    # 1. Si no hay nada activo
     if not report_progress['active'] and report_progress['progress'] == 0:
-        return 0, "Esperando...", None, True
+        return 0, "Esperando...", None, True # Desactivar interval
     
+    # 2. CUANDO LLEGA AL 100% Y HAY RUTA
     if report_progress['progress'] == 100 and report_progress.get('final_path'):
         path_archivo = report_progress['final_path']
+        
         if os.path.exists(path_archivo):
+            print(f"📦 Enviando archivo al navegador: {path_archivo}")
             descarga = dcc.send_file(path_archivo)
+            
+            # Limpiamos para evitar bucles
             report_progress['final_path'] = None 
-            # Retornamos descarga y DESACTIVAMOS el intervalo para que no obstruya
+            
+            # RETORNAMOS: Progreso, Texto, El Archivo, y TRUE para apagar el Interval
             return 100, "✅ Descargando informe...", descarga, True
             
+    # 3. Mientras está procesando
     return report_progress['progress'], report_progress['status'], None, False
     
 @app.callback(
