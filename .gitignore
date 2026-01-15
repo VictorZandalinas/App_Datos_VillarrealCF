@@ -211,3 +211,5 @@ __marimo__/
 *.xlsx
 *.pdf
 *.xml
+informes_generados/
+__pycache__/
