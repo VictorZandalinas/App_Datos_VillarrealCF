@@ -1,0 +1,33 @@
+name: Deploy Villarreal App
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: 154.56.153.161
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/App_Datos_VillarrealCF
+            # Configuramos git para evitar errores de identidad
+            git config user.email "servidor@villarreal.com"
+            git config user.name "Servidor Villarreal"
+            
+            # 1. Guardar cambios de datos generados en el servidor antes de bajar el código nuevo
+            git add .
+            git commit -m "Auto-save data before deploy [skip ci]" || echo "No hay cambios en datos"
+            
+            # 2. Bajar el código nuevo de GitHub
+            git pull origin main
+            
+            # 3. Instalar librerías si has añadido alguna nueva
+            pip install -r requirements.txt
+            
+            # 4. Reiniciar el servicio para que se vean los cambios
+            systemctl restart villarreal.service
