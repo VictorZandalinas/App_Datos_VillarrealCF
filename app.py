@@ -744,7 +744,10 @@ def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
     config = BLOQUES_CONFIG[bloque]
     
     # Definimos la ruta fija del servidor donde se creará el PDF temporalmente
-    ruta_servidor = "/root/App_Datos_VillarrealCF/informes_generados"
+    ruta_servidor = os.path.join(os.getcwd(), "informes_generados")
+    if not os.path.exists(ruta_servidor):
+        os.makedirs(ruta_servidor)
+
     
     threading.Thread(
         target=run_report_process, 
@@ -758,33 +761,26 @@ def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
 @app.callback(
     [Output("report-progress-bar", "value"),
      Output("report-status-text", "children"),
-     Output("download-pdf-report", "data")], # Salida al descargador del navegador
+     Output("download-pdf-report", "data"),
+     Output("report-interval", "disabled", allow_duplicate=True)], # <--- AÑADE ESTA SALIDA
     [Input("report-interval", "n_intervals")],
     prevent_initial_call=True
 )
 def update_report_ui(n):
     global report_progress
     
-    # 1. Si no hay nada en marcha, no hacer nada
     if not report_progress['active'] and report_progress['progress'] == 0:
-        return 0, "Esperando...", None
+        return 0, "Esperando...", None, True
     
-    # 2. CUANDO LLEGA AL 100% Y HAY RUTA DE ARCHIVO
     if report_progress['progress'] == 100 and report_progress.get('final_path'):
         path_archivo = report_progress['final_path']
-        
         if os.path.exists(path_archivo):
-            # Preparamos la descarga para el navegador
             descarga = dcc.send_file(path_archivo)
-            
-            # IMPORTANTE: Borramos la ruta de la memoria del servidor 
-            # para que no intente descargarlo otra vez en el próximo segundo
             report_progress['final_path'] = None 
+            # Retornamos descarga y DESACTIVAMOS el intervalo para que no obstruya
+            return 100, "✅ Descargando informe...", descarga, True
             
-            return 100, "✅ Descargando informe...", descarga
-            
-    # 3. Mientras está procesando (menor a 100)
-    return report_progress['progress'], report_progress['status'], None
+    return report_progress['progress'], report_progress['status'], None, False
     
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),
