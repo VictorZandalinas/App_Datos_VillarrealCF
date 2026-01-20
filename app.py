@@ -1049,6 +1049,25 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
     return False, True
 
 @app.callback(
+    Output("download-pdf-report", "data"),
+    Input("report-interval", "n_intervals"),
+    State("selected-report-block", "data"),
+    prevent_initial_call=True
+)
+def disparar_descarga(n, bloque_seleccionado):
+    global report_progress
+    
+    # Si el proceso ha terminado y tenemos una ruta de archivo
+    if not report_progress['active'] and report_progress['progress'] == 100 and report_progress['final_path']:
+        path = report_progress['final_path']
+        
+        if os.path.exists(path):
+            # IMPORTANTE: dcc.send_file es lo que fuerza al navegador a descargar
+            return dcc.send_file(path)
+            
+    return dash.no_update
+
+@app.callback(
     [Output('progress-bar', 'value'), 
      Output('update-progress', 'children'), 
      Output('progress-interval', 'disabled', allow_duplicate=True), 
