@@ -1049,7 +1049,7 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
     return False, True
 
 @app.callback(
-    Output("download-pdf-report", "data"),
+    Output("download-pdf-report", "data", allow_duplicate=True),  # <--- CAMBIO AQUÍ
     Input("report-interval", "n_intervals"),
     State("selected-report-block", "data"),
     prevent_initial_call=True
