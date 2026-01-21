@@ -194,6 +194,8 @@ class GeneradorMaestro:
                 
                 self.equipo_principal = equipo_encontrado
                 self.jornada_max_seleccionada = jornada_fin
+                self.jornada_inicio = jornada_inicio
+
                 
                 # Filtrar por RANGO de jornadas
                 self.df_mediacoach_original = self.df_mediacoach_original[
@@ -324,7 +326,7 @@ class GeneradorMaestro:
         pd.read_parquet = _patched_read_filtered
 
         # 5. Configurar el archivo de salida
-        output_pdf_path = f"Informe_Físico_{self.equipo_principal.replace(' ', '_')}.pdf"
+        output_pdf_path = f"Informe_Fisico_{self.equipo_principal.replace(' ', '_')}_J{self.jornada_inicio}_J{self.jornada_max_seleccionada}.pdf"
         
         try:
             with PdfPages(output_pdf_path) as pdf:

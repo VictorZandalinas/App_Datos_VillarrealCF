@@ -1005,17 +1005,32 @@ def seleccionar_equipo_interactivo():
             print(f"❌ Error: No existe '{col}'")
             return None
             
-        equipos = sorted(df[col].dropna().unique())
+        # Aseguramos que sean strings y ordenamos
+        equipos = sorted([str(e) for e in df[col].dropna().unique()])
+        
         print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
             
         while True:
+            # .strip() elimina espacios accidentales al principio o final
+            sel = input("Selecciona número o escribe nombre: ").strip()
+            
+            if not sel: return None
+            
+            # --- NUEVA LÓGICA ---
+            # 1. Si el input coincide exactamente con un nombre de la lista
+            if sel in equipos:
+                return sel
+            
+            # 2. Si el input es un número (lógica original)
             try:
-                sel = input("Selecciona número: ")
-                if not sel: return None
                 idx = int(sel) - 1
                 if 0 <= idx < len(equipos): return equipos[idx]
-            except ValueError: pass
+            except ValueError: 
+                pass
+            
+            print("❌ Selección no válida. Introduce un número de la lista o el nombre exacto.")
+            
     except Exception as e: print(f"❌ Error: {e}"); return None
 
 def main():

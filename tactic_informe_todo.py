@@ -390,7 +390,7 @@ def main():
             if os.path.exists(p_path) and os.path.getsize(p_path) > 100:
                 reader = PdfReader(p_path)
                 for page in reader.pages: writer.add_page(page)
-        output_name = f"Informe_Completo_{equipo_canonico.replace(' ', '_')}_J{jornada}.pdf"
+        output_name = f"Informe_Situaciones_Juego_{equipo_canonico.replace(' ', '_')}_J{jornada_inicio}_J{jornada_fin}.pdf"
         with open(output_name, "wb") as f: writer.write(f)
         print(f"\n✅ GENERADO: {output_name}")
     

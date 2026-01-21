@@ -14,6 +14,8 @@ import actualizar_datos
 import subprocess
 import shutil
 import glob
+from flask import send_from_directory
+
 
 
 # --- En app.py, debajo de las rutas ---
@@ -304,7 +306,7 @@ def crear_layout_principal():
                         ], style={"display": "none"}),
                         
                         dcc.Interval(id='report-interval', interval=800, disabled=True),
-                        dcc.Download(id="download-pdf-report")
+                        html.Div(id="download-link-container"), 
                     ])
                 ], className="shadow mb-5 border-dark")
             ], width=10, className="mx-auto")
@@ -347,6 +349,17 @@ def crear_layout_principal():
 def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_folder):
     global report_progress
     report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
+
+    try:
+        import time
+        ahora = time.time()
+        for archivo in glob.glob(os.path.join(destination_folder, "*.pdf")):
+            if os.path.getmtime(archivo) < ahora - 86400:  # 24 horas
+                os.remove(archivo)
+                print(f"🗑️ Limpiado: {archivo}")
+    except Exception as e:
+        print(f"⚠️ Error limpiando: {e}")
+
     
     import sys
     import shutil
@@ -761,32 +774,44 @@ def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
 @app.callback(
     [Output("report-progress-bar", "value"),
      Output("report-status-text", "children"),
-     Output("download-pdf-report", "data"),
-     Output("report-interval", "disabled", allow_duplicate=True)], # <--- AÑADIR ESTO
+     Output("download-link-container", "children"),
+     Output("report-interval", "disabled", allow_duplicate=True)],
     [Input("report-interval", "n_intervals")],
     prevent_initial_call=True
 )
 def update_report_ui(n):
     global report_progress
     
-    # 1. Si no hay nada activo
+    # 1. Estado inicial
     if not report_progress['active'] and report_progress['progress'] == 0:
-        return 0, "Esperando...", None, True # Desactivar interval
+        return 0, "Esperando...", None, True
     
-    # 2. CUANDO LLEGA AL 100% Y HAY RUTA
+    # 2. CUANDO TERMINA - Mostrar botón de descarga
     if report_progress['progress'] == 100 and report_progress.get('final_path'):
         path_archivo = report_progress['final_path']
         
         if os.path.exists(path_archivo):
-            print(f"📦 Enviando archivo al navegador: {path_archivo}")
-            descarga = dcc.send_file(path_archivo)
+            # Extraer solo el nombre del archivo
+            nombre_archivo = os.path.basename(path_archivo)
             
-            # Limpiamos para evitar bucles
-            report_progress['final_path'] = None 
+            # Crear botón de descarga con enlace directo
+            boton_descarga = html.A(
+                dbc.Button(
+                    [html.I(className="bi bi-download me-2"), f"📥 Descargar {nombre_archivo}"],
+                    color="success",
+                    size="lg",
+                    className="w-100 mt-3"
+                ),
+                href=f"/descargar/{nombre_archivo}",
+                download=nombre_archivo,
+                target="_blank"
+            )
             
-            # RETORNAMOS: Progreso, Texto, El Archivo, y TRUE para apagar el Interval
-            return 100, "✅ Descargando informe...", descarga, True
+            # Limpiar para evitar bucles
+            report_progress['final_path'] = None
             
+            return 100, "✅ Informe generado correctamente", boton_descarga, True
+    
     # 3. Mientras está procesando
     return report_progress['progress'], report_progress['status'], None, False
     
@@ -1048,24 +1073,12 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
     
     return False, True
 
-@app.callback(
-    Output("download-pdf-report", "data", allow_duplicate=True),  # <--- CAMBIO AQUÍ
-    Input("report-interval", "n_intervals"),
-    State("selected-report-block", "data"),
-    prevent_initial_call=True
-)
-def disparar_descarga(n, bloque_seleccionado):
-    global report_progress
-    
-    # Si el proceso ha terminado y tenemos una ruta de archivo
-    if not report_progress['active'] and report_progress['progress'] == 100 and report_progress['final_path']:
-        path = report_progress['final_path']
-        
-        if os.path.exists(path):
-            # IMPORTANTE: dcc.send_file es lo que fuerza al navegador a descargar
-            return dcc.send_file(path)
-            
-    return dash.no_update
+@server.route('/descargar/<path:filename>')
+def descargar_informe(filename):
+    """Endpoint para descargar informes generados"""
+    directorio = os.path.join(os.getcwd(), "informes_generados")
+    return send_from_directory(directorio, filename, as_attachment=True)
+
 
 @app.callback(
     [Output('progress-bar', 'value'), 

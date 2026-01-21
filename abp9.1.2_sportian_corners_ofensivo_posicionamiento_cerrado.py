@@ -1508,15 +1508,28 @@ class ReporteOfensivoCornersBilateral:
 def seleccionar_equipo():
     try:
         df = pd.read_parquet("extraccion_sportian/corners_tracking.parquet")
+        # ... (código de carga de columnas igual que antes) ...
         if 'Equipo_Lanzador' in df.columns:
             equipos = sorted([str(e) for e in df['Equipo_Lanzador'].dropna().unique()])
         else:
-            equipos = sorted(df['NombreEquipoJugador_Tracking'].dropna().unique())
+            equipos = sorted([str(e) for e in df['NombreEquipoJugador_Tracking'].dropna().unique()])
             
         print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
-        sel = input("Número: ")
-        return equipos[int(sel)-1] if sel.isdigit() and 0 < int(sel) <= len(equipos) else None
+        
+        # --- CAMBIO AQUÍ ---
+        sel = input("Número o Nombre exacto: ").strip() # .strip() quita espacios extra
+        
+        # 1. Si escribe el nombre tal cual (ej: "Real Madrid")
+        if sel in equipos:
+            return sel
+            
+        # 2. Si escribe el número (lógica antigua)
+        if sel.isdigit() and 0 < int(sel) <= len(equipos):
+            return equipos[int(sel)-1]
+            
+        return None
+        # -------------------
     except: return None
 
 if __name__ == "__main__":
