@@ -247,7 +247,6 @@ def crear_layout_principal():
                     "Departamento de Datos"
                 ], className="ms-2 fw-bold d-flex align-items-center"),
                 dbc.Nav([
-                    dbc.NavItem(dbc.NavLink("📄 Descargar PDF", id="download-pdf", href="#", className="nav-link-custom")),
                     dbc.NavItem(
                         html.A("🔄 Actualizar Datos", href="/actualizar", className="nav-link nav-link-custom", style={'cursor': 'pointer'})
                     ),
@@ -256,20 +255,14 @@ def crear_layout_principal():
             ])
         ], color="dark", dark=True, className="mb-4 shadow"),
         
-        # --- BLOQUE 1: GENERADOR DE INFORMES (AHORA ARRIBA) ---
+        # --- BLOQUE: GENERADOR DE INFORMES ---
         dbc.Row([
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H5("📑 Generador de Informes PDF", className="text-dark fw-bold mb-0")),
+                    dbc.CardHeader(html.H4("📊 Generador de Informes", className="text-white mb-0"), className="bg-dark"),
                     
                     dbc.CardBody([
-                        # Espacio dinámico para selectores de Equipo y Jornadas
-                        html.Div(id='report-selectors-container', children=[], style={'display': 'none'}),
-                        
-                        # Almacén del bloque seleccionado
-                        dcc.Store(id='selected-report-block', data=None),
-
-                        # BOTONES PRINCIPALES DE INFORMES
+                        # --- LOS 3 BOTONES PRINCIPALES ---
                         dbc.Row([
                             dbc.Col([
                                 dbc.Button([
@@ -299,22 +292,35 @@ def crear_layout_principal():
                             ], width=4),
                         ], className="g-3 mb-4"),
 
-                        # ESTADO Y PROGRESO
+                        # --- CONTENEDOR DINÁMICO DE FILTROS (vacío inicialmente) ---
+                        html.Div(id='report-selectors-container', children=[], style={'display': 'none'}),
+                        
+                        # --- ALMACÉN DEL BLOQUE SELECCIONADO ---
+                        dcc.Store(id='selected-report-block', data=None),
+
+                        # --- BARRA DE PROGRESO ---
                         html.Div(id="report-progress-container", children=[
                             html.P(id="report-status-text", className="small mb-1 fw-bold text-muted", children="Esperando selección..."),
                             dbc.Progress(id="report-progress-bar", value=0, striped=True, animated=True, color="info", style={"height": "15px"}),
                         ], style={"display": "none"}),
                         
+                        # --- INTERVALO PARA ACTUALIZAR PROGRESO ---
                         dcc.Interval(id='report-interval', interval=800, disabled=True),
+                        
+                        # --- ENLACE DE DESCARGA ---
                         html.Div(id="download-link-container"), 
+                        dcc.Download(id="download-pdf"),
                     ])
-                ], className="shadow mb-5 border-dark")
+                ], className="shadow mb-5")
             ], width=10, className="mx-auto")
         ]),
 
-        # --- BLOQUE 2: FILTROS DE VISUALIZACIÓN (AHORA ABAJO) ---
+        html.Hr(className="my-5"),
+
+        # --- BLOQUE: VISUALIZACIÓN DE DATOS ---
         dbc.Row([
             dbc.Col([
+                html.H4("📈 Visualización de Datos Cargados", className="text-center mb-4"),
                 dbc.Card([
                     dbc.CardBody([
                         dbc.Row([
@@ -331,13 +337,13 @@ def crear_layout_principal():
                         ])
                     ])
                 ], className="shadow-sm mb-4 bg-light")
-            ], width=8, className="mx-auto")
+            ], width=10, className="mx-auto")
         ]),
         
-        # GRID DE JORNADAS
+        # --- GRID DE JORNADAS ---
         html.Div(id='jornadas-container'),
         
-        # MODAL GENÉRICO
+        # --- MODAL GENÉRICO ---
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Información")),
             dbc.ModalBody("Esta función se implementará próximamente."),
@@ -652,6 +658,153 @@ def navegar_internamente(path):
         return crear_pagina_actualizacion()
     return crear_layout_principal()
 
+@app.callback(
+    Output('filtros-informe-container', 'children'),
+    Input({'type': 'btn-informe', 'bloque': ALL}, 'n_clicks'),
+    prevent_initial_call=True
+)
+def mostrar_filtros_informe(clicks):
+    # Detectar qué botón fue clickeado
+    ctx = dash.callback_context
+    if not ctx.triggered or not any(clicks):
+        raise dash.exceptions.PreventUpdate
+    
+    # Obtener el bloque clickeado (ABP, FISICO, TACTICO)
+    trigger_id = ctx.triggered_id
+    bloque = trigger_id['bloque']
+    
+    # Leer configuración del bloque
+    config = BLOQUES_CONFIG[bloque]
+    parquet_path = BASE_PATH / config['parquet']
+    
+    # Leer datos para obtener equipos y jornadas
+    try:
+        df = pd.read_parquet(parquet_path, columns=[config['col_equipo'], config['col_jornada']])
+        
+        # Equipos únicos
+        equipos = sorted(df[config['col_equipo']].dropna().unique())
+        opciones_equipos = [{'label': eq, 'value': eq} for eq in equipos]
+        
+        # Rango de jornadas
+        jornadas = df[config['col_jornada']].dropna()
+        jornada_min = int(jornadas.min())
+        jornada_max = int(jornadas.max())
+        
+    except Exception as e:
+        return dbc.Alert(f"Error cargando datos: {str(e)}", color="danger")
+    
+    # Crear el formulario de filtros
+    return dbc.Card([
+        dbc.CardHeader(html.H5(f"Filtros para informe {bloque}", className="mb-0")),
+        dbc.CardBody([
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Equipo"),
+                    dcc.Dropdown(
+                        id='informe-equipo',
+                        options=opciones_equipos,
+                        placeholder="Selecciona un equipo"
+                    )
+                ], width=12, className="mb-3"),
+                
+                dbc.Col([
+                    dbc.Label("Jornada Inicial"),
+                    dbc.Input(
+                        id='informe-jornada-ini',
+                        type="number",
+                        min=jornada_min,
+                        max=jornada_max,
+                        value=jornada_min
+                    )
+                ], width=6, className="mb-3"),
+                
+                dbc.Col([
+                    dbc.Label("Jornada Final"),
+                    dbc.Input(
+                        id='informe-jornada-fin',
+                        type="number",
+                        min=jornada_min,
+                        max=jornada_max,
+                        value=jornada_max
+                    )
+                ], width=6, className="mb-3"),
+            ]),
+            
+            dbc.Button(
+                "Generar Informe", 
+                id='btn-generar-informe',
+                color="success",
+                size="lg",
+                className="w-100"
+            ),
+            
+            # Guardamos el bloque actual en un Store
+            dcc.Store(id='bloque-actual', data=bloque)
+        ])
+    ], className="mt-3")
+
+@app.callback(
+    Output('descarga-informe-container', 'children'),
+    Input('btn-generar-informe', 'n_clicks'),
+    [State('informe-equipo', 'value'),
+     State('informe-jornada-ini', 'value'),
+     State('informe-jornada-fin', 'value'),
+     State('bloque-actual', 'data')],
+    prevent_initial_call=True
+)
+def generar_informe(n_clicks, equipo, j_ini, j_fin, bloque):
+    if not n_clicks or not equipo:
+        raise dash.exceptions.PreventUpdate
+    
+    try:
+        # Obtener script del bloque
+        config = BLOQUES_CONFIG[bloque]
+        script_path = BASE_PATH / config['script']
+        
+        # Crear carpeta de informes si no existe
+        carpeta_informes = BASE_PATH / 'informes_generados'
+        carpeta_informes.mkdir(exist_ok=True)
+        
+        # Ejecutar script
+        resultado = subprocess.run(
+            ['python', str(script_path), 
+             '--equipo', equipo,
+             '--jornada_inicial', str(j_ini),
+             '--jornada_final', str(j_fin)],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutos máximo
+        )
+        
+        if resultado.returncode == 0:
+            # Buscar el PDF generado más reciente
+            pdfs = list(carpeta_informes.glob(f"*{bloque}*.pdf"))
+            if pdfs:
+                pdf_mas_reciente = max(pdfs, key=lambda p: p.stat().st_mtime)
+                nombre_archivo = pdf_mas_reciente.name
+                
+                return dbc.Alert([
+                    html.H5("✅ Informe generado correctamente", className="alert-heading"),
+                    html.Hr(),
+                    dbc.Button(
+                        "📥 Descargar Informe",
+                        href=f"/descargar/{nombre_archivo}",
+                        color="success",
+                        size="lg",
+                        external_link=True
+                    )
+                ], color="success")
+            else:
+                return dbc.Alert("⚠️ Informe generado pero no se encontró el PDF", color="warning")
+        else:
+            return dbc.Alert(
+                f"❌ Error generando informe: {resultado.stderr}", 
+                color="danger"
+            )
+            
+    except Exception as e:
+        return dbc.Alert(f"❌ Error: {str(e)}", color="danger")
+
 # CALLBACK 1: Mostrar selectores al hacer clic en botón
 @app.callback(
     [Output('report-selectors-container', 'children'),
@@ -791,20 +944,15 @@ def update_report_ui(n):
         path_archivo = report_progress['final_path']
         
         if os.path.exists(path_archivo):
-            # Extraer solo el nombre del archivo
             nombre_archivo = os.path.basename(path_archivo)
             
-            # Crear botón de descarga con enlace directo
-            boton_descarga = html.A(
-                dbc.Button(
-                    [html.I(className="bi bi-download me-2"), f"📥 Descargar {nombre_archivo}"],
-                    color="success",
-                    size="lg",
-                    className="w-100 mt-3"
-                ),
-                href=f"/descargar/{nombre_archivo}",
-                download=nombre_archivo,
-                target="_blank"
+            # Crear botón de descarga (ahora con ID para detectar clics)
+            boton_descarga = dbc.Button(
+                [html.I(className="bi bi-download me-2"), f"📥 Descargar {nombre_archivo}"],
+                id="btn-descargar-pdf",  # ← ID IMPORTANTE
+                color="success",
+                size="lg",
+                className="w-100 mt-3"
             )
             
             # Limpiar para evitar bucles
@@ -814,6 +962,66 @@ def update_report_ui(n):
     
     # 3. Mientras está procesando
     return report_progress['progress'], report_progress['status'], None, False
+
+@app.callback(
+    [Output('download-pdf', 'data'),
+     Output('report-selectors-container', 'style', allow_duplicate=True),
+     Output('report-selectors-container', 'children', allow_duplicate=True),
+     Output('selected-report-block', 'data', allow_duplicate=True),
+     Output('download-link-container', 'children', allow_duplicate=True),
+     Output('report-progress-container', 'style', allow_duplicate=True)],
+    Input('btn-descargar-pdf', 'n_clicks'),
+    prevent_initial_call=True
+)
+def descargar_y_resetear(n_clicks):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
+    
+    global report_progress
+    
+    # Obtener la ruta del último archivo generado
+    carpeta_informes = os.path.join(os.getcwd(), "informes_generados")
+    pdfs = glob.glob(os.path.join(carpeta_informes, "*.pdf"))
+    
+    if pdfs:
+        # Encontrar el PDF más reciente
+        pdf_reciente = max(pdfs, key=os.path.getctime)
+        
+        # Descargar el archivo Y resetear todo
+        return (
+            dcc.send_file(pdf_reciente),  # Descarga
+            {'display': 'none'},          # Ocultar filtros
+            [],                           # Limpiar filtros
+            None,                         # Resetear bloque
+            None,                         # Limpiar enlace descarga
+            {'display': 'none'}           # Ocultar barra progreso
+        )
+    
+    # Si no hay PDF, solo resetear
+    return (
+        dash.no_update,
+        {'display': 'none'},
+        [],
+        None,
+        None,
+        {'display': 'none'}
+    )
+    
+@app.callback(
+    [Output('report-selectors-container', 'style', allow_duplicate=True),
+     Output('report-selectors-container', 'children', allow_duplicate=True),
+     Output('selected-report-block', 'data', allow_duplicate=True),
+     Output('download-link-container', 'children', allow_duplicate=True),
+     Output('report-progress-container', 'style', allow_duplicate=True)],
+    Input('btn-reset-informe', 'n_clicks'),
+    prevent_initial_call=True
+)
+def reset_informe_form(n_clicks):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
+    
+    # Resetear todo: ocultar filtros, limpiar descarga, ocultar progreso
+    return {'display': 'none'}, [], None, None, {'display': 'none'}
     
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),
