@@ -1,0 +1,13 @@
+{
+  "name": "extraccion-mediacoach",
+  "version": "1.0.0",
+  "description": "Scripts de extraccion de datos MediaCoach",
+  "scripts": {
+    "rendimiento": "node 3.extraer_rendimiento_xlsx.js",
+    "maxima": "node 4.extraer_maxima_exigencia.js"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5",
+    "parquetjs": "^0.11.2"
+  }
+}
