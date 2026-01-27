@@ -195,6 +195,83 @@ QUALIFIER_MAPPING = {
 }
 
 # ====================================
+# GIT AUTO-SYNC FUNCTION
+# ====================================
+
+def git_auto_sync(source_name):
+    """
+    Realiza git add, commit y push automáticamente después de una descarga.
+
+    Args:
+        source_name: Nombre de la fuente de datos (Opta, MediaCoach, Sportian)
+    """
+    try:
+        # Obtener el directorio del script
+        script_dir = Path(__file__).parent
+
+        print(f"\n🔄 Sincronizando cambios con GitHub ({source_name})...")
+
+        # Git add
+        result_add = subprocess.run(
+            ['git', 'add', '.'],
+            cwd=script_dir,
+            capture_output=True,
+            text=True
+        )
+
+        if result_add.returncode != 0:
+            print(f"⚠️ Error en git add: {result_add.stderr}")
+            return False
+
+        # Verificar si hay cambios para commitear
+        result_status = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=script_dir,
+            capture_output=True,
+            text=True
+        )
+
+        if not result_status.stdout.strip():
+            print("ℹ️ No hay cambios nuevos para sincronizar")
+            return True
+
+        # Git commit
+        commit_message = f"Actualización automática de datos {source_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        result_commit = subprocess.run(
+            ['git', 'commit', '-m', commit_message],
+            cwd=script_dir,
+            capture_output=True,
+            text=True
+        )
+
+        if result_commit.returncode != 0:
+            print(f"⚠️ Error en git commit: {result_commit.stderr}")
+            return False
+
+        print(f"✅ Commit realizado: {commit_message}")
+
+        # Git push
+        result_push = subprocess.run(
+            ['git', 'push'],
+            cwd=script_dir,
+            capture_output=True,
+            text=True
+        )
+
+        if result_push.returncode != 0:
+            print(f"⚠️ Error en git push: {result_push.stderr}")
+            return False
+
+        print("✅ Push realizado correctamente a GitHub")
+        logging.info(f"Git sync completado para {source_name}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error en sincronización git: {e}")
+        logging.error(f"Error en git_auto_sync: {e}")
+        return False
+
+# ====================================
 # ABP SEQUENCE PROCESSING FUNCTIONS
 # ====================================
 
@@ -2708,6 +2785,8 @@ def update_opta_data():
         # AUNQUE NO HAYA PARTIDOS, ACTUALIZAMOS ABP POR SI ACASO
         update_abp_events_standalone()
         calculate_and_save_abp_statistics()
+        # Sincronizar con GitHub automáticamente
+        git_auto_sync("Opta")
         return
     
     print(f"\n📊 Procesando {len(new_matches_df)} partidos nuevos...")
@@ -2790,6 +2869,9 @@ def update_opta_data():
     print(f"\n🎉 ¡Actualización de Opta completada!")
     print(f"📊 {len(new_matches_df)} partidos procesados")
 
+    # Sincronizar con GitHub automáticamente
+    git_auto_sync("Opta")
+
 
 # ====================================
 # MEDIACOACH DATA UPDATER
@@ -2801,8 +2883,10 @@ def update_mediacoach_data():
     print("=" * 50)
     print("⏳ Funcionalidad pendiente de implementar...")
     print("📧 Contacta con el administrador para más información")
-    
+
     # TODO: Implement MediaCoach data update logic
+    # Cuando se implemente, añadir al final:
+    # git_auto_sync("MediaCoach")
 
 # ====================================
 # MAIN INTERFACE
@@ -2831,6 +2915,7 @@ def main():
             elif choice == '2':
                 update_abp_events_standalone()
                 calculate_and_save_abp_statistics()
+                git_auto_sync("ABP")
             elif choice == '3':
                 update_mediacoach_data()
             elif choice == '4':
