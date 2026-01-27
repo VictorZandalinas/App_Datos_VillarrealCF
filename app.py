@@ -600,10 +600,24 @@ def crear_pagina_actualizacion():
                         "SPORTIAN"
                     ], className="mb-0 text-white"), style={"background": "#FFD700"}),
                     dbc.CardBody([
-                        html.P("Módulo de descarga de datos de tracking y eventos Sportian."),
-                        html.Div(style={"height": "195px", "border": "1px dashed #ccc", "borderRadius": "5px"}, className="d-flex align-items-center justify-content-center", 
-                                 children=[html.Span("Próximamente", className="text-muted")]),
-                        dbc.Button("Descargar Sportian", id="btn-update-sportian", color="warning", className="w-100 mt-3", disabled=True),
+                        html.P("Arrastra un CSV de corners o faltas para procesarlo."),
+                        dcc.Upload(
+                            id='sportian-upload',
+                            children=html.Div([
+                                html.I(className="fas fa-cloud-upload-alt", style={"fontSize": "48px", "color": "#FFD700"}),
+                                html.P("Arrastra un archivo CSV aquí", className="mt-2 mb-1"),
+                                html.P("o haz clic para seleccionar", className="text-muted small")
+                            ]),
+                            style={
+                                "height": "160px", "border": "2px dashed #FFD700", "borderRadius": "10px",
+                                "display": "flex", "alignItems": "center", "justifyContent": "center",
+                                "cursor": "pointer", "backgroundColor": "#fffef5"
+                            },
+                            multiple=False,
+                            accept='.csv'
+                        ),
+                        html.Div(id='sportian-upload-status', className="mt-2 text-center"),
+                        dbc.Button("Procesar CSV", id="btn-update-sportian", color="warning", className="w-100 mt-3", disabled=True),
                     ])
                 ], className="shadow mb-4")
             ], width=12, lg=4),
@@ -1025,11 +1039,96 @@ def reset_informe_form(n_clicks):
     
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),
-    [Input('mediacoach-liga-dropdown', 'value'), 
+    [Input('mediacoach-liga-dropdown', 'value'),
      Input('mediacoach-temporada-dropdown', 'value')]
 )
 def enable_btn_mediacoach(l, t):
     return not (l and t)
+
+# --- CALLBACKS SPORTIAN ---
+@app.callback(
+    [Output('btn-update-sportian', 'disabled'),
+     Output('sportian-upload-status', 'children')],
+    Input('sportian-upload', 'contents'),
+    State('sportian-upload', 'filename'),
+    prevent_initial_call=True
+)
+def sportian_file_uploaded(contents, filename):
+    if contents is None:
+        return True, ""
+
+    # Verificar que sea CSV de corners o faltas
+    if filename and filename.lower().endswith('.csv'):
+        nombre_lower = filename.lower()
+        if 'corner' in nombre_lower or 'falta' in nombre_lower:
+            return False, html.Div([
+                html.I(className="fas fa-check-circle text-success me-2"),
+                html.Span(f"Archivo listo: {filename}", className="text-success")
+            ])
+        else:
+            return True, html.Div([
+                html.I(className="fas fa-exclamation-triangle text-warning me-2"),
+                html.Span("El archivo debe contener 'corners' o 'faltas' en el nombre", className="text-warning")
+            ])
+
+    return True, html.Div([
+        html.I(className="fas fa-times-circle text-danger me-2"),
+        html.Span("Solo se aceptan archivos CSV", className="text-danger")
+    ])
+
+@app.callback(
+    [Output('progress-interval', 'disabled', allow_duplicate=True),
+     Output('btn-update-sportian', 'disabled', allow_duplicate=True),
+     Output('sportian-upload-status', 'children', allow_duplicate=True)],
+    Input('btn-update-sportian', 'n_clicks'),
+    [State('sportian-upload', 'contents'),
+     State('sportian-upload', 'filename')],
+    prevent_initial_call=True
+)
+def process_sportian_csv(n_clicks, contents, filename):
+    if not n_clicks or not contents:
+        raise dash.exceptions.PreventUpdate
+
+    global progress_data
+    progress_data = {'active': True, 'progress': 0, 'status': 'Procesando CSV Sportian...', 'messages': []}
+
+    def cb(p, s, msgs):
+        global progress_data
+        progress_data.update({'progress': p, 'status': s, 'messages': msgs})
+        if p >= 100: progress_data['active'] = False
+
+    # Lanzar proceso en hilo separado
+    threading.Thread(
+        target=actualizar_datos.process_sportian_csv_upload,
+        args=(contents, filename, cb),
+        daemon=True
+    ).start()
+
+    return False, True, html.Div([
+        html.I(className="fas fa-spinner fa-spin text-warning me-2"),
+        html.Span("Procesando...", className="text-warning")
+    ])
+
+@app.callback(
+    [Output('sportian-upload', 'contents', allow_duplicate=True),
+     Output('sportian-upload-status', 'children', allow_duplicate=True)],
+    Input('progress-interval', 'n_intervals'),
+    State('progress-interval', 'disabled'),
+    prevent_initial_call=True
+)
+def clear_sportian_after_complete(n, disabled):
+    global progress_data
+    if disabled or progress_data.get('active', True):
+        raise dash.exceptions.PreventUpdate
+
+    # Si el proceso terminó y hay mensaje de éxito, limpiar el upload
+    if progress_data.get('progress', 0) >= 100:
+        return None, html.Div([
+            html.I(className="fas fa-check-circle text-success me-2"),
+            html.Span("¡Procesado correctamente!", className="text-success")
+        ])
+
+    raise dash.exceptions.PreventUpdate
 
 @app.callback(
     [Output('login-status', 'data'), Output('login-error', 'children')],

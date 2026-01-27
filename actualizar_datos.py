@@ -2874,6 +2874,88 @@ def update_opta_data():
 
 
 # ====================================
+# SPORTIAN DATA UPDATER
+# ====================================
+
+def process_sportian_csv_upload(contents, filename, progress_callback=None):
+    """Procesa un archivo CSV de Sportian subido via web (corners o faltas)"""
+    import base64
+    import tempfile
+    import sys
+    import os
+
+    messages = []
+
+    def add_message(msg, msg_type="info"):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        messages.append({'timestamp': timestamp, 'message': msg, 'type': msg_type})
+        print(msg)
+
+    def update_progress(progress, status=""):
+        if progress_callback:
+            progress_callback(progress, status, messages)
+
+    add_message(f"📤 PROCESANDO CSV SPORTIAN: {filename}")
+    add_message("=" * 50)
+    update_progress(10, "Decodificando archivo...")
+
+    try:
+        # 1. Decodificar el contenido base64
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+
+        # 2. Guardar temporalmente en la carpeta de Sportian
+        sportian_dir = os.path.join(os.getcwd(), 'extraccion_sportian')
+        temp_csv_path = os.path.join(sportian_dir, filename)
+
+        with open(temp_csv_path, 'wb') as f:
+            f.write(decoded)
+
+        add_message(f"✅ Archivo guardado: {temp_csv_path}")
+        update_progress(30, "Archivo guardado, procesando...")
+
+        # 3. Importar y ejecutar la función del script csv_a_parquet
+        sys.path.insert(0, sportian_dir)
+        from csv_a_parquet import procesar_dataset
+
+        # Determinar tipo de archivo y procesar
+        nombre_lower = filename.lower()
+
+        if 'corner' in nombre_lower:
+            parquet_dest = os.path.join(sportian_dir, 'corners_tracking.parquet')
+            id_col = 'ID_Evento_Corner'
+            tipo = 'corners'
+        elif 'falta' in nombre_lower:
+            parquet_dest = os.path.join(sportian_dir, 'faltas_tracking.parquet')
+            id_col = 'ID_Evento_Falta'
+            tipo = 'faltas'
+        else:
+            add_message(f"❌ El archivo debe contener 'corners' o 'faltas' en el nombre", "error")
+            update_progress(100, "Error: nombre de archivo inválido")
+            return
+
+        add_message(f"🔍 Tipo detectado: {tipo}")
+        update_progress(50, f"Procesando {tipo}...")
+
+        # 4. Procesar el dataset
+        procesar_dataset(temp_csv_path, parquet_dest, id_col)
+
+        add_message(f"✅ Datos de {tipo} actualizados en {parquet_dest}")
+        update_progress(80, "Sincronizando con Git...")
+
+        # 5. Sincronizar con Git
+        git_auto_sync("Sportian")
+
+        add_message("✅ Proceso completado exitosamente")
+        update_progress(100, "✅ Proceso completado")
+
+    except Exception as e:
+        add_message(f"❌ Error: {str(e)}", "error")
+        update_progress(100, f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+# ====================================
 # MEDIACOACH DATA UPDATER
 # ====================================
 
