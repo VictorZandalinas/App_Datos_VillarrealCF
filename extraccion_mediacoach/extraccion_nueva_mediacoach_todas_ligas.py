@@ -669,6 +669,16 @@ def main():
         "39df9ec8-becb-86ea-b5e8-600c1b47968d": "La Liga 2"   # Segunda
     }
 
+    # Aliases para normalizar nombres comerciales a nombres internos
+    aliases_competiciones = {
+        "laliga ea sports": "La Liga",
+        "laliga hypermotion": "La Liga 2",
+        "la liga": "La Liga",
+        "la liga 2": "La Liga 2",
+        "primera": "La Liga",
+        "segunda": "La Liga 2",
+    }
+
     for i, c_api in enumerate(raw_competiciones):
         c_id = c_api.get('id')
         nombre_api = c_api.get('name', '')
@@ -687,18 +697,22 @@ def main():
     competition_name = None
 
     if modo_automatico:
+        # Normalizar arg_liga usando aliases (LALIGA EA SPORTS -> La Liga, etc.)
+        arg_liga_normalizado = aliases_competiciones.get(arg_liga.strip().lower(), arg_liga)
+        logging.info(f"🔍 Buscando liga: '{arg_liga}' -> normalizado: '{arg_liga_normalizado}'")
+
         # 1. Intentamos primero coincidencia EXACTA (para no confundir Liga con Liga 2)
         for c in competiciones:
-            if arg_liga.strip().lower() == c["nombre"].strip().lower():
+            if arg_liga_normalizado.strip().lower() == c["nombre"].strip().lower():
                 competition_id = c["id"]
                 competition_name = c["nombre"]
                 logging.info(f"🎯 Coincidencia exacta encontrada: {competition_name}")
                 break
-        
+
         # 2. Si no hubo exacta, probamos coincidencia parcial (fallback)
         if not competition_id:
             for c in competiciones:
-                if arg_liga.lower() in c["nombre"].lower():
+                if arg_liga_normalizado.lower() in c["nombre"].lower():
                     competition_id = c["id"]
                     competition_name = c["nombre"]
                     logging.info(f"⚠️ Coincidencia parcial encontrada: {competition_name}")
