@@ -953,33 +953,46 @@ def update_report_ui(n):
     if not report_progress['active'] and report_progress['progress'] == 0:
         return 0, "Esperando...", None, True
     
-    # 2. CUANDO TERMINA - Mostrar botón de descarga
+    # 2. CUANDO TERMINA - Mostrar enlace de descarga directo (más eficiente para archivos grandes)
     if report_progress['progress'] == 100 and report_progress.get('final_path'):
         path_archivo = report_progress['final_path']
-        
+
         if os.path.exists(path_archivo):
             nombre_archivo = os.path.basename(path_archivo)
-            
-            # Crear botón de descarga (ahora con ID para detectar clics)
-            boton_descarga = dbc.Button(
-                [html.I(className="bi bi-download me-2"), f"📥 Descargar {nombre_archivo}"],
-                id="btn-descargar-pdf",  # ← ID IMPORTANTE
-                color="success",
-                size="lg",
-                className="w-100 mt-3"
-            )
-            
+
+            # Crear enlace directo al endpoint Flask (evita cargar el PDF en memoria)
+            # y botón para resetear el formulario
+            contenedor_descarga = html.Div([
+                html.A(
+                    dbc.Button(
+                        [html.I(className="bi bi-download me-2"), f"📥 Descargar {nombre_archivo}"],
+                        color="success",
+                        size="lg",
+                        className="w-100 mt-3"
+                    ),
+                    href=f"/descargar/{nombre_archivo}",
+                    download=nombre_archivo,
+                    target="_blank"
+                ),
+                dbc.Button(
+                    [html.I(className="bi bi-arrow-counterclockwise me-2"), "Generar otro informe"],
+                    id="btn-descargar-pdf",  # Reutilizamos el ID para el reset
+                    color="secondary",
+                    size="sm",
+                    className="w-100 mt-2"
+                )
+            ])
+
             # Limpiar para evitar bucles
             report_progress['final_path'] = None
-            
-            return 100, "✅ Informe generado correctamente", boton_descarga, True
+
+            return 100, "✅ Informe generado correctamente", contenedor_descarga, True
     
     # 3. Mientras está procesando
     return report_progress['progress'], report_progress['status'], None, False
 
 @app.callback(
-    [Output('download-pdf', 'data'),
-     Output('report-selectors-container', 'style', allow_duplicate=True),
+    [Output('report-selectors-container', 'style', allow_duplicate=True),
      Output('report-selectors-container', 'children', allow_duplicate=True),
      Output('selected-report-block', 'data', allow_duplicate=True),
      Output('download-link-container', 'children', allow_duplicate=True),
@@ -987,38 +1000,21 @@ def update_report_ui(n):
     Input('btn-descargar-pdf', 'n_clicks'),
     prevent_initial_call=True
 )
-def descargar_y_resetear(n_clicks):
+def resetear_formulario_informe(n_clicks):
+    """Resetea el formulario para generar otro informe (la descarga es un enlace directo)"""
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
-    
+
     global report_progress
-    
-    # Obtener la ruta del último archivo generado
-    carpeta_informes = os.path.join(os.getcwd(), "informes_generados")
-    pdfs = glob.glob(os.path.join(carpeta_informes, "*.pdf"))
-    
-    if pdfs:
-        # Encontrar el PDF más reciente
-        pdf_reciente = max(pdfs, key=os.path.getctime)
-        
-        # Descargar el archivo Y resetear todo
-        return (
-            dcc.send_file(pdf_reciente),  # Descarga
-            {'display': 'none'},          # Ocultar filtros
-            [],                           # Limpiar filtros
-            None,                         # Resetear bloque
-            None,                         # Limpiar enlace descarga
-            {'display': 'none'}           # Ocultar barra progreso
-        )
-    
-    # Si no hay PDF, solo resetear
+    report_progress = {'active': False, 'progress': 0, 'status': '', 'final_path': ''}
+
+    # Resetear todo el formulario
     return (
-        dash.no_update,
-        {'display': 'none'},
-        [],
-        None,
-        None,
-        {'display': 'none'}
+        {'display': 'none'},          # Ocultar filtros
+        [],                           # Limpiar filtros
+        None,                         # Resetear bloque
+        None,                         # Limpiar enlace descarga
+        {'display': 'none'}           # Ocultar barra progreso
     )
     
 @app.callback(
@@ -1382,9 +1378,18 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
 
 @server.route('/descargar/<path:filename>')
 def descargar_informe(filename):
-    """Endpoint para descargar informes generados"""
+    """Endpoint para descargar informes generados (optimizado para archivos grandes)"""
     directorio = os.path.join(os.getcwd(), "informes_generados")
-    return send_from_directory(directorio, filename, as_attachment=True)
+    response = send_from_directory(
+        directorio,
+        filename,
+        as_attachment=True,
+        mimetype='application/pdf'
+    )
+    # Headers para evitar timeouts y cacheo en archivos grandes
+    response.headers['X-Accel-Buffering'] = 'no'  # Evita buffering en nginx
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 
 @app.callback(
