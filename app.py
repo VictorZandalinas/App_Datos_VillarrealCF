@@ -964,19 +964,15 @@ def update_report_ui(n):
             # y botón para resetear el formulario
             contenedor_descarga = html.Div([
                 html.A(
-                    dbc.Button(
-                        [html.I(className="bi bi-download me-2"), f"📥 Descargar {nombre_archivo}"],
-                        color="success",
-                        size="lg",
-                        className="w-100 mt-3"
-                    ),
+                    f"📥 Descargar {nombre_archivo}",
                     href=f"/descargar/{nombre_archivo}",
                     download=nombre_archivo,
-                    target="_blank"
+                    className="btn btn-success btn-lg w-100 mt-3",
+                    style={"textDecoration": "none", "display": "block", "textAlign": "center"}
                 ),
                 dbc.Button(
                     [html.I(className="bi bi-arrow-counterclockwise me-2"), "Generar otro informe"],
-                    id="btn-descargar-pdf",  # Reutilizamos el ID para el reset
+                    id="btn-descargar-pdf",
                     color="secondary",
                     size="sm",
                     className="w-100 mt-2"
