@@ -1882,16 +1882,19 @@ def seleccionar_equipo_interactivo():
         for i, equipo in enumerate(equipos, 1): 
             print(f"{i}. {equipo}")
         
-        while True:
+        for _ in range(3):
             try:
                 indice = int(input(f"\nSelecciona un equipo (1-{len(equipos)}): ").strip()) - 1
-                if 0 <= indice < len(equipos): 
+                if 0 <= indice < len(equipos):
                     return equipos[indice]
-                else: 
+                else:
                     print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
-            except ValueError: 
+            except EOFError:
+                return equipos[0] if equipos else None
+            except ValueError:
                 print("Por favor, ingresa un número válido")
-    except Exception as e: 
+        return equipos[0] if equipos else None
+    except Exception as e:
         print(f"Error en la selección: {e}")
         return None
 

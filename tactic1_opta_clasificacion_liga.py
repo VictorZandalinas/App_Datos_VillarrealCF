@@ -786,7 +786,8 @@ def main():
         print(f"{i}. {equipo}")
     
     # Seleccionar equipo
-    while True:
+    equipo_encontrado = None
+    for _ in range(3):
         try:
             seleccion = int(input(f"\nSelecciona equipo para comparar con {villarreal_nombre} (1-{len(equipos_comparar)}): "))
             if 1 <= seleccion <= len(equipos_comparar):
@@ -794,8 +795,13 @@ def main():
                 break
             else:
                 print(f"Numero fuera de rango. Ingresa entre 1 y {len(equipos_comparar)}")
+        except EOFError:
+            equipo_encontrado = equipos_comparar[0] if equipos_comparar else None
+            break
         except ValueError:
             print("Ingresa un numero valido")
+    if equipo_encontrado is None and equipos_comparar:
+        equipo_encontrado = equipos_comparar[0]
     
     # Guardar CSV opcional
     clasificador.guardar_datos()

@@ -978,7 +978,7 @@ def main():
         print(f"{i}. {equipo}")
     
     equipo_oponente = None
-    while True:
+    for _ in range(3):
         try:
             seleccion = int(input(f"\nSelecciona un número (1-{len(equipos_comparar)}): "))
             if 1 <= seleccion <= len(equipos_comparar):
@@ -986,8 +986,13 @@ def main():
                 break
             else:
                 print(f"Número fuera de rango.")
+        except EOFError:
+            equipo_oponente = equipos_comparar[0] if equipos_comparar else None
+            break
         except ValueError:
             print("Entrada no válida. Ingresa un número.")
+    if equipo_oponente is None and equipos_comparar:
+        equipo_oponente = equipos_comparar[0]
     
     print(f"\nGenerando reporte: {equipo_oponente} vs {villarreal_nombre}")
     

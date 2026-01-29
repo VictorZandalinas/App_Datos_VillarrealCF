@@ -562,11 +562,14 @@ def seleccionar_equipo_interactivo(df):
     equipos = sorted(df['Team Name'].dropna().unique())
     print(f"\nSELECCIÓN DE EQUIPO ({len(equipos)} encontrados)")
     for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
-    while True:
+    for _ in range(3):
         try:
             sel = int(input("\nSelecciona número: ")) - 1
             if 0 <= sel < len(equipos): return equipos[sel]
+        except EOFError:
+            return equipos[0] if equipos else None
         except: pass
+    return equipos[0] if equipos else None
 
 if __name__ == "__main__":
     rep = XTFlowReport()

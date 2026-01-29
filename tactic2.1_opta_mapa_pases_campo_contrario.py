@@ -2754,15 +2754,24 @@ def seleccionar_equipo_interactivo():
         for i, equipo in enumerate(equipos, 1): 
             print(f"{i}. {equipo}")
         
-        while True:
+        max_intentos = 3
+        for intento in range(max_intentos):
             try:
                 indice = int(input(f"\nSelecciona un equipo (1-{len(equipos)}): ").strip()) - 1
-                if 0 <= indice < len(equipos): 
+                if 0 <= indice < len(equipos):
                     return equipos[indice]
-                else: 
+                else:
                     print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
-            except ValueError: 
+            except ValueError:
                 print("Por favor, ingresa un número válido")
+            except EOFError:
+                # Input automático agotado - usar primer equipo como fallback
+                print("⚠️ Input automático - usando primer equipo disponible")
+                return equipos[0] if equipos else None
+
+        # Si se agotan los intentos, usar primer equipo
+        print("⚠️ Máximo de intentos alcanzado - usando primer equipo")
+        return equipos[0] if equipos else None
     except Exception as e: 
         print(f"Error en la selección: {e}")
         return None
