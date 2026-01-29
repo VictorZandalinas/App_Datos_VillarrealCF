@@ -396,8 +396,21 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
     global report_progress
     report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
 
+    import sys
+    import shutil
+    import subprocess
+    import select
+    import time
+
+    # Timeout global de 20 minutos para todo el proceso
+    TIMEOUT_GLOBAL = 1200  # 20 minutos
+    # Timeout de inactividad: si no hay output en 3 minutos, asumir que está colgado
+    TIMEOUT_INACTIVIDAD = 180  # 3 minutos
+
+    process = None
+
     try:
-        import time
+        # Limpiar PDFs antiguos
         ahora = time.time()
         for archivo in glob.glob(os.path.join(destination_folder, "*.pdf")):
             if os.path.getmtime(archivo) < ahora - 86400:  # 24 horas
@@ -406,132 +419,233 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
     except Exception as e:
         print(f"⚠️ Error limpiando: {e}")
 
-    
-    import sys
-    import shutil
-    import subprocess
+    try:
+        cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
 
-    # ✅ Ahora enviamos al script tanto la jornada de inicio como la de fin
-    cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
-    
-    process = subprocess.Popen(
-        cmd, 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.STDOUT, 
-        text=True, 
-        bufsize=1, 
-        universal_newlines=True
-    )
-    
-    for line in process.stdout:
-        status_msg = line.strip()
-        if not status_msg: continue
-        
-        print(f"DEBUG SCRIPT: {status_msg}")
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
 
-        match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
-        
-        if match:
-            pag_actual = int(match.group(1))
-            pag_total = int(match.group(2))
-            nombre_pag = match.group(3)
-            porcentaje = int((pag_actual / pag_total) * 95)
-            report_progress['progress'] = porcentaje
-            report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
-        
-        elif "Uniendo todos los reportes" in status_msg:
-            report_progress['progress'] = 96
-            report_progress['status'] = "Uniendo páginas en el PDF final..."
+        tiempo_inicio = time.time()
+        ultimo_output = time.time()
 
-    process.wait()
+        # Lectura con timeout usando select (no bloqueante)
+        while True:
+            # Verificar timeout global
+            if time.time() - tiempo_inicio > TIMEOUT_GLOBAL:
+                report_progress['status'] = f"⏰ Timeout: el informe tardó más de {TIMEOUT_GLOBAL//60} minutos"
+                print(f"⏰ TIMEOUT GLOBAL alcanzado ({TIMEOUT_GLOBAL}s)")
+                break
 
-    # Buscar el PDF generado y moverlo
-    lista_pdfs = glob.glob("*.pdf")
-    if lista_pdfs:
-        archivo_reciente = max(lista_pdfs, key=os.path.getctime)
-        if os.path.exists(destination_folder):
-            final_dest = os.path.join(destination_folder, archivo_reciente)
-            try:
-                shutil.move(archivo_reciente, final_dest)
-                # Guardamos la ruta ABSOLUTA
-                report_progress['final_path'] = os.path.abspath(final_dest)
-                report_progress['status'] = f"✅ Informe listo"
-                report_progress['progress'] = 100 
-            except Exception as e:
-                report_progress['status'] = f"⚠️ Error al mover: {e}"
+            # Verificar timeout de inactividad
+            if time.time() - ultimo_output > TIMEOUT_INACTIVIDAD:
+                report_progress['status'] = f"⏰ Sin respuesta del generador en {TIMEOUT_INACTIVIDAD//60} minutos"
+                print(f"⏰ TIMEOUT INACTIVIDAD alcanzado ({TIMEOUT_INACTIVIDAD}s sin output)")
+                break
+
+            # Verificar si el proceso terminó
+            if process.poll() is not None:
+                # Leer cualquier output restante
+                remaining = process.stdout.read()
+                if remaining:
+                    for line in remaining.split('\n'):
+                        if line.strip():
+                            print(f"DEBUG SCRIPT: {line.strip()}")
+                break
+
+            # Usar select para esperar output con timeout (1 segundo)
+            ready, _, _ = select.select([process.stdout], [], [], 1.0)
+
+            if ready:
+                line = process.stdout.readline()
+                if not line:
+                    # EOF - proceso terminó
+                    break
+
+                ultimo_output = time.time()
+                status_msg = line.strip()
+                if not status_msg:
+                    continue
+
+                print(f"DEBUG SCRIPT: {status_msg}")
+
+                match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
+
+                if match:
+                    pag_actual = int(match.group(1))
+                    pag_total = int(match.group(2))
+                    nombre_pag = match.group(3)
+                    porcentaje = int((pag_actual / pag_total) * 95)
+                    report_progress['progress'] = porcentaje
+                    report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
+
+                elif "Uniendo todos los reportes" in status_msg:
+                    report_progress['progress'] = 96
+                    report_progress['status'] = "Uniendo páginas en el PDF final..."
+
+        # Matar proceso si sigue vivo (por timeout)
+        if process.poll() is None:
+            print("🛑 Matando proceso por timeout...")
+            process.kill()
+            process.wait(timeout=5)
+
+        # Buscar el PDF generado y moverlo
+        lista_pdfs = glob.glob("*.pdf")
+        if lista_pdfs:
+            archivo_reciente = max(lista_pdfs, key=os.path.getctime)
+            if os.path.exists(destination_folder):
+                final_dest = os.path.join(destination_folder, archivo_reciente)
+                try:
+                    shutil.move(archivo_reciente, final_dest)
+                    report_progress['final_path'] = os.path.abspath(final_dest)
+                    report_progress['status'] = f"✅ Informe listo"
+                    report_progress['progress'] = 100
+                except Exception as e:
+                    report_progress['status'] = f"⚠️ Error al mover: {e}"
+                    report_progress['progress'] = 100
+            else:
+                report_progress['final_path'] = os.path.abspath(archivo_reciente)
                 report_progress['progress'] = 100
-        else:
-            report_progress['final_path'] = os.path.abspath(archivo_reciente)
+        elif "Timeout" not in report_progress.get('status', ''):
+            report_progress['status'] = "⚠️ No se generó ningún PDF"
             report_progress['progress'] = 100
 
-    report_progress['active'] = False
+    except Exception as e:
+        report_progress['status'] = f"❌ Error: {str(e)}"
+        report_progress['progress'] = 100
+        print(f"❌ Error en run_report_process: {e}")
+
+    finally:
+        # Asegurar que el proceso está muerto
+        if process and process.poll() is None:
+            try:
+                process.kill()
+            except:
+                pass
+        report_progress['active'] = False
 
 def run_report_process_with_restore(script_name, equipo_nombre, j_inicio, j_fin, destination_folder, parquet_original, parquet_backup):
     """Ejecuta el script y SIEMPRE restaura el parquet original al final"""
     global report_progress
-    
-    try:
-        # Ejecutar el proceso normal
-        report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
-        
-        import sys
-        import subprocess
-        
-        cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
-        
-        process = subprocess.Popen(
-            cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
-            text=True, 
-            bufsize=1, 
-            universal_newlines=True
-        )
-        
-        for line in process.stdout:
-            status_msg = line.strip()
-            if not status_msg: continue
-            
-            print(f"DEBUG SCRIPT: {status_msg}")
-            
-            match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
-            
-            if match:
-                pag_actual = int(match.group(1))
-                pag_total = int(match.group(2))
-                nombre_pag = match.group(3)
-                porcentaje = int((pag_actual / pag_total) * 95)
-                report_progress['progress'] = porcentaje
-                report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
-            
-            elif "Uniendo todos los reportes" in status_msg:
-                report_progress['progress'] = 96
-                report_progress['status'] = "Uniendo páginas en el PDF final..."
-        
-        process.wait()
-        
-        # RESTAURAR BACKUP INMEDIATAMENTE después de terminar el script
-        print("🔄 Restaurando datos originales...")
-        report_progress['status'] = '🔄 Restaurando datos originales...'
-        
+
+    import sys
+    import subprocess
+    import select
+    import time
+
+    # Timeout global de 20 minutos para todo el proceso
+    TIMEOUT_GLOBAL = 1200  # 20 minutos
+    # Timeout de inactividad: si no hay output en 3 minutos, asumir que está colgado
+    TIMEOUT_INACTIVIDAD = 180  # 3 minutos
+
+    process = None
+
+    def restaurar_backup():
+        """Función auxiliar para restaurar el backup de parquet"""
         try:
             if parquet_backup.exists():
                 shutil.copy2(parquet_backup, parquet_original)
                 parquet_backup.unlink()
                 print(f"✅ Datos restaurados correctamente: {parquet_original.name}")
-                
-                # LIMPIAR CACHÉ para que se recarguen los datos reales
                 obtener_resumen_datos.cache_clear()
-                print(f"🧹 Caché limpiado - los gráficos mostrarán datos reales")
+                print(f"🧹 Caché limpiado")
             else:
                 print("⚠️ No se encontró backup para restaurar")
         except Exception as e:
             print(f"⚠️ Error restaurando backup: {e}")
-        
+
+    try:
+        report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
+
+        cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
+
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+
+        tiempo_inicio = time.time()
+        ultimo_output = time.time()
+        timeout_reached = False
+
+        # Lectura con timeout usando select (no bloqueante)
+        while True:
+            # Verificar timeout global
+            if time.time() - tiempo_inicio > TIMEOUT_GLOBAL:
+                report_progress['status'] = f"⏰ Timeout: el informe tardó más de {TIMEOUT_GLOBAL//60} minutos"
+                print(f"⏰ TIMEOUT GLOBAL alcanzado ({TIMEOUT_GLOBAL}s)")
+                timeout_reached = True
+                break
+
+            # Verificar timeout de inactividad
+            if time.time() - ultimo_output > TIMEOUT_INACTIVIDAD:
+                report_progress['status'] = f"⏰ Sin respuesta del generador en {TIMEOUT_INACTIVIDAD//60} minutos"
+                print(f"⏰ TIMEOUT INACTIVIDAD alcanzado ({TIMEOUT_INACTIVIDAD}s sin output)")
+                timeout_reached = True
+                break
+
+            # Verificar si el proceso terminó
+            if process.poll() is not None:
+                remaining = process.stdout.read()
+                if remaining:
+                    for line in remaining.split('\n'):
+                        if line.strip():
+                            print(f"DEBUG SCRIPT: {line.strip()}")
+                break
+
+            # Usar select para esperar output con timeout (1 segundo)
+            ready, _, _ = select.select([process.stdout], [], [], 1.0)
+
+            if ready:
+                line = process.stdout.readline()
+                if not line:
+                    break
+
+                ultimo_output = time.time()
+                status_msg = line.strip()
+                if not status_msg:
+                    continue
+
+                print(f"DEBUG SCRIPT: {status_msg}")
+
+                match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
+
+                if match:
+                    pag_actual = int(match.group(1))
+                    pag_total = int(match.group(2))
+                    nombre_pag = match.group(3)
+                    porcentaje = int((pag_actual / pag_total) * 95)
+                    report_progress['progress'] = porcentaje
+                    report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
+
+                elif "Uniendo todos los reportes" in status_msg:
+                    report_progress['progress'] = 96
+                    report_progress['status'] = "Uniendo páginas en el PDF final..."
+
+        # Matar proceso si sigue vivo (por timeout)
+        if process.poll() is None:
+            print("🛑 Matando proceso por timeout...")
+            process.kill()
+            process.wait(timeout=5)
+
+        # RESTAURAR BACKUP después de terminar el script
+        print("🔄 Restaurando datos originales...")
+        report_progress['status'] = '🔄 Restaurando datos originales...'
+        restaurar_backup()
+
         # Buscar el PDF generado y moverlo
         report_progress['progress'] = 98
         report_progress['status'] = 'Buscando PDF generado...'
-        
+
         lista_pdfs = glob.glob("*.pdf")
         if lista_pdfs:
             archivo_reciente = max(lista_pdfs, key=os.path.getctime)
@@ -540,33 +654,37 @@ def run_report_process_with_restore(script_name, equipo_nombre, j_inicio, j_fin,
                 try:
                     shutil.move(archivo_reciente, final_dest)
                     report_progress['final_path'] = final_dest
-                    report_progress['status'] = f"✅ Informe guardado con éxito (datos restaurados)"
+                    if timeout_reached:
+                        report_progress['status'] = f"⚠️ Informe parcial (timeout) guardado"
+                    else:
+                        report_progress['status'] = f"✅ Informe guardado con éxito (datos restaurados)"
                 except Exception as e:
                     report_progress['status'] = f"⚠️ PDF generado pero no se pudo mover: {archivo_reciente}"
             else:
                 report_progress['status'] = f"✅ Informe generado en carpeta del proyecto: {archivo_reciente}"
-        else:
+        elif not timeout_reached:
             report_progress['status'] = "⚠️ No se encontró PDF generado"
-        
+
         report_progress['progress'] = 100
-        
+
     except Exception as e:
         report_progress['status'] = f'❌ Error: {str(e)}'
         report_progress['progress'] = 100
-        
+        print(f"❌ Error en run_report_process_with_restore: {e}")
+
         # RESTAURAR BACKUP incluso si hay error
         print("🔄 Restaurando datos tras error...")
-        try:
-            if parquet_backup.exists():
-                shutil.copy2(parquet_backup, parquet_original)
-                parquet_backup.unlink()
-                print(f"✅ Datos restaurados tras error")
-        except Exception as restore_error:
-            print(f"⚠️ Error crítico restaurando backup: {restore_error}")
+        restaurar_backup()
 
-    
     finally:
-        # Doble verificación: asegurar que el backup se borra si aún existe
+        # Asegurar que el proceso está muerto
+        if process and process.poll() is None:
+            try:
+                process.kill()
+            except:
+                pass
+
+        # Doble verificación: asegurar que el backup se restaura
         try:
             if parquet_backup.exists():
                 shutil.copy2(parquet_backup, parquet_original)
@@ -574,7 +692,7 @@ def run_report_process_with_restore(script_name, equipo_nombre, j_inicio, j_fin,
                 print(f"✅ Limpieza final: backup restaurado y eliminado")
         except:
             pass
-        
+
         report_progress['active'] = False
         obtener_resumen_datos.cache_clear()
 
