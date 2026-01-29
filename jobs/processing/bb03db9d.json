@@ -1,12 +1,12 @@
 {
-  "id": "027c8cfb",
+  "id": "bb03db9d",
   "script": "tactic_informe_todo.py",
   "equipo": "Alav\u00e9s",
-  "j_inicio": 3,
-  "j_fin": 4,
+  "j_inicio": 1,
+  "j_fin": 21,
   "status": "processing",
   "progress": 35,
   "message": "Generando 4/12: tactic1.3_mediacoach_evolucion_resumen_general.py",
-  "created_at": "2026-01-29T18:24:45.757853",
-  "updated_at": "2026-01-29T18:25:18.010543"
+  "created_at": "2026-01-29T18:52:35.922326",
+  "updated_at": "2026-01-29T18:54:58.943638"
 }
