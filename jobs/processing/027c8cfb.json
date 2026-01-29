@@ -1,0 +1,12 @@
+{
+  "id": "027c8cfb",
+  "script": "tactic_informe_todo.py",
+  "equipo": "Alav\u00e9s",
+  "j_inicio": 3,
+  "j_fin": 4,
+  "status": "processing",
+  "progress": 20,
+  "message": "Generando 2/12: tactic1.1_mediacoach_resumen_con_balon.py",
+  "created_at": "2026-01-29T18:24:45.757853",
+  "updated_at": "2026-01-29T18:25:03.189236"
+}
