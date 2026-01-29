@@ -368,20 +368,36 @@ def main():
         """)
 
 
-        proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-        stdout, _ = proceso.communicate(input=respuestas, timeout=180)
-        
-        # Guardar en log para depurar
-        print(f"SALIDA: {stdout[-200:]}") 
+        try:
+            proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            # Timeout aumentado a 10 minutos por script (para procesar muchas jornadas)
+            stdout, _ = proceso.communicate(input=respuestas, timeout=600)
 
-        pdfs_despues = set(f for f in os.listdir('.') if f.endswith(".pdf"))
-        nuevos = pdfs_despues - pdfs_antes
-        if nuevos:
-            pdf_gen = list(nuevos)[0]
-            ruta_dest = os.path.join(temp_dir, f"{i:02d}_{os.path.basename(pdf_gen)}")
-            shutil.move(pdf_gen, ruta_dest)
-            pdfs_para_unir.append(ruta_dest)
-            print(f"✅ PDF '{pdf_gen}' capturado.")
+            # Guardar en log para depurar (últimos 500 caracteres)
+            if stdout:
+                print(f"SALIDA: {stdout[-500:]}")
+
+            pdfs_despues = set(f for f in os.listdir('.') if f.endswith(".pdf"))
+            nuevos = pdfs_despues - pdfs_antes
+            if nuevos:
+                pdf_gen = list(nuevos)[0]
+                ruta_dest = os.path.join(temp_dir, f"{i:02d}_{os.path.basename(pdf_gen)}")
+                shutil.move(pdf_gen, ruta_dest)
+                pdfs_para_unir.append(ruta_dest)
+                print(f"✅ PDF '{pdf_gen}' capturado.")
+            else:
+                print(f"⚠️ Script {script_py} no generó PDF")
+
+        except subprocess.TimeoutExpired:
+            print(f"⏰ TIMEOUT en {script_py} - saltando al siguiente...")
+            try:
+                proceso.kill()
+            except:
+                pass
+            continue
+        except Exception as e:
+            print(f"❌ Error en {script_py}: {e} - continuando...")
+            continue
 
     if len(pdfs_para_unir) > 1:
         print("\n🔄 Uniendo reportes...")

@@ -397,24 +397,38 @@ def main():
             exec(open('{script_py}', encoding='utf-8').read())
         """)
 
-        # Ejecución del subproceso
-        proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-        stdout, _ = proceso.communicate(input=respuestas, timeout=300) # Aumentado timeout por seguridad
-        
-        # Log parcial para depurar si falla
-        print(f"SALIDA (últimos bytes): {stdout[-200:]}") 
+        # Ejecución del subproceso con manejo de errores
+        try:
+            proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            # Timeout aumentado a 10 minutos por script (para procesar muchas jornadas)
+            stdout, _ = proceso.communicate(input=respuestas, timeout=600)
 
-        # Captura de nuevos PDFs
-        pdfs_despues = set(f for f in os.listdir('.') if f.endswith(".pdf"))
-        nuevos = pdfs_despues - pdfs_antes
-        if nuevos:
-            pdf_gen = list(nuevos)[0]
-            ruta_dest = os.path.join(temp_dir, f"{i:02d}_{os.path.basename(pdf_gen)}")
-            shutil.move(pdf_gen, ruta_dest)
-            pdfs_para_unir.append(ruta_dest)
-            print(f"✅ PDF '{pdf_gen}' capturado correctamente.")
-        else:
-            print(f"⚠️ No se generó PDF nuevo en este paso.")
+            # Log parcial para depurar si falla
+            if stdout:
+                print(f"SALIDA (últimos bytes): {stdout[-500:]}")
+
+            # Captura de nuevos PDFs
+            pdfs_despues = set(f for f in os.listdir('.') if f.endswith(".pdf"))
+            nuevos = pdfs_despues - pdfs_antes
+            if nuevos:
+                pdf_gen = list(nuevos)[0]
+                ruta_dest = os.path.join(temp_dir, f"{i:02d}_{os.path.basename(pdf_gen)}")
+                shutil.move(pdf_gen, ruta_dest)
+                pdfs_para_unir.append(ruta_dest)
+                print(f"✅ PDF '{pdf_gen}' capturado correctamente.")
+            else:
+                print(f"⚠️ No se generó PDF nuevo en este paso.")
+
+        except subprocess.TimeoutExpired:
+            print(f"⏰ TIMEOUT en {script_py} - saltando al siguiente...")
+            try:
+                proceso.kill()
+            except:
+                pass
+            continue
+        except Exception as e:
+            print(f"❌ Error en {script_py}: {e} - continuando...")
+            continue
 
     # --- Unión Final ---
     if len(pdfs_para_unir) > 1:
