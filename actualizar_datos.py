@@ -1203,6 +1203,78 @@ def get_all_tournaments():
         print(f"❌ Error obteniendo tournament calendars: {e}")
         return {}
 
+
+def get_granular_data_status(match_ids, messages=None):
+    """
+    Verifica qué datos existen para cada Match ID en cada parquet.
+
+    Retorna: {
+        'match_id_123': {
+            'player_stats': True,
+            'team_stats': True,
+            'match_events': True,
+            'posesiones': False,  # Este falta
+            ...
+        }
+    }
+    """
+    def add_message(msg, msg_type="info"):
+        if messages is not None:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            messages.append({
+                'timestamp': timestamp,
+                'message': msg,
+                'type': msg_type
+            })
+        print(msg)
+
+    # Mapeo de tipo de dato a archivo parquet
+    parquet_config = {
+        'player_stats': 'player_stats.parquet',
+        'team_stats': 'team_stats.parquet',
+        'player_xg_stats': 'player_xg_stats.parquet',
+        'xg_events': 'xg_events.parquet',
+        'match_events': 'match_events.parquet',
+        'team_officials': 'team_officials.parquet',
+        'posesiones': 'posesiones.parquet'
+    }
+
+    # Inicializar resultado: cada match_id con todos los tipos en False
+    result = {}
+    for match_id in match_ids:
+        result[match_id] = {data_type: False for data_type in parquet_config.keys()}
+
+    add_message("🔍 Verificación granular de datos existentes...")
+
+    # Para cada parquet, verificar qué match_ids ya existen
+    for data_type, filename in parquet_config.items():
+        filepath = OPTA_PATH / filename
+        if filepath.exists():
+            try:
+                df = pd.read_parquet(filepath)
+                if not df.empty and 'Match ID' in df.columns:
+                    existing_ids = set(df['Match ID'].unique())
+                    found_count = 0
+                    for match_id in match_ids:
+                        if match_id in existing_ids:
+                            result[match_id][data_type] = True
+                            found_count += 1
+                    add_message(f"   📄 {filename}: {found_count}/{len(match_ids)} partidos con datos")
+            except Exception as e:
+                add_message(f"   ❌ Error leyendo {filename}: {e}", "warning")
+        else:
+            add_message(f"   📄 {filename}: no existe (se creará)")
+
+    # Resumen de partidos con datos incompletos
+    incomplete_count = sum(1 for mid in match_ids if not all(result[mid].values()))
+    complete_count = len(match_ids) - incomplete_count
+
+    add_message(f"   ✅ Partidos completos: {complete_count}")
+    add_message(f"   ⚠️ Partidos con datos faltantes: {incomplete_count}")
+
+    return result
+
+
 def get_existing_match_ids(messages=None):
     """Get existing match IDs from parquet files"""
     def add_message(msg):
@@ -1219,11 +1291,12 @@ def get_existing_match_ids(messages=None):
     
     parquet_files = [
         'player_stats.parquet',
-        'team_stats.parquet', 
+        'team_stats.parquet',
         'player_xg_stats.parquet',
         'xg_events.parquet',
         'match_events.parquet',
-        'team_officials.parquet'
+        'team_officials.parquet',
+        'posesiones.parquet'
     ]
     
     add_message("🔍 Revisando archivos existentes...")
@@ -1952,6 +2025,208 @@ def process_match_events(match_id, season):
         logging.error(f"💥 Error inesperado en partido {match_id}: {e}", exc_info=True)
         return pd.DataFrame()
 
+
+def process_possession_events(match_id, season):
+    """Process MA13 Possession Events - Similar a MA3 pero con campos de posesión"""
+    import logging
+
+    logging.info(f"🚀 Iniciando procesamiento de posesiones para partido {match_id}")
+
+    # Parámetros estándar para MA13
+    request_parameters = {
+        "_fmt": "json",
+        "fx": match_id,
+        "_rt": "b"
+    }
+
+    sdapi_get_url = f'https://api.performfeeds.com/soccerdata/possessionevent/{OPTA_API_KEY}/'
+
+    try:
+        headers = request_headers()
+        start_time = time.time()
+        response = requests.get(sdapi_get_url, headers=headers, params=request_parameters, timeout=30)
+        response_time = time.time() - start_time
+
+        logging.info(f"⏱️ Tiempo de respuesta MA13: {response_time:.2f} segundos")
+
+        # ==========================================
+        # MANEJO DE ERRORES (400, 404, etc.)
+        # ==========================================
+
+        if response.status_code == 404:
+            try:
+                error_data = response.json()
+                error_code = error_data.get('errorCode', 'N/A')
+
+                if error_code == "10400":
+                    logging.warning(f"⚠️ El partido {match_id} no tiene datos de posesiones (MA13).")
+                    return pd.DataFrame()
+            except:
+                pass
+
+            logging.error(f"❌ ERROR 404 no controlado en partido {match_id} (MA13)")
+            return pd.DataFrame()
+
+        elif response.status_code == 400:
+            logging.error(f"❌ ERROR 400 en MA13 - Verificando causa...")
+            try:
+                error_data = response.json()
+                error_code = error_data.get('errorCode', 'N/A')
+
+                if error_code == "10217":
+                    logging.error("🔑 ERROR 10217: Feed MA13 no autorizado en tu suscripción")
+                    return pd.DataFrame()
+                elif error_code == "10203":
+                    logging.error("🔧 ERROR 10203: Parámetros inválidos")
+                    return pd.DataFrame()
+                else:
+                    logging.error(f"❓ Error desconocido: {error_code}")
+            except:
+                logging.error(f"📄 Respuesta no JSON: {response.text}")
+            return pd.DataFrame()
+
+        elif response.status_code != 200:
+            logging.error(f"❌ ERROR {response.status_code} en MA13")
+            return pd.DataFrame()
+
+        # ==========================================
+        # PROCESAMIENTO DE DATOS (200 OK)
+        # ==========================================
+
+        try:
+            data = response.json()
+            match_info = data.get('matchInfo', {})
+            live_data = data.get('liveData', {})
+
+            events = live_data.get('event', [])
+
+            if not events:
+                logging.warning(f"⚠️ El partido {match_id} devolvió una lista vacía de posesiones.")
+                return pd.DataFrame()
+
+            competition_info = match_info.get('competition', {})
+            stage_info = match_info.get('stage', {})
+            home_away_info = get_home_away_info(match_info, live_data)
+
+            logging.info(f"📊 Eventos de posesión encontrados: {len(events)}")
+
+            # Encontrar qualifiers únicos para crear columnas
+            qualifier_ids = set()
+            for event in events:
+                for q in event.get('qualifier', []):
+                    qid = q.get('qualifierId', '')
+                    if qid and str(qid).isdigit():
+                        qualifier_ids.add(str(qid))
+
+            qualifier_names = []
+            for qid in qualifier_ids:
+                try:
+                    qualifier_name = QUALIFIER_MAPPING.get(int(qid), f'qualifier {qid}')
+                    qualifier_names.append(qualifier_name)
+                except ValueError:
+                    continue
+
+            # Columnas base + campos específicos de MA13
+            columns = [
+                'Match ID', 'Competition ID', 'Competition Name', 'Season', 'Week', 'Stage ID', 'Stage Name',
+                'EventId', 'typeId', 'Event Name', 'timeStamp', 'contestantId', 'Team ID', 'Team Name',
+                'Team Position', 'Is Home', 'Is Away', 'HT Home Score', 'HT Away Score',
+                'FT Home Score', 'FT Away Score', 'periodId', 'timeMin', 'timeSec',
+                'playerId', 'playerName', 'outcome', 'x', 'y',
+                'sequenceId', 'possessionNumber'  # Campos específicos MA13
+            ] + qualifier_names
+
+            events_data = []
+
+            for event in events:
+                try:
+                    contestant_id = event.get('contestantId', None)
+                    team_name = home_away_info['team_mapping'].get(contestant_id, {}).get('name', 'N/A') if contestant_id else 'N/A'
+                    team_position = home_away_info['team_mapping'].get(contestant_id, {}).get('position', 'N/A') if contestant_id else 'N/A'
+                    is_home = contestant_id == home_away_info['home_team_id']
+                    is_away = contestant_id == home_away_info['away_team_id']
+                    type_id = event.get('typeId', None)
+                    event_name = EVENT_TYPE_MAPPING.get(type_id, 'Unknown Event') if type_id else 'Unknown Event'
+
+                    event_info = {
+                        'Match ID': match_info.get('id', 'N/A'),
+                        'Competition ID': competition_info.get('id', 'N/A'),
+                        'Competition Name': competition_info.get('name', 'N/A'),
+                        'Season': season,
+                        'Week': match_info.get('week', 'N/A'),
+                        'Stage ID': stage_info.get('id', 'N/A'),
+                        'Stage Name': stage_info.get('name', 'N/A'),
+                        'EventId': event.get('eventId', None),
+                        'typeId': type_id,
+                        'Event Name': event_name,
+                        'timeStamp': event.get('timeStamp', None),
+                        'contestantId': contestant_id,
+                        'Team ID': contestant_id,
+                        'Team Name': team_name,
+                        'Team Position': team_position,
+                        'Is Home': is_home,
+                        'Is Away': is_away,
+                        'HT Home Score': home_away_info['ht_home'],
+                        'HT Away Score': home_away_info['ht_away'],
+                        'FT Home Score': home_away_info['ft_home'],
+                        'FT Away Score': home_away_info['ft_away'],
+                        'periodId': event.get('periodId', None),
+                        'timeMin': event.get('timeMin', None),
+                        'timeSec': event.get('timeSec', None),
+                        'playerId': event.get('playerId', None),
+                        'playerName': event.get('playerName', None),
+                        'outcome': event.get('outcome', None),
+                        'x': event.get('x', None),
+                        'y': event.get('y', None),
+                        'sequenceId': event.get('sequenceId', None),
+                        'possessionNumber': event.get('possessionNumber', None),
+                    }
+
+                    # Inicializar todos los qualifiers a "No"
+                    for qname in qualifier_names:
+                        event_info[qname] = "No"
+
+                    # Rellenar con los valores reales del evento actual
+                    for q in event.get('qualifier', []):
+                        try:
+                            qualifier_id = int(q["qualifierId"])
+                            qualifier_name = QUALIFIER_MAPPING.get(qualifier_id, f'qualifier {qualifier_id}')
+
+                            if 'value' in q and q['value'] is not None:
+                                event_info[qualifier_name] = str(q['value'])
+                            else:
+                                event_info[qualifier_name] = "Sí"
+                        except (ValueError, KeyError):
+                            continue
+
+                    events_data.append(event_info)
+
+                except Exception as e:
+                    logging.warning(f"⚠️ Error procesando evento de posesión: {e}")
+                    continue
+
+            df = pd.DataFrame(events_data, columns=columns)
+            logging.info(f"✅ DataFrame posesiones creado: {len(df)} filas")
+            return df
+
+        except json.JSONDecodeError as e:
+            logging.error(f"❌ Error parseando JSON MA13: {e}")
+            return pd.DataFrame()
+        except Exception as e:
+            logging.error(f"❌ Error procesando estructura MA13: {e}")
+            return pd.DataFrame()
+
+    except requests.Timeout:
+        logging.error(f"⏰ Timeout en request MA13 para partido {match_id}")
+        return pd.DataFrame()
+    except requests.RequestException as e:
+        logging.error(f"📡 Error de conexión MA13 para partido {match_id}: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        logging.error(f"💥 Error inesperado en MA13 partido {match_id}: {e}", exc_info=True)
+        return pd.DataFrame()
+
+
 # 3. FUNCIÓN DE DIAGNÓSTICO RÁPIDO
 def diagnostico_rapido_eventos(match_id_sample):
     """Diagnóstico rápido para un partido específico"""
@@ -2189,11 +2464,7 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
 
     add_message("=" * 50)
 
-    # 2. Get existing match IDs
-    update_progress(10, "Revisando archivos existentes...")
-    existing_match_ids = get_existing_match_ids(messages)
-    
-    # 3. Get matches (Lógica diferenciada)
+    # 2. Get matches (Lógica diferenciada)
     add_message("🔄 Obteniendo partidos...")
     update_progress(20, "Conectando con API...")
     
@@ -2222,60 +2493,91 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
         add_message("❌ No se encontraron partidos", "error")
         update_progress(100, "Error: No se encontraron partidos")
         return messages
-    
-    # 4. Filter new matches
-    update_progress(30, "Filtrando partidos nuevos...")
-    new_matches_df = filter_new_matches(all_matches_df, existing_match_ids, messages)
-    
-    if new_matches_df.empty:
-        add_message("🎉 ¡No hay partidos nuevos que procesar!", "success")
+
+    # 4. Verificación granular de datos existentes
+    update_progress(30, "Verificando datos existentes por partido...")
+    match_ids = all_matches_df['Match ID'].tolist()
+    data_status = get_granular_data_status(match_ids, messages)
+
+    # Determinar qué partidos necesitan alguna descarga
+    matches_needing_data = []
+    for match_id in match_ids:
+        status = data_status.get(match_id, {})
+        if not all(status.values()):
+            matches_needing_data.append(match_id)
+
+    if not matches_needing_data:
+        add_message("🎉 ¡No hay datos nuevos que descargar!", "success")
         update_progress(95, "Verificando ABP...")
         update_abp_events_standalone()
         calculate_and_save_abp_statistics()
-        update_progress(100, "Completado: No hay partidos nuevos.")
+        update_progress(100, "Completado: Todos los datos están actualizados.")
         return messages
-    
-    # 5. Process data loop
-    add_message(f"📊 Procesando {len(new_matches_df)} partidos nuevos...")
-    match_ids = new_matches_df['Match ID'].tolist()
-    
+
+    add_message(f"📊 {len(matches_needing_data)} partidos necesitan datos")
+
+    # 5. Process data loop - DESCARGA GRANULAR
     all_data = {
         'player_stats': [], 'team_stats': [], 'player_xg_stats': [],
-        'xg_events': [], 'match_events': [], 'team_officials': []
+        'xg_events': [], 'match_events': [], 'team_officials': [],
+        'posesiones': []
     }
-    
-    progress_increment = 55 / len(match_ids)
-    
-    for i, match_id in enumerate(match_ids):
+
+    progress_increment = 55 / len(matches_needing_data)
+
+    for i, match_id in enumerate(matches_needing_data):
         current_progress = 30 + (i * progress_increment)
-        update_progress(current_progress, f"Procesando partido {i+1}/{len(match_ids)}")
-        add_message(f"⚽ Partido {i+1}/{len(match_ids)}: {match_id}")
-        
+        update_progress(current_progress, f"Procesando partido {i+1}/{len(matches_needing_data)}")
+
+        status = data_status.get(match_id, {})
+        missing_feeds = [k for k, v in status.items() if not v]
+        add_message(f"⚽ Partido {i+1}/{len(matches_needing_data)}: {match_id}")
+        add_message(f"   📥 Feeds faltantes: {', '.join(missing_feeds)}")
+
         try:
-            # MA2
-            p_stats, t_off = process_match_player_stats(match_id, season)
-            if not p_stats.empty: all_data['player_stats'].append(p_stats)
-            if not t_off.empty: all_data['team_officials'].append(t_off)
-            
-            t_stats = process_match_team_stats(match_id, season)
-            if not t_stats.empty: all_data['team_stats'].append(t_stats)
-            
-            # MA3 (Events) - La función ya tiene la protección anti-404
-            m_events = process_match_events(match_id, season)
-            if not m_events.empty: all_data['match_events'].append(m_events)
-            
-            # MA12 (xG)
-            p_xg = process_xg_player_stats(match_id, season)
-            if not p_xg.empty: all_data['player_xg_stats'].append(p_xg)
-            
-            xg_ev = process_xg_events(match_id, season)
-            if not xg_ev.empty: all_data['xg_events'].append(xg_ev)
-                
+            # MA2 - Player Stats y Team Officials (se descargan juntos)
+            if not status.get('player_stats') or not status.get('team_officials'):
+                p_stats, t_off = process_match_player_stats(match_id, season)
+                if not p_stats.empty:
+                    all_data['player_stats'].append(p_stats)
+                if not t_off.empty:
+                    all_data['team_officials'].append(t_off)
+
+            # MA2 - Team Stats
+            if not status.get('team_stats'):
+                t_stats = process_match_team_stats(match_id, season)
+                if not t_stats.empty:
+                    all_data['team_stats'].append(t_stats)
+
+            # MA3 - Match Events
+            if not status.get('match_events'):
+                m_events = process_match_events(match_id, season)
+                if not m_events.empty:
+                    all_data['match_events'].append(m_events)
+
+            # MA12 - xG Player Stats
+            if not status.get('player_xg_stats'):
+                p_xg = process_xg_player_stats(match_id, season)
+                if not p_xg.empty:
+                    all_data['player_xg_stats'].append(p_xg)
+
+            # MA12 - xG Events
+            if not status.get('xg_events'):
+                xg_ev = process_xg_events(match_id, season)
+                if not xg_ev.empty:
+                    all_data['xg_events'].append(xg_ev)
+
+            # MA13 - Possession Events (NUEVO)
+            if not status.get('posesiones'):
+                pos_events = process_possession_events(match_id, season)
+                if not pos_events.empty:
+                    all_data['posesiones'].append(pos_events)
+
         except Exception as e:
             add_message(f"❌ Error en partido {match_id}: {e}", "error")
             continue
-        
-        if i < len(match_ids) - 1:
+
+        if i < len(matches_needing_data) - 1:
             time.sleep(DELAY_SECONDS)
     
     # 6. Save Data
@@ -2485,9 +2787,10 @@ def diagnosticar_duplicados(data_dict):
         'player_stats': ['Match ID', 'Player ID'],
         'team_stats': ['Match ID', 'Team ID'],
         'player_xg_stats': ['Match ID', 'Player ID'],
-        'xg_events': ['Match ID', 'EventId', 'timeStamp'],  # <-- Añadir timeStamp
-        'match_events': ['Match ID', 'EventId', 'timeStamp'],  # <-- Añadir timeStamp
-        'team_officials': ['Match ID', 'Official ID']
+        'xg_events': ['Match ID', 'EventId', 'timeStamp'],
+        'match_events': ['Match ID', 'EventId', 'timeStamp'],
+        'team_officials': ['Match ID', 'Official ID'],
+        'posesiones': ['Match ID', 'EventId', 'timeStamp']
     }
     
     for data_type, new_df in data_dict.items():
@@ -2536,9 +2839,10 @@ def save_opta_data(data_dict, messages=None):
         'player_stats': {'filename': 'player_stats.parquet', 'keys': ['Match ID', 'Player ID']},
         'team_stats': {'filename': 'team_stats.parquet', 'keys': ['Match ID', 'Team ID']},
         'player_xg_stats': {'filename': 'player_xg_stats.parquet', 'keys': ['Match ID', 'Player ID']},
-        'xg_events': {'filename': 'xg_events.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']},  # <-- Añadir
-        'match_events': {'filename': 'match_events.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']},  # <-- Añadir
-        'team_officials': {'filename': 'team_officials.parquet', 'keys': ['Match ID', 'Official ID']}
+        'xg_events': {'filename': 'xg_events.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']},
+        'match_events': {'filename': 'match_events.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']},
+        'team_officials': {'filename': 'team_officials.parquet', 'keys': ['Match ID', 'Official ID']},
+        'posesiones': {'filename': 'posesiones.parquet', 'keys': ['Match ID', 'EventId', 'timeStamp']}
     }
 
     for data_type, new_df in data_dict.items():
