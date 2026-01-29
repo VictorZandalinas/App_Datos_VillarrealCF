@@ -1,0 +1,14 @@
+{
+  "id": "b25d206a",
+  "script": "fisico_completo_pdf.py",
+  "equipo": "Elche CF",
+  "j_inicio": 1,
+  "j_fin": 1,
+  "status": "completed",
+  "progress": 100,
+  "message": "Informe listo",
+  "created_at": "2026-01-29T18:29:15.895484",
+  "updated_at": "2026-01-29T18:30:10.933001",
+  "pdf_path": "/root/App_Datos_VillarrealCF/informes_generados/Informe_Fisico_Elche_CF_J1_J1.pdf",
+  "pdf_name": "Informe_Fisico_Elche_CF_J1_J1.pdf"
+}
