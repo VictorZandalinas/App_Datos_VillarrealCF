@@ -26,6 +26,46 @@ EQUIPOS_REPORTE = [
     "16. Real Oviedo", "17. Real Sociedad", "18. Sevilla", "19. Valencia", "20. Villarreal"
 ]
 
+# Mapeo de nombres de equipos a sus archivos de escudo
+ESCUDOS_MAPPING = {
+    'Alavés': 'Alaves.png', 'Deportivo Alavés': 'Alaves.png',
+    'Athletic Club': 'Athletic.png', 'Athletic': 'Athletic.png',
+    'Atlético de Madrid': 'Atlético.png', 'Atlético': 'Atlético.png',
+    'Barcelona': 'FC Barcelona.png', 'FC Barcelona': 'FC Barcelona.png',
+    'Celta de Vigo': 'Celta Vigo.png', 'RC Celta': 'Celta Vigo.png', 'Celta': 'Celta Vigo.png',
+    'Elche': 'Elche.png', 'Elche CF': 'Elche.png',
+    'Espanyol': 'Espanyol.png', 'RCD Espanyol': 'Espanyol.png',
+    'Getafe': 'Getafe.png', 'Getafe CF': 'Getafe.png',
+    'Girona': 'Girona.png', 'Girona FC': 'Girona.png',
+    'Levante': 'Levante.png', 'Levante UD': 'Levante.png',
+    'Mallorca': 'Mallorca.png', 'RCD Mallorca': 'Mallorca.png',
+    'Osasuna': 'Osasuna.png', 'CA Osasuna': 'Osasuna.png',
+    'Rayo Vallecano': 'Rayo Vallecano.png',
+    'Real Betis': 'Betis.png', 'Betis': 'Betis.png',
+    'Real Madrid': 'Real Madrid.png',
+    'Real Oviedo': 'Real Oviedo.png',
+    'Real Sociedad': 'Real Sociedad.png',
+    'Sevilla': 'Sevilla FC.png', 'Sevilla FC': 'Sevilla FC.png',
+    'Valencia': 'Valencia.png', 'Valencia CF': 'Valencia.png',
+    'Villarreal': 'Villarreal CF.png', 'Villarreal CF': 'Villarreal CF.png',
+    'Las Palmas': 'Las Palmas.png', 'UD Las Palmas': 'Las Palmas.png',
+    'Leganés': 'Leganes.png', 'CD Leganés': 'Leganes.png',
+    'Valladolid': 'Valladolid.png', 'Real Valladolid': 'Valladolid.png',
+}
+
+def get_escudo_base64(equipo_nombre):
+    """Obtiene el escudo de un equipo en base64 para mostrar en el dropdown"""
+    escudo_file = ESCUDOS_MAPPING.get(equipo_nombre)
+    if escudo_file:
+        escudo_path = ASSETS_PATH / 'escudos' / escudo_file
+        if escudo_path.exists():
+            try:
+                with open(escudo_path, 'rb') as f:
+                    return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
+            except:
+                pass
+    return None
+
 # --- CONFIGURACIÓN DE RUTAS ---
 BASE_PATH = Path(__file__).parent
 ASSETS_PATH = BASE_PATH / 'assets'
@@ -846,50 +886,79 @@ def mostrar_selectores(n_abp, n_fisico, n_tactic):
         df = pd.read_parquet(config['parquet'])
         equipos = sorted(df[config['col_equipo']].unique())
         
-        # Normalizar jornadas
+        # Normalizar jornadas y filtrar J0
         if 'Jornada_num' not in df.columns:
             df['Jornada_num'] = df[config['col_jornada']].apply(
                 lambda x: int(str(x).replace('J', '').replace('j', '').strip()) if pd.notna(x) and str(x).strip() else 0
             )
-        jornadas = sorted(df['Jornada_num'].unique())
+        # Excluir jornada 0 (datos inválidos)
+        jornadas = sorted([j for j in df['Jornada_num'].unique() if j > 0])
         
     except Exception as e:
         print(f"Error cargando datos: {e}")
         equipos, jornadas = [], []
     
+    # Crear opciones de equipos con escudos (HTML en label)
+    equipo_options = []
+    for e in equipos:
+        escudo_b64 = get_escudo_base64(e)
+        if escudo_b64:
+            # Opción con escudo como imagen inline
+            equipo_options.append({
+                'label': html.Div([
+                    html.Img(src=escudo_b64, style={'height': '24px', 'marginRight': '10px', 'verticalAlign': 'middle'}),
+                    html.Span(e, style={'verticalAlign': 'middle', 'fontWeight': '500'})
+                ], style={'display': 'flex', 'alignItems': 'center'}),
+                'value': e
+            })
+        else:
+            equipo_options.append({'label': e, 'value': e})
+
     contenido = dbc.Card([
         dbc.CardBody([
-            html.H6(f"📊 Configuración Informe {bloque}", className="text-center mb-3 fw-bold"),
+            html.H5(f"📊 Configuración Informe {bloque}",
+                   className="text-center mb-4 fw-bold",
+                   style={'color': '#1e3d59', 'borderBottom': '2px solid #ffc107', 'paddingBottom': '10px'}),
+
+            # Selector de equipo con escudos - ancho completo
+            html.Div([
+                html.Label("🏟️ Selecciona Equipo:", className="fw-bold mb-2", style={'fontSize': '14px'}),
+                dcc.Dropdown(
+                    id='report-team-selector',
+                    options=equipo_options,
+                    placeholder="Buscar equipo...",
+                    style={'fontSize': '14px'},
+                    className="mb-3"
+                )
+            ], className="mb-3"),
+
+            # Selectores de jornada en fila
             dbc.Row([
                 dbc.Col([
-                    html.Label("Equipo:", className="fw-bold small"),
-                    dcc.Dropdown(
-                        id='report-team-selector',
-                        options=[{'label': e, 'value': e} for e in equipos],
-                        placeholder="Seleccionar equipo..."
-                    )
-                ], width=7),
-                dbc.Col([
-                    html.Label("Desde Jornada:", className="fw-bold small"),
+                    html.Label("📅 Desde Jornada:", className="fw-bold mb-2", style={'fontSize': '13px'}),
                     dcc.Dropdown(
                         id='report-jornada-inicio',
-                        options=[{'label': f"J{j}", 'value': j} for j in jornadas],
-                        placeholder="Inicio..."
+                        options=[{'label': f"Jornada {j}", 'value': j} for j in jornadas],
+                        placeholder="Inicio...",
+                        style={'fontSize': '13px'}
                     )
-                ], width=3),
+                ], width=6),
                 dbc.Col([
-                    html.Label("Hasta Jornada:", className="fw-bold small"),
+                    html.Label("📅 Hasta Jornada:", className="fw-bold mb-2", style={'fontSize': '13px'}),
                     dcc.Dropdown(
                         id='report-jornada-fin',
-                        options=[{'label': f"J{j}", 'value': j} for j in jornadas],
-                        placeholder="Fin..."
+                        options=[{'label': f"Jornada {j}", 'value': j} for j in jornadas],
+                        placeholder="Fin...",
+                        style={'fontSize': '13px'}
                     )
-                ], width=3),
-            ], className="mb-3"),
-            dbc.Button("🚀 Generar Informe", id="btn-generate-report", 
-                      color="success", className="w-100", disabled=True)
-        ])
-    ], className="border-primary mt-3")
+                ], width=6),
+            ], className="mb-4"),
+
+            dbc.Button("🚀 Generar Informe PDF", id="btn-generate-report",
+                      color="warning", className="w-100 fw-bold", disabled=True,
+                      style={'fontSize': '16px', 'padding': '12px', 'borderRadius': '8px'})
+        ], style={'padding': '20px'})
+    ], className="border-0 shadow-sm mt-3", style={'borderRadius': '12px', 'backgroundColor': '#f8f9fa'})
     
     return contenido, {'display': 'block'}, bloque
 

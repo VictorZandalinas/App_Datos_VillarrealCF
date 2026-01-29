@@ -340,8 +340,9 @@ def main():
             idx_mc = EQUIPOS_MEDIACOACH.index(TEAM_NAME_MAPPING[equipo_canonico]['mediacoach'])
             respuestas = f"{idx_mc + 1}\n{jornada}\n{jornada}\n"
         elif 'sportian' in script_py.lower():
-            idx_sp = EQUIPOS_SPORTIAN.index(TEAM_NAME_MAPPING[equipo_canonico]['sportian'])
-            respuestas = f"{idx_sp + 1}\n"
+            # Sportian no tiene mapeo de equipos - saltamos estos scripts
+            log(f"   ⚠️ Script Sportian detectado - saltando (sin mapeo de equipos)")
+            continue
         else:
             respuestas = f"{indice + 1}\n{jornada}\n"
 

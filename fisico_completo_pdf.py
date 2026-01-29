@@ -316,8 +316,8 @@ class GeneradorMaestro:
 
                         # Si la columna realmente contiene números de jornada
                         if n_vals.notna().any():
-                            # BORRADO PROVISIONAL: Solo mantenemos filas donde jornada <= tope
-                            df = df[n_vals <= limit_j]
+                            # Filtramos: jornada >= 1 (excluye J0) y <= tope
+                            df = df[(n_vals >= 1) & (n_vals <= limit_j)]
                     except:
                         pass
             return df
