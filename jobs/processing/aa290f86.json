@@ -1,0 +1,12 @@
+{
+  "id": "aa290f86",
+  "script": "fisico_completo_pdf.py",
+  "equipo": "Valencia CF",
+  "j_inicio": 1,
+  "j_fin": 21,
+  "status": "processing",
+  "progress": 75,
+  "message": "Generando 11/14: fisico11_mediacoach_comparativa_vmax",
+  "created_at": "2026-01-29T18:31:26.912278",
+  "updated_at": "2026-01-29T18:34:08.230393"
+}
