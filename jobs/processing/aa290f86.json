@@ -5,8 +5,8 @@
   "j_inicio": 1,
   "j_fin": 21,
   "status": "processing",
-  "progress": 75,
-  "message": "Generando 11/14: fisico11_mediacoach_comparativa_vmax",
+  "progress": 62,
+  "message": "Generando 9/14: fisico9_mediacoach_datos_promedio",
   "created_at": "2026-01-29T18:31:26.912278",
-  "updated_at": "2026-01-29T18:34:08.230393"
+  "updated_at": "2026-01-29T18:59:21.962525"
 }
