@@ -77,6 +77,61 @@ FILE_SPORTIAN = BASE_PATH / 'extraccion_sportian/corners_tracking.parquet'
 progress_data = {'active': False, 'progress': 0, 'status': 'Esperando...', 'messages': []}
 report_progress = {'active': False, 'progress': 0, 'status': '', 'final_path': ''}
 
+# Sistema de cola de jobs para informes
+import json
+import uuid
+from datetime import datetime as dt
+
+JOBS_DIR = BASE_PATH / "jobs"
+JOBS_PENDING = JOBS_DIR / "pending"
+JOBS_PROCESSING = JOBS_DIR / "processing"
+JOBS_COMPLETED = JOBS_DIR / "completed"
+JOBS_FAILED = JOBS_DIR / "failed"
+
+# Crear directorios de jobs
+for d in [JOBS_PENDING, JOBS_PROCESSING, JOBS_COMPLETED, JOBS_FAILED]:
+    d.mkdir(parents=True, exist_ok=True)
+
+# Job actual en seguimiento (por sesión simple - en producción usar session/cookie)
+current_job_id = None
+
+def crear_job(script, equipo, j_inicio, j_fin):
+    """Crea un nuevo job de generación de informe"""
+    job_id = str(uuid.uuid4())[:8]
+    job = {
+        'id': job_id,
+        'script': script,
+        'equipo': equipo,
+        'j_inicio': j_inicio,
+        'j_fin': j_fin,
+        'status': 'pending',
+        'progress': 0,
+        'message': 'En cola...',
+        'created_at': dt.now().isoformat(),
+        'updated_at': dt.now().isoformat()
+    }
+
+    job_path = JOBS_PENDING / f"{job_id}.json"
+    with open(job_path, 'w') as f:
+        json.dump(job, f, indent=2)
+
+    return job_id
+
+def obtener_estado_job(job_id):
+    """Obtiene el estado actual de un job buscando en todas las carpetas"""
+    if not job_id:
+        return None
+
+    for carpeta in [JOBS_PROCESSING, JOBS_COMPLETED, JOBS_FAILED, JOBS_PENDING]:
+        job_path = carpeta / f"{job_id}.json"
+        if job_path.exists():
+            try:
+                with open(job_path, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+    return None
+
 # CONFIGURACIÓN DE BLOQUES DE INFORMES
 BLOQUES_CONFIG = {
     'ABP': {
@@ -337,6 +392,7 @@ def crear_layout_principal():
                         
                         # --- ALMACÉN DEL BLOQUE SELECCIONADO ---
                         dcc.Store(id='selected-report-block', data=None),
+                        dcc.Store(id='current-job-id', data=None),
 
                         # --- BARRA DE PROGRESO ---
                         html.Div(id="report-progress-container", children=[
@@ -1093,67 +1149,68 @@ def habilitar_generar(equipo, j_inicio, j_fin):
 # EN APP.PY (DENTRO DEL CALLBACK DE GENERAR INFORME)
 @app.callback(
     [Output('report-progress-container', 'style'),
-     Output('report-interval', 'disabled')],
+     Output('report-interval', 'disabled'),
+     Output('current-job-id', 'data')],
     Input('btn-generate-report', 'n_clicks'),
     [State('selected-report-block', 'data'),
      State('report-team-selector', 'value'),
      State('report-jornada-inicio', 'value'),
      State('report-jornada-fin', 'value')],
-    # HEMOS QUITADO EL State de 'report-save-path'
     prevent_initial_call=True
 )
 def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
-    print(f">>> BOTÓN PULSADO: Bloque={bloque}, Equipo={equipo}, Inicio={j_inicio}, Fin={j_fin}")
+    """Crea un job en la cola en lugar de ejecutar directamente"""
+    print(f">>> CREANDO JOB: Bloque={bloque}, Equipo={equipo}, Inicio={j_inicio}, Fin={j_fin}")
 
     if not all([bloque, equipo, j_inicio, j_fin]):
         raise dash.exceptions.PreventUpdate
-    
+
     config = BLOQUES_CONFIG[bloque]
-    
-    # Definimos la ruta fija del servidor donde se creará el PDF temporalmente
-    ruta_servidor = os.path.join(os.getcwd(), "informes_generados")
-    if not os.path.exists(ruta_servidor):
-        os.makedirs(ruta_servidor)
 
-    
-    threading.Thread(
-        target=run_report_process, 
-        args=(config['script'], equipo, j_inicio, j_fin, ruta_servidor),
-        daemon=True
-    ).start()
-    
-    return {'display': 'block'}, False
+    # Crear job en la cola (NO ejecutar directamente)
+    job_id = crear_job(config['script'], equipo, j_inicio, j_fin)
+    print(f">>> JOB CREADO: {job_id}")
 
-# CALLBACK 4: Actualizar la barra de progreso (MANTENER ESTE)
+    return {'display': 'block'}, False, job_id
+
+# CALLBACK 4: Actualizar la barra de progreso (lee estado del archivo JSON)
 @app.callback(
     [Output("report-progress-bar", "value"),
      Output("report-status-text", "children"),
      Output("download-link-container", "children"),
      Output("report-interval", "disabled", allow_duplicate=True)],
     [Input("report-interval", "n_intervals")],
+    [State("current-job-id", "data")],
     prevent_initial_call=True
 )
-def update_report_ui(n):
-    global report_progress
-    
-    # 1. Estado inicial
-    if not report_progress['active'] and report_progress['progress'] == 0:
+def update_report_ui(n, job_id):
+    """Lee el estado del job desde el archivo JSON (sistema de cola)"""
+
+    # Sin job activo
+    if not job_id:
         return 0, "Esperando...", None, True
-    
-    # 2. CUANDO TERMINA - Mostrar enlace de descarga directo (más eficiente para archivos grandes)
-    if report_progress['progress'] == 100 and report_progress.get('final_path'):
-        path_archivo = report_progress['final_path']
 
-        if os.path.exists(path_archivo):
-            nombre_archivo = os.path.basename(path_archivo)
+    # Obtener estado del job
+    job = obtener_estado_job(job_id)
 
-            # Crear enlace directo al endpoint Flask (evita cargar el PDF en memoria)
-            # y botón para resetear el formulario
+    if not job:
+        return 0, "Buscando job...", None, False
+
+    status = job.get('status', 'pending')
+    progress = job.get('progress', 0)
+    message = job.get('message', 'Procesando...')
+
+    # Job completado
+    if status == 'completed':
+        pdf_name = job.get('pdf_name', '')
+        pdf_path = job.get('pdf_path', '')
+
+        if pdf_name and os.path.exists(pdf_path):
             contenedor_descarga = html.Div([
                 html.A(
-                    f"📥 Descargar {nombre_archivo}",
-                    href=f"/descargar/{nombre_archivo}",
-                    download=nombre_archivo,
+                    f"📥 Descargar {pdf_name}",
+                    href=f"/descargar/{pdf_name}",
+                    download=pdf_name,
                     className="btn btn-success btn-lg w-100 mt-3",
                     style={"textDecoration": "none", "display": "block", "textAlign": "center"}
                 ),
@@ -1165,39 +1222,53 @@ def update_report_ui(n):
                     className="w-100 mt-2"
                 )
             ])
-
-            # Limpiar para evitar bucles
-            report_progress['final_path'] = None
-
             return 100, "✅ Informe generado correctamente", contenedor_descarga, True
-    
-    # 3. Mientras está procesando
-    return report_progress['progress'], report_progress['status'], None, False
+
+        return 100, message, None, True
+
+    # Job fallido
+    if status == 'failed':
+        error_msg = job.get('error', 'Error desconocido')
+        contenedor_error = html.Div([
+            html.P(f"❌ {error_msg}", className="text-danger"),
+            dbc.Button(
+                [html.I(className="bi bi-arrow-counterclockwise me-2"), "Reintentar"],
+                id="btn-descargar-pdf",
+                color="secondary",
+                size="sm",
+                className="w-100 mt-2"
+            )
+        ])
+        return 100, f"❌ Error: {error_msg[:50]}...", contenedor_error, True
+
+    # Job en proceso o pendiente
+    if status == 'pending':
+        return 0, "En cola, esperando worker...", None, False
+
+    return progress, message, None, False
 
 @app.callback(
     [Output('report-selectors-container', 'style', allow_duplicate=True),
      Output('report-selectors-container', 'children', allow_duplicate=True),
      Output('selected-report-block', 'data', allow_duplicate=True),
      Output('download-link-container', 'children', allow_duplicate=True),
-     Output('report-progress-container', 'style', allow_duplicate=True)],
+     Output('report-progress-container', 'style', allow_duplicate=True),
+     Output('current-job-id', 'data', allow_duplicate=True)],
     Input('btn-descargar-pdf', 'n_clicks'),
     prevent_initial_call=True
 )
 def resetear_formulario_informe(n_clicks):
-    """Resetea el formulario para generar otro informe (la descarga es un enlace directo)"""
+    """Resetea el formulario para generar otro informe"""
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
 
-    global report_progress
-    report_progress = {'active': False, 'progress': 0, 'status': '', 'final_path': ''}
-
-    # Resetear todo el formulario
     return (
         {'display': 'none'},          # Ocultar filtros
         [],                           # Limpiar filtros
         None,                         # Resetear bloque
         None,                         # Limpiar enlace descarga
-        {'display': 'none'}           # Ocultar barra progreso
+        {'display': 'none'},          # Ocultar barra progreso
+        None                          # Limpiar job_id
     )
     
 @app.callback(
@@ -1205,16 +1276,16 @@ def resetear_formulario_informe(n_clicks):
      Output('report-selectors-container', 'children', allow_duplicate=True),
      Output('selected-report-block', 'data', allow_duplicate=True),
      Output('download-link-container', 'children', allow_duplicate=True),
-     Output('report-progress-container', 'style', allow_duplicate=True)],
+     Output('report-progress-container', 'style', allow_duplicate=True),
+     Output('current-job-id', 'data', allow_duplicate=True)],
     Input('btn-reset-informe', 'n_clicks'),
     prevent_initial_call=True
 )
 def reset_informe_form(n_clicks):
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
-    
-    # Resetear todo: ocultar filtros, limpiar descarga, ocultar progreso
-    return {'display': 'none'}, [], None, None, {'display': 'none'}
+
+    return {'display': 'none'}, [], None, None, {'display': 'none'}, None
     
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),

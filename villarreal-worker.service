@@ -1,0 +1,22 @@
+[Unit]
+Description=Villarreal Report Worker - Procesa cola de informes PDF
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/App_Datos_VillarrealCF
+ExecStart=/usr/bin/python3 /root/App_Datos_VillarrealCF/report_worker.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/villarreal-worker.log
+StandardError=append:/var/log/villarreal-worker.log
+
+# Limites de recursos
+MemoryMax=2G
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

@@ -29,5 +29,17 @@ jobs:
             # 3. Instalar librerías si has añadido alguna nueva
             pip install -r requirements.txt
             
-            # 4. Reiniciar el servicio para que se vean los cambios
+            # 4. Crear directorios de jobs si no existen
+            mkdir -p /root/App_Datos_VillarrealCF/jobs/{pending,processing,completed,failed}
+            mkdir -p /root/App_Datos_VillarrealCF/informes_generados
+
+            # 5. Configurar worker service si no existe
+            if [ ! -f /etc/systemd/system/villarreal-worker.service ]; then
+              cp villarreal-worker.service /etc/systemd/system/
+              systemctl daemon-reload
+              systemctl enable villarreal-worker.service
+            fi
+
+            # 6. Reiniciar los servicios
             systemctl restart villarreal.service
+            systemctl restart villarreal-worker.service
