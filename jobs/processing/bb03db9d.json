@@ -5,8 +5,8 @@
   "j_inicio": 1,
   "j_fin": 21,
   "status": "processing",
-  "progress": 27,
-  "message": "Generando 3/12: tactic1.2_mediacoach_resumen_sin_balon.py",
+  "progress": 50,
+  "message": "Generando 6/12: tactic2_opta_mapa_pases.py",
   "created_at": "2026-01-29T18:52:35.922326",
-  "updated_at": "2026-01-30T10:04:35.094736"
+  "updated_at": "2026-01-30T10:33:49.542285"
 }
