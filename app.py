@@ -1614,13 +1614,16 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
     if not n: raise dash.exceptions.PreventUpdate
     
     global progress_data
-    progress_data = {'active': True, 'progress': 0, 'status': 'Iniciando Opta...', 'messages': []}
+    progress_data = {'active': True, 'progress': 0, 'status': 'Iniciando Opta...', 'messages': [], 'error': False}
     
     def cb(p, s, msgs):
         global progress_data
         progress_data.update({'progress': p, 'status': s, 'messages': msgs})
         if p >= 100:
             progress_data['active'] = False
+            # Detectar si el status indica error
+            if s and ('error' in s.lower() or 'fatal' in s.lower()):
+                progress_data['error'] = True
 
     def safe_opta_update():
         """Wrapper para capturar errores no controlados del hilo"""
@@ -1628,11 +1631,23 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
             actualizar_datos.update_opta_data_web(comp_id, stage_id, ji, jf, cb)
         except Exception as e:
             import logging
+            import traceback
             logging.error(f"Error fatal en hilo de actualización Opta: {e}", exc_info=True)
+            error_tb = traceback.format_exc()
+            timestamp = datetime.now().strftime("%H:%M:%S")
             global progress_data
+            # Añadir el error como mensajes visibles en la consola
+            error_msgs = progress_data.get('messages', [])
+            error_msgs.append({'timestamp': timestamp, 'message': '=' * 50, 'type': 'error'})
+            error_msgs.append({'timestamp': timestamp, 'message': f'💥 ERROR FATAL: {e}', 'type': 'error'})
+            for line in error_tb.strip().split('\n'):
+                error_msgs.append({'timestamp': timestamp, 'message': line, 'type': 'error'})
+            error_msgs.append({'timestamp': timestamp, 'message': '=' * 50, 'type': 'error'})
             progress_data.update({
                 'progress': 100,
                 'status': f'Error fatal: {e}',
+                'messages': error_msgs,
+                'error': True,
                 'active': False
             })
 
@@ -1673,9 +1688,37 @@ def update_ui(n):
     if not progress_data['active'] and progress_data['progress'] >= 100:
         obtener_resumen_datos_cached.cache_clear()
 
-    # Convertimos los mensajes en párrafos HTML para la consola verde
-    msgs = [html.P(f"[{m['timestamp']}] {m['message']}") for m in progress_data['messages']]
-    
+    has_error = progress_data.get('error', False)
+
+    # Convertimos los mensajes en párrafos HTML - errores en rojo
+    msgs = []
+    for m in progress_data.get('messages', []):
+        msg_type = m.get('type', 'info')
+        if msg_type == 'error':
+            msgs.append(html.P(
+                f"[{m['timestamp']}] {m['message']}",
+                style={'color': '#FF4444', 'fontWeight': 'bold'}
+            ))
+        elif msg_type == 'warning':
+            msgs.append(html.P(
+                f"[{m['timestamp']}] {m['message']}",
+                style={'color': '#FFAA00'}
+            ))
+        else:
+            msgs.append(html.P(f"[{m['timestamp']}] {m['message']}"))
+
+    # Si hay error, añadir banner visible al final
+    if has_error and not progress_data['active']:
+        msgs.append(html.Hr(style={'borderColor': '#FF4444'}))
+        msgs.append(html.P(
+            f"La descarga se ha detenido por un error. "
+            f"Revisa los mensajes anteriores para más detalle.",
+            style={
+                'color': '#FF4444', 'fontWeight': 'bold', 'fontSize': '14px',
+                'padding': '8px', 'background': '#330000', 'borderRadius': '4px'
+            }
+        ))
+
     # Retornamos: progreso, mensajes, si el intervalo se apaga, si el botón se habilita
     return progress_data['progress'], msgs, not progress_data['active'], progress_data['active']
 
