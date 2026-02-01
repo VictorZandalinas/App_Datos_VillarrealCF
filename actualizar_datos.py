@@ -20,6 +20,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import unicodedata
 import subprocess
 import logging
 
@@ -2422,13 +2423,13 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
             progress_callback(progress, status, messages)
 
     try:
-        return _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages)
+        return _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages, progress_callback)
     except Exception as e:
         add_message(f"💥 Error crítico en la actualización: {e}", "error")
         update_progress(100, f"Error crítico: {e}")
         return messages
 
-def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages):
+def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages, progress_callback=None):
     """Lógica interna de update_opta_data_web"""
     add_message("🎯 ACTUALIZACIÓN DE DATOS OPTA (WEB)")
     add_message("=" * 50)
@@ -2455,8 +2456,12 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
         
         # LÓGICA DE DETECCIÓN
         # Si NO contiene palabras de liga regular, asumimos que es formato Copa/Torneo
-        keywords_liga = ['liga', 'division', 'premier', 'serie a', 'bundesliga', 'regular season']
-        is_cup_format = not any(k in comp_name for k in keywords_liga)
+        # Normalizamos quitando acentos para evitar fallos (ej: "división" vs "division")
+        comp_name_normalized = ''.join(
+            c for c in unicodedata.normalize('NFD', comp_name) if unicodedata.category(c) != 'Mn'
+        )
+        keywords_liga = ['liga', 'division', 'premier', 'serie a', 'bundesliga', 'regular season', 'primera']
+        is_cup_format = not any(k in comp_name_normalized for k in keywords_liga)
         
         add_message(f"🏆 Competición detectada: {comp_name.upper()}")
         add_message(f"🗓️ Temporada: {season}")
