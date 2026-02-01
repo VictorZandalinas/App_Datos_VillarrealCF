@@ -1619,12 +1619,25 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
     def cb(p, s, msgs):
         global progress_data
         progress_data.update({'progress': p, 'status': s, 'messages': msgs})
-        if p >= 100: 
+        if p >= 100:
             progress_data['active'] = False
 
+    def safe_opta_update():
+        """Wrapper para capturar errores no controlados del hilo"""
+        try:
+            actualizar_datos.update_opta_data_web(comp_id, stage_id, ji, jf, cb)
+        except Exception as e:
+            import logging
+            logging.error(f"Error fatal en hilo de actualización Opta: {e}", exc_info=True)
+            global progress_data
+            progress_data.update({
+                'progress': 100,
+                'status': f'Error fatal: {e}',
+                'active': False
+            })
+
     threading.Thread(
-        target=actualizar_datos.update_opta_data_web, 
-        args=(comp_id, stage_id, ji, jf, cb), 
+        target=safe_opta_update,
         daemon=True
     ).start()
     

@@ -41,6 +41,36 @@ logging.basicConfig(
 OPTA_API_KEY = '10lthl3y5chwn1m0fa4mfg3bqy'
 OPTA_SECRET_KEY = '1u3x3eovxa0vh1lwmutbygq8xn'
 DELAY_SECONDS = 60
+API_TIMEOUT = 60  # Timeout para todas las llamadas a la API (segundos)
+
+# Token cache para evitar pedir un token OAuth en cada request
+_token_cache = {
+    'token': None,
+    'expires_at': 0
+}
+_token_cache_lock = threading.Lock()
+
+# Sesión HTTP reutilizable (connection pooling)
+_opta_session = None
+_opta_session_lock = threading.Lock()
+
+def _get_opta_session():
+    """Obtiene o crea una sesión HTTP reutilizable para Opta API"""
+    global _opta_session
+    with _opta_session_lock:
+        if _opta_session is None:
+            _opta_session = requests.Session()
+            adapter = requests.adapters.HTTPAdapter(
+                max_retries=requests.adapters.Retry(
+                    total=3,
+                    backoff_factor=2,
+                    status_forcelist=[429, 500, 502, 503, 504]
+                ),
+                pool_connections=5,
+                pool_maxsize=5
+            )
+            _opta_session.mount('https://', adapter)
+        return _opta_session
 
 # Paths
 BASE_PATH = Path(__file__).parent
@@ -1087,29 +1117,53 @@ def _abp_get_xg_for_shot_events(shot_events, xg_events_df):
 # ====================================
 
 def request_headers():
-    """OAuth authentication for Opta API"""
+    """OAuth authentication for Opta API - con caché de token"""
+    global _token_cache
+
+    with _token_cache_lock:
+        # Reutilizar token si aún es válido (margen de 30s)
+        if _token_cache['token'] and time.time() < (_token_cache['expires_at'] - 30):
+            return {'Authorization': f'Bearer {_token_cache["token"]}'}
+
     timestamp = int(round(time.time() * 1000))
     post_url = f'https://oauth.performgroup.com/oauth/token/{OPTA_API_KEY}?_fmt=json&_rt=b'
-    
+
     # Generate unique hash
     key = str.encode(OPTA_API_KEY + str(timestamp) + OPTA_SECRET_KEY)
     unique_hash = hashlib.sha512(key).hexdigest()
-    
+
     # OAuth headers
     oauth_headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': f'Basic {unique_hash}',
         'Timestamp': str(timestamp)
     }
-    
+
     body = {
         'grant_type': 'client_credentials',
         'scope': 'b2b-feeds-auth'
     }
-    
-    response = requests.post(post_url, data=body, headers=oauth_headers)
-    access_token = response.json()['access_token']
-    return {'Authorization': f'Bearer {access_token}'}
+
+    try:
+        session = _get_opta_session()
+        response = session.post(post_url, data=body, headers=oauth_headers, timeout=API_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        access_token = data['access_token']
+
+        # Cachear token (duración típica: 5-10 min, usamos 4 min por seguridad)
+        with _token_cache_lock:
+            _token_cache['token'] = access_token
+            _token_cache['expires_at'] = time.time() + 240  # 4 minutos
+
+        return {'Authorization': f'Bearer {access_token}'}
+    except Exception as e:
+        logging.error(f"❌ Error obteniendo token OAuth: {e}")
+        # Si hay un token antiguo, intentar usarlo
+        if _token_cache['token']:
+            logging.warning("⚠️ Usando token OAuth anterior como fallback")
+            return {'Authorization': f'Bearer {_token_cache["token"]}'}
+        raise
 
 def get_available_stages():
     """Get available stages/seasons from Opta API"""
@@ -1123,7 +1177,7 @@ def get_available_stages():
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/match/{OPTA_API_KEY}/'
     
     try:
-        response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+        response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=request_parameters, timeout=API_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         matches = data.get('match', [])
@@ -1166,7 +1220,7 @@ def get_all_tournaments():
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/tournamentcalendar/{OPTA_API_KEY}/'
     
     try:
-        response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+        response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=request_parameters, timeout=API_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         
@@ -1247,13 +1301,13 @@ def get_granular_data_status(match_ids, messages=None):
 
     add_message("🔍 Verificación granular de datos existentes...")
 
-    # Para cada parquet, verificar qué match_ids ya existen
+    # Para cada parquet, verificar qué match_ids ya existen (solo cargamos columna Match ID)
     for data_type, filename in parquet_config.items():
         filepath = OPTA_PATH / filename
         if filepath.exists():
             try:
-                df = pd.read_parquet(filepath)
-                if not df.empty and 'Match ID' in df.columns:
+                df = pd.read_parquet(filepath, columns=['Match ID'])
+                if not df.empty:
                     existing_ids = set(df['Match ID'].unique())
                     found_count = 0
                     for match_id in match_ids:
@@ -1261,6 +1315,7 @@ def get_granular_data_status(match_ids, messages=None):
                             result[match_id][data_type] = True
                             found_count += 1
                     add_message(f"   📄 {filename}: {found_count}/{len(match_ids)} partidos con datos")
+                    del df, existing_ids  # Liberar memoria
             except Exception as e:
                 add_message(f"   ❌ Error leyendo {filename}: {e}", "warning")
         else:
@@ -1306,11 +1361,12 @@ def get_existing_match_ids(messages=None):
         filepath = OPTA_PATH / filename
         if filepath.exists():
             try:
-                df = pd.read_parquet(filepath)
-                if not df.empty and 'Match ID' in df.columns:
+                df = pd.read_parquet(filepath, columns=['Match ID'])
+                if not df.empty:
                     file_match_ids = set(df['Match ID'].unique())
                     existing_match_ids.update(file_match_ids)
                     add_message(f"   📄 {filename}: {len(file_match_ids)} partidos únicos")
+                    del df, file_match_ids
             except Exception as e:
                 add_message(f"   ❌ Error leyendo {filename}: {e}")
         else:
@@ -1438,7 +1494,7 @@ def get_match_ids_advanced(max_matches=50, specific_week=None, stage_id=None, me
         if specific_week:
             current_params["week"] = str(specific_week)
             
-        response = requests.get(sdapi_get_url, headers=request_headers(), params=current_params)
+        response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=current_params, timeout=API_TIMEOUT)
         response.raise_for_status()
         
     except requests.exceptions.HTTPError as e:
@@ -1449,7 +1505,7 @@ def get_match_ids_advanced(max_matches=50, specific_week=None, stage_id=None, me
             try:
                 current_params = base_params.copy()
                 # NO agregamos "week" esta vez
-                response = requests.get(sdapi_get_url, headers=request_headers(), params=current_params)
+                response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=current_params, timeout=API_TIMEOUT)
                 response.raise_for_status()
             except Exception as e2:
                 print(f"   ❌ Error también en búsqueda general: {e2}")
@@ -1519,7 +1575,7 @@ def process_match_player_stats(match_id, season):
     }
     
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/matchstats/{OPTA_API_KEY}/'
-    response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+    response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=request_parameters, timeout=API_TIMEOUT)
     
     if response.status_code != 200:
         print(f"❌ Error MA2 Player Stats: {response.status_code}")
@@ -1628,7 +1684,7 @@ def process_match_team_stats(match_id, season):
     }
     
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/matchstats/{OPTA_API_KEY}/'
-    response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+    response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=request_parameters, timeout=API_TIMEOUT)
     
     if response.status_code != 200:
         print(f"❌ Error MA2 Team Stats: {response.status_code}")
@@ -1751,7 +1807,7 @@ def get_all_competitions_and_stages():
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/match/{OPTA_API_KEY}/'  
 
     try:
-        response = requests.get(sdapi_get_url, headers=request_headers(), params=requestParameters)
+        response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=requestParameters, timeout=API_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         matches = data.get('match', [])
@@ -1841,7 +1897,7 @@ def process_match_events(match_id, season):
         
         # Hacer la request
         start_time = time.time()
-        response = requests.get(sdapi_get_url, headers=headers, params=request_parameters, timeout=30)
+        response = _get_opta_session().get(sdapi_get_url, headers=headers, params=request_parameters, timeout=API_TIMEOUT)
         response_time = time.time() - start_time
         
         logging.info(f"⏱️ Tiempo de respuesta: {response_time:.2f} segundos")
@@ -2047,7 +2103,7 @@ def process_possession_events(match_id, season):
     try:
         headers = request_headers()
         start_time = time.time()
-        response = requests.get(sdapi_get_url, headers=headers, params=request_parameters, timeout=30)
+        response = _get_opta_session().get(sdapi_get_url, headers=headers, params=request_parameters, timeout=API_TIMEOUT)
         response_time = time.time() - start_time
 
         logging.info(f"⏱️ Tiempo de respuesta MA13: {response_time:.2f} segundos")
@@ -2245,10 +2301,11 @@ def diagnostico_rapido_eventos(match_id_sample):
     
     for i, params in enumerate(parameter_combinations, 1):
         try:
-            response = requests.get(
+            response = _get_opta_session().get(
                 f'https://api.performfeeds.com/soccerdata/matchevent/{OPTA_API_KEY}/',
                 headers=request_headers(),
-                params=params
+                params=params,
+                timeout=API_TIMEOUT
             )
             
             if response.status_code == 200:
@@ -2313,10 +2370,11 @@ def verificar_completitud_eventos(match_ids_sample=None):
         }
         
         try:
-            response = requests.get(
+            response = _get_opta_session().get(
                 f'https://api.performfeeds.com/soccerdata/matchevent/{OPTA_API_KEY}/',
                 headers=request_headers(),
-                params=request_parameters
+                params=request_parameters,
+                timeout=API_TIMEOUT
             )
             
             if response.status_code == 200:
@@ -2629,7 +2687,7 @@ def process_xg_player_stats(match_id, season):
     }
     
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/matchexpectedgoals/{OPTA_API_KEY}/'
-    response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+    response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=request_parameters, timeout=API_TIMEOUT)
     
     if response.status_code != 200:
         print(f"❌ Error MA12 xG Player Stats: {response.status_code}")
@@ -2712,7 +2770,7 @@ def process_xg_events(match_id, season):
     }
     
     sdapi_get_url = f'https://api.performfeeds.com/soccerdata/matchexpectedgoals/{OPTA_API_KEY}/'
-    response = requests.get(sdapi_get_url, headers=request_headers(), params=request_parameters)
+    response = _get_opta_session().get(sdapi_get_url, headers=request_headers(), params=request_parameters, timeout=API_TIMEOUT)
     
     if response.status_code != 200:
         print(f"❌ Error MA12 xG Events: {response.status_code}")
@@ -2880,18 +2938,16 @@ def save_opta_data(data_dict, messages=None):
             if filename.exists():
                 existing_df = pd.read_parquet(filename)
                 initial_existing = len(existing_df)
-                
-                # Crear conjunto de claves existentes (como tuplas)
-                existing_keys = set()
-                for _, row in existing_df[unique_keys].iterrows():
-                    existing_keys.add(tuple(row.values))
-                
-                # Filtrar solo filas realmente nuevas
-                mask_new = ~new_df.apply(
-                    lambda row: tuple(row[unique_keys].values) in existing_keys, 
-                    axis=1
+
+                # Filtrar filas nuevas usando merge (mucho más rápido que iterrows)
+                merged = new_df[unique_keys].merge(
+                    existing_df[unique_keys].drop_duplicates(),
+                    on=unique_keys,
+                    how='left',
+                    indicator=True
                 )
-                truly_new_df = new_df[mask_new]
+                mask_new = merged['_merge'] == 'left_only'
+                truly_new_df = new_df[mask_new.values]
                 
                 if len(truly_new_df) > 0:
                     # Solo append las filas nuevas
