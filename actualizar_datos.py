@@ -1373,6 +1373,11 @@ def get_matches_by_weeks_range(stage_id, start_week, end_week, messages=None, pr
     
     if all_matches:
         result_df = pd.concat(all_matches, ignore_index=True)
+        # Eliminar duplicados por Match ID (puede ocurrir si el fallback sin week devolvió todo)
+        before_dedup = len(result_df)
+        result_df = result_df.drop_duplicates(subset=['Match ID'], keep='first')
+        if len(result_df) < before_dedup:
+            add_message(f"   🔄 Eliminados {before_dedup - len(result_df)} partidos duplicados")
         add_message(f"📊 Total partidos encontrados: {len(result_df)}")
         return result_df
     else:
@@ -1469,13 +1474,10 @@ def get_match_ids_advanced(max_matches=50, specific_week=None, stage_id=None, me
             # Esto es necesario porque el segundo intento descarga todo
             match_week = match_info.get('week', 'N/A')
             
-            # Si pedimos una semana específica, falló, y descargamos todo,
-            # filtramos manualmente aquí (opcional, para Copa a veces es mejor traer todo)
+            # Si pedimos una semana específica y el fallback descargó todo,
+            # filtramos manualmente para quedarnos solo con la jornada solicitada
             if specific_week and str(match_week) != str(specific_week):
-                 # En copas a veces la "Week" viene vacía o diferente.
-                 # Si es Copa, aceptamos el partido aunque la week no coincida exactamente
-                 # si el stage coincide.
-                 pass 
+                 continue
 
             if match_id:
                 competition = match_info.get('competition', {})
@@ -2405,7 +2407,7 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
 def update_opta_data_web(competition_id, stage_id, start_week, end_week, progress_callback=None):
     """Versión web INTELIGENTE: Detecta si es Copa para ignorar las jornadas"""
     messages = []
-    
+
     def add_message(msg, msg_type="info"):
         timestamp = datetime.now().strftime("%H:%M:%S")
         messages.append({
@@ -2414,11 +2416,20 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
             'type': msg_type
         })
         print(msg)
-    
+
     def update_progress(progress, status=""):
         if progress_callback:
             progress_callback(progress, status, messages)
-    
+
+    try:
+        return _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages)
+    except Exception as e:
+        add_message(f"💥 Error crítico en la actualización: {e}", "error")
+        update_progress(100, f"Error crítico: {e}")
+        return messages
+
+def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages):
+    """Lógica interna de update_opta_data_web"""
     add_message("🎯 ACTUALIZACIÓN DE DATOS OPTA (WEB)")
     add_message("=" * 50)
     update_progress(5, "Iniciando proceso...")
