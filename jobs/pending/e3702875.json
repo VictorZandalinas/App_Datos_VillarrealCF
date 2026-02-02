@@ -1,0 +1,12 @@
+{
+  "id": "e3702875",
+  "script": "fisico_completo_pdf.py",
+  "equipo": "Deportivo Alav\u00e9s",
+  "j_inicio": 1,
+  "j_fin": 21,
+  "status": "pending",
+  "progress": 0,
+  "message": "En cola...",
+  "created_at": "2026-02-02T16:52:59.834214",
+  "updated_at": "2026-02-02T16:52:59.834248"
+}
