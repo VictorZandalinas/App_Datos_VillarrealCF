@@ -5,8 +5,8 @@
   "j_inicio": 1,
   "j_fin": 21,
   "status": "processing",
-  "progress": 42,
-  "message": "Generando 5/12: tactic1.4_opta_xT.py",
+  "progress": 5,
+  "message": "Iniciando generador...",
   "created_at": "2026-02-02T16:53:21.330837",
-  "updated_at": "2026-02-03T11:04:07.206797"
+  "updated_at": "2026-02-03T11:40:02.368249"
 }
