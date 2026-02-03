@@ -364,7 +364,8 @@ def main():
                         except: pass
                 return df
             pd.read_parquet = _r
-            exec(open('{script_py}', encoding='utf-8').read())
+            with open('{script_py}', encoding='utf-8') as _f:
+                exec(_f.read())
         """)
 
 
@@ -405,8 +406,9 @@ def main():
         pdfs_para_unir.sort(key=natural_sort_key)
         for p_path in pdfs_para_unir:
             if os.path.exists(p_path) and os.path.getsize(p_path) > 100:
-                reader = PdfReader(p_path)
-                for page in reader.pages: writer.add_page(page)
+                with open(p_path, 'rb') as pdf_file:
+                    reader = PdfReader(pdf_file)
+                    for page in reader.pages: writer.add_page(page)
         output_name = f"Informe_Situaciones_Juego_{equipo_canonico.replace(' ', '_')}_J{jornada_inicio}_J{jornada_fin}.pdf"
         with open(output_name, "wb") as f: writer.write(f)
         print(f"\n✅ GENERADO: {output_name}")

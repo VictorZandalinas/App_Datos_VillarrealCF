@@ -393,8 +393,9 @@ def main():
                 return df
             pd.read_parquet = _r
             
-            # Ejecutamos el script original
-            exec(open('{script_py}', encoding='utf-8').read())
+            # Ejecutamos el script original (con context manager para liberar file handle)
+            with open('{script_py}', encoding='utf-8') as _f:
+                exec(_f.read())
         """)
 
         # Ejecución del subproceso con manejo de errores
@@ -438,9 +439,10 @@ def main():
         
         for p_path in pdfs_para_unir:
             if os.path.exists(p_path) and os.path.getsize(p_path) > 100:
-                reader = PdfReader(p_path)
-                for page in reader.pages: writer.add_page(page)
-                
+                with open(p_path, 'rb') as pdf_file:
+                    reader = PdfReader(pdf_file)
+                    for page in reader.pages: writer.add_page(page)
+
         output_name = f"Informe_ABP_{equipo_canonico.replace(' ', '_')}_J{jornada_inicio}_J{jornada_fin}.pdf"
         with open(output_name, "wb") as f: writer.write(f)
         print(f"\n✅ GENERADO: {output_name}")

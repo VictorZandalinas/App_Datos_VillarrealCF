@@ -14,6 +14,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 import unicodedata
 import re
+import gc
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -232,26 +233,28 @@ class GeneradorMaestro:
         return True
 
     def preparar_dataframes_filtrados(self):
-        df_hasta_fecha = self.df_mediacoach_original[self.df_mediacoach_original['Fecha'] <= self.fecha_limite]
+        df_hasta_fecha = self.df_mediacoach_original[self.df_mediacoach_original['Fecha'] <= self.fecha_limite].copy()
         nombres_orig_principal = [k for k, v in self.mapeo_equipos.items() if v == self.equipo_principal]
-        df_equipo_principal = df_hasta_fecha[df_hasta_fecha['Equipo'].isin(nombres_orig_principal)]
+        df_equipo_principal = df_hasta_fecha[df_hasta_fecha['Equipo'].isin(nombres_orig_principal)].copy()
         self.df_principal_temporada_completa = df_equipo_principal
         ultimas_5_jornadas_num = sorted(df_equipo_principal['Jornada_num'].unique())[-5:]
-        self.df_principal_ultimas_5 = df_equipo_principal[df_equipo_principal['Jornada_num'].isin(ultimas_5_jornadas_num)]
+        self.df_principal_ultimas_5 = df_equipo_principal[df_equipo_principal['Jornada_num'].isin(ultimas_5_jornadas_num)].copy()
         self.jornadas_a_pasar = [f"J{j}" for j in ultimas_5_jornadas_num]
         self.jornada_num_ref = ultimas_5_jornadas_num[-1] if ultimas_5_jornadas_num else 0
         self.jornada_str_ref = f"J{self.jornada_num_ref}"
         print(f"📊 Datos del equipo principal: {len(self.df_principal_temporada_completa)} filas hasta la fecha.")
         print(f"📋 Últimas 5 jornadas para {self.equipo_principal}: {self.jornadas_a_pasar}")
-        df_villarreal = df_hasta_fecha[df_hasta_fecha['Equipo'] == 'Villarreal CF']
+        df_villarreal = df_hasta_fecha[df_hasta_fecha['Equipo'] == 'Villarreal CF'].copy()
         ultimas_5_vcf_num = sorted(df_villarreal['Jornada_num'].unique())[-5:]
-        self.df_villarreal_ultimas_5 = df_villarreal[df_villarreal['Jornada_num'].isin(ultimas_5_vcf_num)]
+        self.df_villarreal_ultimas_5 = df_villarreal[df_villarreal['Jornada_num'].isin(ultimas_5_vcf_num)].copy()
         self.jornadas_vcf_a_pasar = [f"J{j}" for j in ultimas_5_vcf_num]
-        self.df_comparativo_principal_vs_vcf = pd.concat([self.df_principal_temporada_completa, df_villarreal]).drop_duplicates()
+        self.df_comparativo_principal_vs_vcf = pd.concat([self.df_principal_temporada_completa, df_villarreal]).drop_duplicates().copy()
         print(f"📊 Datos para comparativas (temporada completa vs VCF): {len(self.df_comparativo_principal_vs_vcf)} filas.")
-        # 🔥 NUEVO: Crear un DataFrame combinado para la comparativa de sprints (ultimas 5 jornadas)
-        self.df_comparativo_sprints_ultimas_5 = pd.concat([self.df_principal_ultimas_5, self.df_villarreal_ultimas_5]).drop_duplicates()
+        self.df_comparativo_sprints_ultimas_5 = pd.concat([self.df_principal_ultimas_5, self.df_villarreal_ultimas_5]).drop_duplicates().copy()
         print(f"📊 Datos para comparativa de sprints ('ultimas_5' vs VCF): {len(self.df_comparativo_sprints_ultimas_5)} filas.")
+        # Liberar DataFrame intermedio que ya no se necesita
+        del df_hasta_fecha
+        gc.collect()
 
     def generar_portada(self):
         print("🎨 Generando portada...")
@@ -333,8 +336,11 @@ class GeneradorMaestro:
         try:
             with PdfPages(output_pdf_path) as pdf:
                 # Generar y añadir la portada
-                pdf.savefig(self.generar_portada(), bbox_inches='tight', pad_inches=0)
-                plt.close('all')
+                fig_portada = self.generar_portada()
+                pdf.savefig(fig_portada, bbox_inches='tight', pad_inches=0)
+                plt.close(fig_portada)
+                del fig_portada
+                gc.collect()
                 
                 print("\n" + "="*60 + f"\n🚀 INICIANDO EJECUCIÓN (TOPE: J{limit_j})\n" + "="*60)
                 
@@ -378,6 +384,8 @@ class GeneradorMaestro:
                                 pass
                             
                             pdf.savefig(figura_reporte, bbox_inches='tight', pad_inches=0.1)
+                            plt.close(figura_reporte)
+                            del figura_reporte
                             print(f"✅ Página añadida correctamente.")
                         else:
                             print(f"⚠️  El script no devolvió una figura válida.")
@@ -385,9 +393,19 @@ class GeneradorMaestro:
                     except Exception as e:
                         print(f"❌ ERROR GRAVE EN {script_base_name}: {e}")
                         traceback.print_exc()
-                    
+
                     finally:
                         plt.close('all')
+                        # Limpiar caches de lru_cache del módulo importado
+                        if 'module' in dir():
+                            for attr_name in dir(module):
+                                try:
+                                    attr = getattr(module, attr_name)
+                                    if hasattr(attr, 'cache_clear'):
+                                        attr.cache_clear()
+                                except Exception:
+                                    pass
+                        gc.collect()
 
             print("\n" + "="*60 + f"\n🎉 PROCESO FINALIZADO\n✅ Informe guardado como: {output_pdf_path}\n" + "="*60)
 
