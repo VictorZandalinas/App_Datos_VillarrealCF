@@ -30,7 +30,7 @@ EQUIPOS_REPORTE = [
 ESCUDOS_MAPPING = {
     'Alavés': 'Alaves.png', 'Deportivo Alavés': 'Alaves.png',
     'Athletic Club': 'Athletic.png', 'Athletic': 'Athletic.png',
-    'Atlético de Madrid': 'Atlético.png', 'Atlético': 'Atlético.png',
+    'Atlético de Madrid': 'Atlético de Madrid.png',
     'Barcelona': 'FC Barcelona.png', 'FC Barcelona': 'FC Barcelona.png',
     'Celta de Vigo': 'Celta Vigo.png', 'RC Celta': 'Celta Vigo.png', 'Celta': 'Celta Vigo.png',
     'Elche': 'Elche.png', 'Elche CF': 'Elche.png',
