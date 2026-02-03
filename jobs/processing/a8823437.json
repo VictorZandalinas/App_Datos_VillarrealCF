@@ -5,8 +5,8 @@
   "j_inicio": 1,
   "j_fin": 21,
   "status": "processing",
-  "progress": 82,
-  "message": "Generando 12/14: fisico12_mediacoach_datos_maximos",
+  "progress": 88,
+  "message": "Generando 13/14: fisico13_ultimos4partidos",
   "created_at": "2026-02-02T16:52:12.115006",
-  "updated_at": "2026-02-03T13:24:05.352838"
+  "updated_at": "2026-02-03T13:25:13.009409"
 }
