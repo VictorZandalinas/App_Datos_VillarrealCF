@@ -4,9 +4,9 @@
   "equipo": "Alav\u00e9s",
   "j_inicio": 1,
   "j_fin": 21,
-  "status": "pending",
-  "progress": 0,
-  "message": "En cola...",
+  "status": "processing",
+  "progress": 42,
+  "message": "Generando 5/12: tactic1.4_opta_xT.py",
   "created_at": "2026-02-02T16:53:21.330837",
-  "updated_at": "2026-02-02T16:53:21.330885"
+  "updated_at": "2026-02-03T11:04:07.206797"
 }
