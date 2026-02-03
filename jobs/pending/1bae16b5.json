@@ -1,0 +1,12 @@
+{
+  "id": "1bae16b5",
+  "script": "fisico_completo_pdf.py",
+  "equipo": "Athletic Club",
+  "j_inicio": 1,
+  "j_fin": 2,
+  "status": "pending",
+  "progress": 0,
+  "message": "En cola...",
+  "created_at": "2026-02-03T08:18:23.925054",
+  "updated_at": "2026-02-03T08:18:23.925086"
+}

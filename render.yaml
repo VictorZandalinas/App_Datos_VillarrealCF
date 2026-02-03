@@ -3,7 +3,7 @@ services:
     name: dashboard-analisis-futbol
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT --timeout 300 --worker-class gthread --threads 4
     envVars:
       - key: APP_USERNAME
         sync: false

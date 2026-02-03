@@ -14,7 +14,7 @@ import actualizar_datos
 import subprocess
 import shutil
 import glob
-from flask import send_from_directory
+from flask import send_from_directory, Response, request, abort
 
 
 
@@ -392,19 +392,26 @@ def crear_layout_principal():
                         
                         # --- ALMACÉN DEL BLOQUE SELECCIONADO ---
                         dcc.Store(id='selected-report-block', data=None),
-                        dcc.Store(id='current-job-id', data=None),
-
-                        # --- BARRA DE PROGRESO ---
-                        html.Div(id="report-progress-container", children=[
-                            html.P(id="report-status-text", className="small mb-1 fw-bold text-muted", children="Esperando selección..."),
-                            dbc.Progress(id="report-progress-bar", value=0, striped=True, animated=True, color="info", style={"height": "15px"}),
-                        ], style={"display": "none"}),
-                        
                         # --- INTERVALO PARA ACTUALIZAR PROGRESO ---
                         dcc.Interval(id='report-interval', interval=800, disabled=True),
-                        
-                        # --- ENLACE DE DESCARGA ---
-                        html.Div(id="download-link-container"), 
+
+                        # --- STORE PARA NOMBRE DEL EQUIPO ---
+                        dcc.Store(id='report-team-name', data=None),
+
+                        # --- MODAL DE PROGRESO ---
+                        dbc.Modal([
+                            dbc.ModalHeader(
+                                dbc.ModalTitle("Generando Informe", id="report-modal-title"),
+                                close_button=False
+                            ),
+                            dbc.ModalBody(id="report-modal-body", children=[
+                                html.Div([
+                                    dbc.Spinner(color="primary", size="lg"),
+                                    html.P("Preparando...", className="text-muted mt-3 text-center")
+                                ], className="text-center py-4")
+                            ]),
+                        ], id="report-modal", centered=True, backdrop="static", size="lg", is_open=False),
+
                         dcc.Download(id="download-pdf"),
                     ])
                 ], className="shadow mb-5")
@@ -438,13 +445,6 @@ def crear_layout_principal():
         
         # --- GRID DE JORNADAS ---
         html.Div(id='jornadas-container'),
-        
-        # --- MODAL GENÉRICO ---
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Información")),
-            dbc.ModalBody("Esta función se implementará próximamente."),
-            dbc.ModalFooter(dbc.Button("Cerrar", id="close-modal"))
-        ], id="modal", is_open=False)
         
     ], fluid=True)
 
@@ -1146,11 +1146,11 @@ def mostrar_selectores(n_abp, n_fisico, n_tactic):
 def habilitar_generar(equipo, j_inicio, j_fin):
     return not (equipo and j_inicio and j_fin)
 
-# EN APP.PY (DENTRO DEL CALLBACK DE GENERAR INFORME)
+# CALLBACK 3: Ejecutar generación directamente en hilo
 @app.callback(
-    [Output('report-progress-container', 'style'),
+    [Output('report-modal', 'is_open'),
      Output('report-interval', 'disabled'),
-     Output('current-job-id', 'data')],
+     Output('report-team-name', 'data')],
     Input('btn-generate-report', 'n_clicks'),
     [State('selected-report-block', 'data'),
      State('report-team-selector', 'value'),
@@ -1159,101 +1159,173 @@ def habilitar_generar(equipo, j_inicio, j_fin):
     prevent_initial_call=True
 )
 def ejecutar_generacion(n_clicks, bloque, equipo, j_inicio, j_fin):
-    """Crea un job en la cola en lugar de ejecutar directamente"""
-    print(f">>> CREANDO JOB: Bloque={bloque}, Equipo={equipo}, Inicio={j_inicio}, Fin={j_fin}")
+    """Lanza la generación del informe en un hilo de fondo"""
+    print(f">>> GENERANDO INFORME: Bloque={bloque}, Equipo={equipo}, Inicio={j_inicio}, Fin={j_fin}")
 
     if not all([bloque, equipo, j_inicio, j_fin]):
         raise dash.exceptions.PreventUpdate
 
     config = BLOQUES_CONFIG[bloque]
+    script = config['script']
 
-    # Crear job en la cola (NO ejecutar directamente)
-    job_id = crear_job(config['script'], equipo, j_inicio, j_fin)
-    print(f">>> JOB CREADO: {job_id}")
+    # Crear carpeta de destino
+    dest_folder = str(BASE_PATH / 'informes_generados')
+    os.makedirs(dest_folder, exist_ok=True)
 
-    return {'display': 'block'}, False, job_id
+    # Lanzar en hilo de fondo
+    threading.Thread(
+        target=run_report_process,
+        args=(script, equipo, str(j_inicio), str(j_fin), dest_folder),
+        daemon=True
+    ).start()
+
+    print(f">>> HILO LANZADO para {script}")
+    return True, False, equipo
 
 # CALLBACK 4: Actualizar la barra de progreso (lee estado del archivo JSON)
 @app.callback(
-    [Output("report-progress-bar", "value"),
-     Output("report-status-text", "children"),
-     Output("download-link-container", "children"),
+    [Output("report-modal-body", "children"),
+     Output("report-modal-title", "children"),
      Output("report-interval", "disabled", allow_duplicate=True)],
     [Input("report-interval", "n_intervals")],
-    [State("current-job-id", "data")],
+    [State("report-team-name", "data")],
     prevent_initial_call=True
 )
-def update_report_ui(n, job_id):
-    """Lee el estado del job desde el archivo JSON (sistema de cola)"""
+def update_report_ui(n, team_name):
+    """Lee el estado del report_progress global y actualiza el modal"""
+    global report_progress
 
-    # Sin job activo
-    if not job_id:
-        return 0, "Esperando...", None, True
+    progress = report_progress.get('progress', 0)
+    status_msg = report_progress.get('status', 'Iniciando...')
+    is_active = report_progress.get('active', False)
+    final_path = report_progress.get('final_path', '')
 
-    # Obtener estado del job
-    job = obtener_estado_job(job_id)
+    # --- INICIANDO (progreso bajo, activo) ---
+    if is_active and progress <= 5:
+        body = html.Div([
+            html.Div([
+                dbc.Spinner(color="warning", size="lg", spinner_style={"width": "3rem", "height": "3rem"}),
+            ], className="text-center mb-3"),
+            html.H5(status_msg, className="text-center text-muted"),
+            html.P("El informe se está preparando...",
+                   className="text-center text-muted small mt-2"),
+            dbc.Progress(value=100, striped=True, animated=True, color="warning",
+                        style={"height": "6px"}, className="mt-3"),
+        ], className="py-4")
+        return body, "Iniciando...", False
 
-    if not job:
-        return 0, "Buscando job...", None, False
+    # --- EN PROGRESO ---
+    if is_active and progress < 100:
+        body = html.Div([
+            html.Div([
+                html.H2(f"{progress}%", className="text-center fw-bold mb-0",
+                        style={"color": "#0d6efd", "fontSize": "2.5rem"}),
+            ], className="mb-3"),
+            dbc.Progress(
+                value=progress, striped=True, animated=True, color="primary",
+                style={"height": "20px", "borderRadius": "10px"},
+                className="mb-3"
+            ),
+            html.P(status_msg, className="text-center fw-bold", style={"fontSize": "14px"}),
+        ], className="py-3")
+        return body, "Generando Informe...", False
 
-    status = job.get('status', 'pending')
-    progress = job.get('progress', 0)
-    message = job.get('message', 'Procesando...')
+    # --- TERMINADO (activo=False, progreso=100) ---
+    if not is_active and progress >= 100:
+        has_error = '❌' in status_msg or 'Error' in status_msg or '⚠️' in status_msg
 
-    # Job completado
-    if status == 'completed':
-        pdf_name = job.get('pdf_name', '')
-        pdf_path = job.get('pdf_path', '')
+        # --- ERROR ---
+        if has_error and not final_path:
+            body = html.Div([
+                html.Div([
+                    html.I(className="bi bi-exclamation-triangle-fill",
+                           style={"fontSize": "60px", "color": "#dc3545"})
+                ], className="text-center mb-3"),
+                html.H5("Error al generar el informe", className="text-center text-danger mb-2"),
+                html.P(status_msg, className="text-center text-muted small mb-4",
+                       style={"wordBreak": "break-word"}),
+                dbc.Button(
+                    "Reintentar",
+                    id="btn-descargar-pdf",
+                    color="danger",
+                    className="w-100",
+                    style={"borderRadius": "10px"}
+                )
+            ], className="py-3")
+            return body, "Error", True
 
-        if pdf_name and os.path.exists(pdf_path):
-            contenedor_descarga = html.Div([
+        # --- COMPLETADO CON PDF ---
+        if final_path and os.path.exists(final_path):
+            pdf_name = os.path.basename(final_path)
+
+            # Obtener escudo del equipo
+            escudo_src = get_escudo_base64(team_name) if team_name else None
+            escudo_element = html.Img(
+                src=escudo_src, style={"height": "120px", "objectFit": "contain"}
+            ) if escudo_src else html.I(
+                className="bi bi-check-circle-fill",
+                style={"fontSize": "80px", "color": "#198754"}
+            )
+
+            # Calcular tamaño
+            file_size_bytes = os.path.getsize(final_path)
+            if file_size_bytes >= 1024 * 1024:
+                file_size_str = f" ({file_size_bytes / (1024 * 1024):.1f} MB)"
+            else:
+                file_size_str = f" ({file_size_bytes / 1024:.0f} KB)"
+
+            body = html.Div([
+                html.Div([escudo_element], className="text-center mb-3"),
+                html.H4("Informe completado", className="text-center fw-bold text-success mb-1"),
+                html.P(team_name or "", className="text-center text-muted mb-4", style={"fontSize": "18px"}),
                 html.A(
-                    f"📥 Descargar {pdf_name}",
+                    [html.I(className="bi bi-download me-2"), f"Descargar PDF{file_size_str}"],
                     href=f"/descargar/{pdf_name}",
                     download=pdf_name,
-                    className="btn btn-success btn-lg w-100 mt-3",
-                    style={"textDecoration": "none", "display": "block", "textAlign": "center"}
+                    className="btn btn-success btn-lg w-100 mb-2",
+                    style={"textDecoration": "none", "display": "block", "textAlign": "center",
+                           "borderRadius": "10px", "padding": "14px", "fontSize": "16px"}
                 ),
                 dbc.Button(
-                    [html.I(className="bi bi-arrow-counterclockwise me-2"), "Generar otro informe"],
+                    "Generar otro informe",
                     id="btn-descargar-pdf",
-                    color="secondary",
-                    size="sm",
-                    className="w-100 mt-2"
+                    color="outline-secondary",
+                    className="w-100 mt-1",
+                    style={"borderRadius": "10px"}
                 )
-            ])
-            return 100, "✅ Informe generado correctamente", contenedor_descarga, True
+            ], className="py-3")
+            return body, "Informe Completado", True
 
-        return 100, message, None, True
-
-    # Job fallido
-    if status == 'failed':
-        error_msg = job.get('error', 'Error desconocido')
-        contenedor_error = html.Div([
-            html.P(f"❌ {error_msg}", className="text-danger"),
+        # --- COMPLETADO SIN PDF (warning) ---
+        body = html.Div([
+            html.Div([
+                html.I(className="bi bi-exclamation-circle-fill",
+                       style={"fontSize": "60px", "color": "#ffc107"})
+            ], className="text-center mb-3"),
+            html.H5(status_msg, className="text-center text-warning mb-2"),
             dbc.Button(
-                [html.I(className="bi bi-arrow-counterclockwise me-2"), "Reintentar"],
+                "Reintentar",
                 id="btn-descargar-pdf",
-                color="secondary",
-                size="sm",
-                className="w-100 mt-2"
+                color="warning",
+                className="w-100",
+                style={"borderRadius": "10px"}
             )
-        ])
-        return 100, f"❌ Error: {error_msg[:50]}...", contenedor_error, True
+        ], className="py-3")
+        return body, "Aviso", True
 
-    # Job en proceso o pendiente
-    if status == 'pending':
-        return 0, "En cola, esperando worker...", None, False
-
-    return progress, message, None, False
+    # --- DEFAULT: spinner ---
+    body = html.Div([
+        dbc.Spinner(color="primary", size="lg"),
+        html.P(status_msg, className="text-muted mt-3 text-center")
+    ], className="text-center py-4")
+    return body, "Procesando...", False
 
 @app.callback(
     [Output('report-selectors-container', 'style', allow_duplicate=True),
      Output('report-selectors-container', 'children', allow_duplicate=True),
      Output('selected-report-block', 'data', allow_duplicate=True),
-     Output('download-link-container', 'children', allow_duplicate=True),
-     Output('report-progress-container', 'style', allow_duplicate=True),
-     Output('current-job-id', 'data', allow_duplicate=True)],
+     Output('report-modal', 'is_open', allow_duplicate=True),
+     Output('report-team-name', 'data', allow_duplicate=True)],
     Input('btn-descargar-pdf', 'n_clicks'),
     prevent_initial_call=True
 )
@@ -1266,18 +1338,16 @@ def resetear_formulario_informe(n_clicks):
         {'display': 'none'},          # Ocultar filtros
         [],                           # Limpiar filtros
         None,                         # Resetear bloque
-        None,                         # Limpiar enlace descarga
-        {'display': 'none'},          # Ocultar barra progreso
-        None                          # Limpiar job_id
+        False,                        # Cerrar modal
+        None                          # Limpiar team name
     )
     
 @app.callback(
     [Output('report-selectors-container', 'style', allow_duplicate=True),
      Output('report-selectors-container', 'children', allow_duplicate=True),
      Output('selected-report-block', 'data', allow_duplicate=True),
-     Output('download-link-container', 'children', allow_duplicate=True),
-     Output('report-progress-container', 'style', allow_duplicate=True),
-     Output('current-job-id', 'data', allow_duplicate=True)],
+     Output('report-modal', 'is_open', allow_duplicate=True),
+     Output('report-team-name', 'data', allow_duplicate=True)],
     Input('btn-reset-informe', 'n_clicks'),
     prevent_initial_call=True
 )
@@ -1285,7 +1355,7 @@ def reset_informe_form(n_clicks):
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
 
-    return {'display': 'none'}, [], None, None, {'display': 'none'}, None
+    return {'display': 'none'}, [], None, False, None
     
 @app.callback(
     Output('btn-update-mediacoach', 'disabled'),
@@ -1658,18 +1728,87 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
     
     return False, True
 
+def _parse_range(range_header, file_size):
+    """Parsea la cabecera Range del navegador. Devuelve (start, end) o None."""
+    if not range_header or not range_header.startswith('bytes='):
+        return None
+    try:
+        range_spec = range_header[6:]  # quitar "bytes="
+        start_str, end_str = range_spec.split('-', 1)
+        start = int(start_str) if start_str else 0
+        end = int(end_str) if end_str else file_size - 1
+        if start < 0 or end >= file_size or start > end:
+            return None
+        return (start, end)
+    except (ValueError, IndexError):
+        return None
+
+
 @server.route('/descargar/<path:filename>')
 def descargar_informe(filename):
-    """Endpoint para descargar informes generados (optimizado para archivos grandes)"""
-    directorio = os.path.join(os.getcwd(), "informes_generados")
-    response = send_from_directory(
-        directorio,
-        filename,
-        as_attachment=True,
-        mimetype='application/pdf'
-    )
-    # Headers para evitar timeouts y cacheo en archivos grandes
-    response.headers['X-Accel-Buffering'] = 'no'  # Evita buffering en nginx
+    """Endpoint para descargar informes generados (streaming con soporte Range)"""
+    directorio = os.path.realpath(os.path.join(os.getcwd(), "informes_generados"))
+    filepath = os.path.realpath(os.path.join(directorio, filename))
+
+    # Protección contra path traversal
+    if not filepath.startswith(directorio + os.sep):
+        abort(403)
+
+    if not os.path.isfile(filepath):
+        abort(404)
+
+    file_size = os.path.getsize(filepath)
+    chunk_size = 64 * 1024  # 64 KB
+
+    range_header = request.headers.get('Range')
+    byte_range = _parse_range(range_header, file_size)
+
+    if byte_range:
+        # Respuesta parcial (206) para descargas reanudables
+        start, end = byte_range
+        length = end - start + 1
+
+        def generate_range():
+            with open(filepath, 'rb') as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    read_size = min(chunk_size, remaining)
+                    data = f.read(read_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        response = Response(
+            generate_range(),
+            status=206,
+            mimetype='application/pdf',
+            direct_passthrough=True
+        )
+        response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+        response.headers['Content-Length'] = length
+    else:
+        # Respuesta completa (200) con streaming
+        def generate_full():
+            with open(filepath, 'rb') as f:
+                while True:
+                    data = f.read(chunk_size)
+                    if not data:
+                        break
+                    yield data
+
+        response = Response(
+            generate_full(),
+            status=200,
+            mimetype='application/pdf',
+            direct_passthrough=True
+        )
+        response.headers['Content-Length'] = file_size
+
+    response.headers['Accept-Ranges'] = 'bytes'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.headers['X-Accel-Buffering'] = 'no'
     response.headers['Cache-Control'] = 'no-cache'
     return response
 
@@ -1731,9 +1870,6 @@ def logout(n):
     if n is None or n == 0:
         raise dash.exceptions.PreventUpdate
     return False
-
-@app.callback(Output('modal', 'is_open'), [Input('download-pdf', 'n_clicks'), Input('close-modal', 'n_clicks')], [State('modal', 'is_open')], prevent_initial_call=True)
-def toggle_modal(n1, n2, is_open): return not is_open if (n1 or n2) else is_open
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8050, debug=True)
