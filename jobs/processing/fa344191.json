@@ -4,9 +4,9 @@
   "equipo": "Athletic Club",
   "j_inicio": 1,
   "j_fin": 21,
-  "status": "pending",
-  "progress": 0,
-  "message": "En cola...",
+  "status": "processing",
+  "progress": 82,
+  "message": "Generando 12/14: fisico12_mediacoach_datos_maximos",
   "created_at": "2026-02-03T08:16:20.338942",
-  "updated_at": "2026-02-03T08:16:20.338977"
+  "updated_at": "2026-02-03T11:34:11.147454"
 }
