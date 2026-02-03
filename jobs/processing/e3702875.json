@@ -4,9 +4,9 @@
   "equipo": "Deportivo Alav\u00e9s",
   "j_inicio": 1,
   "j_fin": 21,
-  "status": "pending",
-  "progress": 0,
-  "message": "En cola...",
+  "status": "processing",
+  "progress": 82,
+  "message": "Generando 12/14: fisico12_mediacoach_datos_maximos",
   "created_at": "2026-02-02T16:52:59.834214",
-  "updated_at": "2026-02-02T16:52:59.834248"
+  "updated_at": "2026-02-03T11:19:55.755686"
 }
