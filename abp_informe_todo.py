@@ -399,7 +399,7 @@ def main():
 
         # Ejecución del subproceso con manejo de errores
         try:
-            proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            proceso = subprocess.Popen([sys.executable, "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             # Timeout aumentado a 10 minutos por script (para procesar muchas jornadas)
             stdout, _ = proceso.communicate(input=respuestas, timeout=600)
 

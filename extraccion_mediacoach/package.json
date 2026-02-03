@@ -7,7 +7,7 @@
     "maxima": "node 4.extraer_maxima_exigencia.js"
   },
   "dependencies": {
-    "xlsx": "^0.18.5",
-    "parquetjs": "^0.11.2"
+    "parquetjs": "^0.11.2",
+    "xlsx": "^0.18.5"
   }
 }
