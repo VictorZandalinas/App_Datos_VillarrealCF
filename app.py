@@ -450,7 +450,7 @@ def crear_layout_principal():
 
 def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_folder):
     global report_progress
-    report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': ''}
+    report_progress = {'active': True, 'progress': 5, 'status': 'Iniciando generador...', 'final_path': '', 'last_module': '', 'error_detail': ''}
 
     import sys
     import shutil
@@ -464,6 +464,8 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
     TIMEOUT_INACTIVIDAD = 180  # 3 minutos
 
     process = None
+    last_module_name = ''
+    last_error_lines = []
 
     try:
         # Limpiar PDFs antiguos
@@ -495,12 +497,14 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
             # Verificar timeout global
             if time.time() - tiempo_inicio > TIMEOUT_GLOBAL:
                 report_progress['status'] = f"⏰ Timeout: el informe tardó más de {TIMEOUT_GLOBAL//60} minutos"
+                report_progress['error_detail'] = f"Último módulo en ejecución: {last_module_name}" if last_module_name else ""
                 print(f"⏰ TIMEOUT GLOBAL alcanzado ({TIMEOUT_GLOBAL}s)")
                 break
 
             # Verificar timeout de inactividad
             if time.time() - ultimo_output > TIMEOUT_INACTIVIDAD:
                 report_progress['status'] = f"⏰ Sin respuesta del generador en {TIMEOUT_INACTIVIDAD//60} minutos"
+                report_progress['error_detail'] = f"Se detuvo en: {last_module_name}" if last_module_name else ""
                 print(f"⏰ TIMEOUT INACTIVIDAD alcanzado ({TIMEOUT_INACTIVIDAD}s sin output)")
                 break
 
@@ -510,8 +514,14 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
                 remaining = process.stdout.read()
                 if remaining:
                     for line in remaining.split('\n'):
-                        if line.strip():
-                            print(f"DEBUG SCRIPT: {line.strip()}")
+                        stripped = line.strip()
+                        if stripped:
+                            print(f"DEBUG SCRIPT: {stripped}")
+                            if '❌' in stripped or 'Error' in stripped or 'Killed' in stripped or 'MemoryError' in stripped:
+                                last_error_lines.append(stripped)
+                            # Capturar memoria reportada
+                            if '📊' in stripped:
+                                print(f"MEMORIA: {stripped}")
                 break
 
             # Usar select para esperar output con timeout (1 segundo)
@@ -530,17 +540,25 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
 
                 print(f"DEBUG SCRIPT: {status_msg}")
 
+                # Capturar errores del subprocess
+                if '❌' in status_msg or 'MemoryError' in status_msg or 'Killed' in status_msg:
+                    last_error_lines.append(status_msg)
+                    if len(last_error_lines) > 5:
+                        last_error_lines.pop(0)
+
                 match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
 
                 if match:
                     pag_actual = int(match.group(1))
                     pag_total = int(match.group(2))
                     nombre_pag = match.group(3)
+                    last_module_name = nombre_pag
+                    report_progress['last_module'] = nombre_pag
                     porcentaje = int((pag_actual / pag_total) * 95)
                     report_progress['progress'] = porcentaje
                     report_progress['status'] = f"Generando página {pag_actual} de {pag_total}: {nombre_pag}"
 
-                elif "Uniendo todos los reportes" in status_msg:
+                elif "Uniendo todos los reportes" in status_msg or "Uniendo reportes" in status_msg:
                     report_progress['progress'] = 96
                     report_progress['status'] = "Uniendo páginas en el PDF final..."
 
@@ -550,29 +568,69 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
             process.kill()
             process.wait(timeout=5)
 
-        # Buscar el PDF generado y moverlo
-        lista_pdfs = glob.glob("*.pdf")
-        if lista_pdfs:
-            archivo_reciente = max(lista_pdfs, key=os.path.getctime)
-            if os.path.exists(destination_folder):
-                final_dest = os.path.join(destination_folder, archivo_reciente)
-                try:
-                    shutil.move(archivo_reciente, final_dest)
-                    report_progress['final_path'] = os.path.abspath(final_dest)
-                    report_progress['status'] = f"✅ Informe listo"
-                    report_progress['progress'] = 100
-                except Exception as e:
-                    report_progress['status'] = f"⚠️ Error al mover: {e}"
-                    report_progress['progress'] = 100
-            else:
-                report_progress['final_path'] = os.path.abspath(archivo_reciente)
+        # Comprobar código de salida del proceso para detectar crashes
+        exit_code = process.returncode if process else None
+        if exit_code is not None and exit_code != 0:
+            print(f"⚠️ Proceso terminó con código: {exit_code}")
+            if exit_code == -9 or exit_code == 137:
+                # SIGKILL = OOM killer del sistema
+                crash_msg = "❌ El servidor se quedó sin memoria (OOM) generando el informe"
+                detail = f"El proceso fue terminado por el sistema al quedarse sin RAM. "
+                if last_module_name:
+                    detail += f"Se cayó procesando: {last_module_name}. "
+                detail += "Prueba a seleccionar menos jornadas."
+                report_progress['status'] = crash_msg
+                report_progress['error_detail'] = detail
                 report_progress['progress'] = 100
-        elif "Timeout" not in report_progress.get('status', ''):
-            report_progress['status'] = "⚠️ No se generó ningún PDF"
-            report_progress['progress'] = 100
+            elif exit_code == -11 or exit_code == 139:
+                # SIGSEGV
+                crash_msg = "❌ Error interno del generador (segmentation fault)"
+                detail = f"Se cayó procesando: {last_module_name}" if last_module_name else ""
+                report_progress['status'] = crash_msg
+                report_progress['error_detail'] = detail
+                report_progress['progress'] = 100
+            elif exit_code < 0:
+                # Otra señal
+                crash_msg = f"❌ El proceso fue terminado por una señal del sistema (código {exit_code})"
+                detail = f"Último módulo: {last_module_name}" if last_module_name else ""
+                report_progress['status'] = crash_msg
+                report_progress['error_detail'] = detail
+                report_progress['progress'] = 100
+            elif last_error_lines:
+                # Salida con error pero no señal del sistema
+                crash_msg = f"❌ El generador finalizó con errores"
+                detail = last_error_lines[-1] if last_error_lines else ""
+                if last_module_name:
+                    detail = f"Último módulo: {last_module_name}. {detail}"
+                report_progress['status'] = crash_msg
+                report_progress['error_detail'] = detail
+                report_progress['progress'] = 100
+
+        # Buscar el PDF generado y moverlo (solo si no hemos detectado crash fatal)
+        if report_progress.get('progress', 0) < 100:
+            lista_pdfs = glob.glob("*.pdf")
+            if lista_pdfs:
+                archivo_reciente = max(lista_pdfs, key=os.path.getctime)
+                if os.path.exists(destination_folder):
+                    final_dest = os.path.join(destination_folder, archivo_reciente)
+                    try:
+                        shutil.move(archivo_reciente, final_dest)
+                        report_progress['final_path'] = os.path.abspath(final_dest)
+                        report_progress['status'] = f"✅ Informe listo"
+                        report_progress['progress'] = 100
+                    except Exception as e:
+                        report_progress['status'] = f"⚠️ Error al mover: {e}"
+                        report_progress['progress'] = 100
+                else:
+                    report_progress['final_path'] = os.path.abspath(archivo_reciente)
+                    report_progress['progress'] = 100
+            elif "Timeout" not in report_progress.get('status', '') and '❌' not in report_progress.get('status', ''):
+                report_progress['status'] = "⚠️ No se generó ningún PDF"
+                report_progress['progress'] = 100
 
     except Exception as e:
         report_progress['status'] = f"❌ Error: {str(e)}"
+        report_progress['error_detail'] = f"Último módulo: {last_module_name}" if last_module_name else ""
         report_progress['progress'] = 100
         print(f"❌ Error en run_report_process: {e}")
 
