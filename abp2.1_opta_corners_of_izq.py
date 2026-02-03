@@ -570,54 +570,57 @@ class LanzamientosLadoIzquierdo:
         return None
     
     def load_team_logo(self, equipo, target_size=(80, 80)):
-        """Carga y redimensiona el logo del equipo"""
+        """Carga y redimensiona el logo del equipo con protección para Atlético de Madrid"""
         try:
             from PIL import Image
             import numpy as np
         except ImportError:
-            print("⚠️ PIL no está instalado. Usando método original sin redimensión.")
-            return self._load_team_logo_original(equipo)
+            return None
         
-        possible_names = [
-            equipo, equipo.replace(' ', '_'), equipo.replace(' ', ''),
-            equipo.lower(), equipo.lower().replace(' ', '_'), equipo.lower().replace(' ', '')
-        ]
+        if not os.path.exists('assets/escudos'):
+            return None
+
+        escudos_disponibles = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
+        equipo_lower = equipo.lower().strip()
         
         logo_path = None
-        # Buscar archivo exacto
-        for name in possible_names:
-            path = f"assets/escudos/{name}.png"
-            if os.path.exists(path): 
-                logo_path = path
+
+        # 1. BÚSQUEDA EXACTA (Prioridad máxima)
+        for f in escudos_disponibles:
+            if equipo_lower == f.replace('.png', '').lower().replace('_', ' '):
+                logo_path = f"assets/escudos/{f}"
                 break
         
-        # Si no encuentra, buscar por similitud
-        if not logo_path and os.path.exists('assets/escudos'):
-            all_files = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
+        # 2. SIMILITUD PROTEGIDA (Si no hubo exacta)
+        if not logo_path:
             best_match, best_score = None, 0
-            for filename in all_files:
-                name_without_ext = os.path.splitext(filename)[0]
-                score = SequenceMatcher(None, equipo.lower(), name_without_ext.lower()).ratio()
+            # Limpieza para comparación
+            eq_clean = equipo_lower.replace('cf', '').replace('fc', '').replace(' ', '')
+            
+            for filename in escudos_disponibles:
+                name_clean = filename.replace('.png', '').lower().replace('_', '').replace(' ', '').replace('cf', '').replace('fc', '')
+                
+                # SEGURIDAD: Si uno es Atletico y el otro no, no pueden ser iguales (evita confusión con Madrid)
+                if ("atletico" in eq_clean) != ("atletico" in name_clean):
+                    continue
+                
+                score = SequenceMatcher(None, eq_clean, name_clean).ratio()
                 if score > best_score:
                     best_score, best_match = score, filename
-            if best_match and best_score > 0.6:
+            
+            if best_match and best_score > 0.6: # Umbral seguro
                 logo_path = f"assets/escudos/{best_match}"
         
         if logo_path:
             try:
                 with Image.open(logo_path) as img:
-                    if img.mode != 'RGBA':
-                        img = img.convert('RGBA')
+                    img = img.convert('RGBA')
                     img.thumbnail(target_size, Image.Resampling.LANCZOS)
                     final_img = Image.new('RGBA', target_size, (0, 0, 0, 0))
-                    paste_x = (target_size[0] - img.width) // 2
-                    paste_y = (target_size[1] - img.height) // 2
+                    paste_x, paste_y = (target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2
                     final_img.paste(img, (paste_x, paste_y), img)
                     return np.array(final_img) / 255.0
-            except Exception as e:
-                print(f"⚠️ Error procesando {logo_path}: {e}")
-                return self._load_team_logo_original(equipo)
-        
+            except: pass
         return None
     
     def _load_team_logo_original(self, equipo):

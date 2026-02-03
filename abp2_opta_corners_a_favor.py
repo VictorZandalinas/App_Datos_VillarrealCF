@@ -562,63 +562,42 @@ class CornersSequenceAnalysis:
         print(f"✅ Debug info exportada a: {filename}")
     
     def load_team_logo(self, equipo, target_size=(80, 80)):
-        """Carga y redimensiona el logo del equipo a un tamaño fijo"""
+        """Carga logo con protección para evitar confusión Atletico/Madrid"""
         try:
             from PIL import Image
             import numpy as np
-        except ImportError:
-            print("⚠️ PIL no está instalado. Usando método original sin redimensión.")
-            return self._load_team_logo_original(equipo)
+        except ImportError: return None
         
-        possible_names = [
-            equipo, equipo.replace(' ', '_'), equipo.replace(' ', ''),
-            equipo.lower(), equipo.lower().replace(' ', '_'), equipo.lower().replace(' ', '')
-        ]
+        if not os.path.exists('assets/escudos'): return None
+        escudos = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
+        equipo_lower = equipo.lower().strip()
         
-        logo_path = None
-        # Buscar archivo exacto
-        for name in possible_names:
-            path = f"assets/escudos/{name}.png"
-            if os.path.exists(path): 
-                logo_path = path
-                break
+        # 1. Búsqueda exacta
+        best_match = next((f for f in escudos if equipo_lower == f.replace('.png', '').lower()), None)
         
-        # Si no encuentra, buscar por similitud
-        if not logo_path and os.path.exists('assets/escudos'):
-            all_files = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
-            best_match, best_score = None, 0
-            for filename in all_files:
-                name_without_ext = os.path.splitext(filename)[0]
-                score = SequenceMatcher(None, equipo.lower(), name_without_ext.lower()).ratio()
-                if score > best_score:
-                    best_score, best_match = score, filename
-            if best_match and best_score > 0.6:
-                logo_path = f"assets/escudos/{best_match}"
-        
-        if logo_path:
+        # 2. Similitud protegida
+        if not best_match:
+            best_score = 0
+            eq_clean = equipo_lower.replace('cf', '').replace('fc', '').replace(' ', '')
+            for f in escudos:
+                f_clean = f.replace('.png', '').lower().replace('_', '').replace(' ', '').replace('cf', '').replace('fc', '')
+                # BLOQUEO: Si uno es Atletico y el otro no, saltar
+                if ("atletico" in eq_clean) != ("atletico" in f_clean): continue
+                
+                score = SequenceMatcher(None, eq_clean, f_clean).ratio()
+                if score > best_score and score > 0.6:
+                    best_score, best_match = score, f
+
+        if best_match:
             try:
-                # Abrir y redimensionar con PIL
-                with Image.open(logo_path) as img:
-                    # Convertir a RGBA si no lo está
-                    if img.mode != 'RGBA':
-                        img = img.convert('RGBA')
-                    
-                    # Redimensionar manteniendo aspecto
+                with Image.open(f"assets/escudos/{best_match}") as img:
+                    img = img.convert('RGBA')
                     img.thumbnail(target_size, Image.Resampling.LANCZOS)
-                    
-                    # Crear imagen de tamaño fijo con fondo transparente
                     final_img = Image.new('RGBA', target_size, (0, 0, 0, 0))
-                    
-                    # Centrar la imagen redimensionada
-                    paste_x = (target_size[0] - img.width) // 2
-                    paste_y = (target_size[1] - img.height) // 2
+                    paste_x, paste_y = (target_size[0]-img.width)//2, (target_size[1]-img.height)//2
                     final_img.paste(img, (paste_x, paste_y), img)
-                    
                     return np.array(final_img) / 255.0
-            except Exception as e:
-                print(f"⚠️ Error procesando {logo_path}: {e}")
-                return self._load_team_logo_original(equipo)
-        
+            except: pass
         return None
 
     def _load_team_logo_original(self, equipo):
