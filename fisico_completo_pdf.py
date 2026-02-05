@@ -384,11 +384,17 @@ class GeneradorMaestro:
                                 pass
                             
                             pdf.savefig(figura_reporte, bbox_inches='tight', pad_inches=0.1)
+                            figura_reporte.clf()
                             plt.close(figura_reporte)
                             del figura_reporte
                             print(f"✅ Página añadida correctamente.")
                         else:
                             print(f"⚠️  El script no devolvió una figura válida.")
+
+                        if 'module' in locals():
+                            del module
+                        if script_base_name in sys.modules:
+                            del sys.modules[script_base_name] # Sacar módulo de memoria
                     
                     except Exception as e:
                         print(f"❌ ERROR GRAVE EN {script_base_name}: {e}")

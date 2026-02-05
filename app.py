@@ -478,7 +478,11 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
         print(f"⚠️ Error limpiando: {e}")
 
     try:
+        # Construcción limpia del comando (Sin inyección de código)
+        # Los scripts ahora esperan: python script.py "Equipo" J_INI J_FIN
         cmd = [sys.executable, "-u", script_name, equipo_nombre, str(j_inicio), str(j_fin)]
+
+        print(f"🚀 Ejecutando comando: {' '.join(cmd)}")
 
         process = subprocess.Popen(
             cmd,
@@ -486,7 +490,8 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            # Eliminar input=... y stdin=... ya no son necesarios con la nueva estructura
         )
 
         tiempo_inicio = time.time()

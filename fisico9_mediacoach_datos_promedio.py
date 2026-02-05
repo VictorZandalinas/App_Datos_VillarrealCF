@@ -31,7 +31,6 @@ plt.rcParams.update({
 try:
     from mplsoccer import Pitch
 except ImportError:
-    print("Instalando mplsoccer...")
     import subprocess
     subprocess.check_call(["pip", "install", "mplsoccer"])
     from mplsoccer import Pitch
@@ -42,7 +41,6 @@ class CampoFutbolAcumulado:
         try:
             opta_path = "extraccion_opta/datos_opta_parquet/player_stats.parquet"
             self.opta_df = pd.read_parquet(opta_path)
-            print(f"✅ Datos Opta cargados: {self.opta_df.shape[0]} filas")
             
             # Verificar columnas necesarias
             required_columns = ['Match Name', 'Team Name', 'Position', 'Position Side']
@@ -50,13 +48,11 @@ class CampoFutbolAcumulado:
             
             missing_required = [col for col in required_columns if col not in self.opta_df.columns]
             if missing_required:
-                print(f"⚠️ Columnas requeridas faltantes en Opta: {missing_required}")
                 self.opta_df = None
                 return False
             
             available_optional = [col for col in optional_columns if col in self.opta_df.columns]
             if available_optional:
-                print(f"✅ Columnas opcionales disponibles: {available_optional}")
             
             # Normalizar nombres de equipos en Opta
             if 'Team Name' in self.opta_df.columns:
@@ -64,7 +60,6 @@ class CampoFutbolAcumulado:
             
             return True
         except Exception as e:
-            print(f"⚠️ Error al cargar datos Opta: {e}")
             self.opta_df = None
             return False
     
@@ -135,7 +130,6 @@ class CampoFutbolAcumulado:
 
     def resolve_table_positions(self, team_grouped, team_coords, team_name):
         """Resuelve colisiones entre tablas y devuelve posiciones ajustadas"""
-        print(f"🔧 Resolviendo colisiones para {team_name}...")
         
         # Recopilar todas las tablas que se van a crear
         tables_to_create = []
@@ -183,7 +177,6 @@ class CampoFutbolAcumulado:
                 # Recalcular bounds con nueva posición
                 new_bounds = self.calculate_table_bounds(new_x, new_y, table['num_players'])
                 
-                print(f"   🔄 {table['position']}: ({table['original_x']:.0f},{table['original_y']:.0f}) → ({new_x:.0f},{new_y:.0f})")
                 
                 final_positions[table['position']] = (new_x, new_y)
                 placed_bounds.append(new_bounds)
@@ -343,7 +336,6 @@ class CampoFutbolAcumulado:
             else:
                 return int(jornada)  # 1 → 1
         except (ValueError, TypeError):
-            print(f"   ⚠️ Error convirtiendo jornada: {jornada}")
             return None
 
     def find_improved_position(self, player_alias, team_name, player_dorsal=None, jornada=None):
@@ -353,16 +345,13 @@ class CampoFutbolAcumulado:
         
         # Si no tiene dorsal, no puede hacer match
         if player_dorsal is None:
-            print(f"   🔍 {player_alias}: Sin dorsal → no buscar en Opta")
             return None
         
         # Convertir jornada de MediaCoach (j1, j2) a Opta (1, 2)
         opta_week = self.convert_jornada_to_week(jornada)
         if opta_week is None:
-            print(f"   🔍 {player_alias}: Jornada '{jornada}' no válida → no buscar en Opta")
             return None
         
-        print(f"   🔍 {player_alias}: Buscando Dorsal={player_dorsal}, Week={opta_week}, Team≈{team_name}")
         
         # Buscar en todos los jugadores Opta
         for _, opta_player in self.opta_df.iterrows():
@@ -406,15 +395,12 @@ class CampoFutbolAcumulado:
             if not team_match:
                 continue
             
-            # 🎯 MATCH ENCONTRADO - Ya no importa el nombre
-            print(f"     ✅ MATCH TRIPLE: Dorsal={player_dorsal}, Week={opta_week}, Team={opta_team}")
+        
 
             # Verificar si la posición Opta es válida
             opta_position_raw = opta_player.get('Position')
             opta_position_side_raw = opta_player.get('Position Side')
             
-            # ✅ MOSTRAR POSICIÓN ORIGINAL PARA DEBUG
-            print(f"     📍 Opta Original: Position='{opta_position_raw}' | Position Side='{opta_position_side_raw}'")
             
             if pd.isna(opta_position_raw) or opta_position_raw == "Substitute" or str(opta_position_raw).strip() == "":
                 print(f"   🔄 {player_alias}: Posición Opta inválida ({opta_position_raw}), usando MediaCoach fallback")
@@ -949,8 +935,6 @@ class CampoFutbolAcumulado:
                 else:
                     # Fallback a MediaCoach
                     demarcacion = jugador_data_filtered['Demarcacion'].mode().iloc[0] if len(jugador_data_filtered['Demarcacion'].mode()) > 0 else latest_record['Demarcacion']
-
-                    print(f"   DEBUG - {jugador}: Demarcacion = '{demarcacion}'")  # ← DEBUG
 
                     # Intentar mapear directamente
                     if demarcacion and demarcacion.strip() != '':
