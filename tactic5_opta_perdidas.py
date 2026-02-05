@@ -253,44 +253,64 @@ class AnalizadorPerdidas:
         try:
             from PIL import Image
             import numpy as np
+            from difflib import SequenceMatcher # Necesario para comparar similitud
         except ImportError: return None
         
         if not os.path.exists('assets/escudos'): return None
         
-        def normalize_word(word):
-            word = unicodedata.normalize('NFD', word)
-            word = ''.join(char for char in word if unicodedata.category(char) != 'Mn')
-            return word.lower().strip()
+        # 1. Función para limpiar nombres (quitar acentos, espacios y símbolos)
+        def clean_name(text):
+            # Normalizar unicode (quitar tildes: Atlético -> Atletico)
+            text = unicodedata.normalize('NFD', text)
+            text = ''.join(char for char in text if unicodedata.category(char) != 'Mn')
+            # Minúsculas y quitar separadores
+            return text.lower().replace(' ', '').replace('_', '').replace('-', '')
         
-        palabras_ignorar = {'cf', 'fc', 'cd', 'ud', 'rcd', 'rc', 'ca', 'de', 'del', 'la', 'las', 'el', 'los'}
-        palabras = equipo.split()
-        palabras_normalizadas = [normalize_word(p) for p in palabras if normalize_word(p) not in palabras_ignorar and len(normalize_word(p)) > 2]
-        palabras_ordenadas = sorted(palabras_normalizadas, key=len, reverse=True)
+        # Nombre del equipo limpio (ej: "Real Madrid" -> "realmadrid")
+        target_name = clean_name(equipo)
+        
         all_files = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
         
         best_match_path = None
+        best_score = 0.0
         
-        # Búsqueda exacta parcial
-        for palabra_buscar in palabras_ordenadas:
-            for filename in all_files:
-                nombre_archivo = os.path.splitext(filename)[0]
-                nombre_archivo_norm = normalize_word(nombre_archivo)
-                if palabra_buscar in nombre_archivo_norm:
-                    best_match_path = f"assets/escudos/{filename}"
-                    break
-            if best_match_path: break
+        # 2. Búsqueda por similitud (Score)
+        for filename in all_files:
+            # Limpiar nombre del archivo (ej: "atletico_madrid.png" -> "atleticomadrid")
+            file_name_clean = clean_name(os.path.splitext(filename)[0])
+            
+            # Calcular similitud (0.0 a 1.0)
+            score = SequenceMatcher(None, target_name, file_name_clean).ratio()
+            
+            # Si encontramos una coincidencia exacta, detenemos la búsqueda
+            if score == 1.0:
+                best_match_path = f"assets/escudos/{filename}"
+                best_score = 1.0
+                break
+            
+            # Si no, guardamos el mejor candidato encontrado hasta ahora
+            if score > best_score:
+                best_score = score
+                best_match_path = f"assets/escudos/{filename}"
         
-        if best_match_path:
+        # Umbral de seguridad (0.55 evita falsos positivos muy dispares)
+        if best_match_path and best_score > 0.55:
             try:
                 with Image.open(best_match_path) as img:
                     if img.mode != 'RGBA': img = img.convert('RGBA')
                     img.thumbnail(target_size, Image.Resampling.LANCZOS)
+                    
+                    # Crear lienzo transparente
                     final_img = Image.new('RGBA', target_size, (0, 0, 0, 0))
                     paste_x = (target_size[0] - img.width) // 2
                     paste_y = (target_size[1] - img.height) // 2
                     final_img.paste(img, (paste_x, paste_y), img)
+                    
                     return np.array(final_img) / 255.0
-            except: pass
+            except Exception as e:
+                print(f"Error cargando logo: {e}")
+                pass
+                
         return None
 
     def draw_heatmap_pitch(self, ax):
@@ -374,10 +394,10 @@ class AnalizadorPerdidas:
         ax.set_ylim(0, 1)
 
         zonas_filas = [
-            (75, 100, "Z4 - Finalización"), 
-            (50, 75, "Z3 - Ataque"), 
-            (25, 50, "Z2 - Creación"), 
-            (0, 25, "Z1 - Inicio")
+            (75, 100, "Z4"), 
+            (50, 75, "Z3"), 
+            (25, 50, "Z2"), 
+            (0, 25, "Z1")
         ]
         
         tipos_ordenados = [t for t in self.tipos_buenos if t in self.df_loss['tipo'].unique()] + \
@@ -396,13 +416,13 @@ class AnalizadorPerdidas:
         col_width = 0.85 / len(col_labels) if col_labels else 0.1
         
         # Título
-        ax.text(0.5, 0.96, "CONSECUENCIA TRAS PÉRDIDA", ha='center', va='top', 
+        ax.text(0.5, 0.99, "CONSECUENCIA TRAS PÉRDIDA", ha='center', va='top', 
                 fontsize=14, fontweight='bold', color=self.colors['text_blue'])
 
         # Headers Columnas
         for i, label in enumerate(col_labels):
             x = x_start + (i * col_width) + (col_width/2)
-            ax.text(x, y_start + 0.05, label, ha='center', va='bottom', fontsize=9, fontweight='bold', 
+            ax.text(x, y_start + 0.01, label, ha='center', va='bottom', fontsize=9, fontweight='bold', 
                     color=self.colors['text_dark'], rotation=45 if len(label) > 6 else 0)
 
         # Filas y Celdas
