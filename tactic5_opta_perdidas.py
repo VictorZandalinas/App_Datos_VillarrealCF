@@ -26,32 +26,68 @@ def color_texto_segun_fondo(rgba):
     return 'black' if luminancia > 0.5 else 'white'
 
 def calcular_velocidad_y_zona(df_seq):
-    if df_seq.empty: return False, False, 0, False, 0, 0, 0
+    """
+    Calcula si una secuencia llega a zona de finalización y si es contraataque
+    basado en umbrales específicos de tiempo/distancia.
+    """
+    if df_seq.empty: 
+        return False, False, 0, False, 0, 0, 0
+
+    # 1. Detección de tiros
     eventos_tiro = ['Miss', 'Attempt Saved', 'Goal', 'Post']
     hay_tiro = df_seq['Event Name'].isin(eventos_tiro).any()
+
+    # 2. Obtención de coordenadas X (Inicio y Fin)
     x_vals = df_seq['x'].dropna()
-    if x_vals.empty: return False, False, 0, hay_tiro, 0, 0, 0
+    if x_vals.empty: 
+        return False, False, 0, hay_tiro, 0, 0, 0
+
     x_inicio = x_vals.iloc[0]
     x_fin = x_vals.iloc[-1]
+    
+    # Si el último evento es un pase, el fin real es el destino del pase
     ultimo_ev = df_seq.iloc[-1]
     if ultimo_ev['Event Name'] == 'Pass' and pd.notna(ultimo_ev.get('Pass End X')):
         x_fin = ultimo_ev['Pass End X']
+
+    # 3. Lógica de Zona 4 (¿Llegó a campo rival peligroso?)
     outcomes = pd.to_numeric(df_seq['outcome'], errors='coerce').fillna(1)
     en_z4 = df_seq['x'] > 75
     es_pase = df_seq['Event Name'] == 'Pass'
     pass_end_x = pd.to_numeric(df_seq['Pass End X'], errors='coerce').fillna(0)
     pases_a_z4 = es_pase & (pass_end_x > 75)
+    
+    # Se considera que llegó a Z4 si algún evento exitoso ocurrió o terminó allí
     candidatos_z4 = en_z4 | pases_a_z4
     exitos_en_z4 = df_seq[candidatos_z4 & (outcomes != 0)]
     llego_z4 = not exitos_en_z4.empty
+
+    # 4. Cálculo de duración en segundos
     if 'timeStamp' in df_seq.columns and pd.api.types.is_datetime64_any_dtype(df_seq['timeStamp']):
          duracion = (df_seq.iloc[-1]['timeStamp'] - df_seq.iloc[0]['timeStamp']).total_seconds()
-    else: duracion = 0
-    distancia_x = x_fin - x_inicio
+    else: 
+        duracion = 0
+
+    # 5. LÓGICA DE CONTRAATAQUE (Tus umbrales específicos)
     es_rapido = False
-    if distancia_x > 0:
-        if duracion <= (distancia_x / 10.0) * 2.0: es_rapido = True
+    
+    # Solo evaluamos contraataque si la jugada termina en zona de peligro (X >= 75)
+    if x_fin >= 75:
+        if x_inicio <= 5:
+            if duracion <= 11: es_rapido = True
+        elif x_inicio <= 20:
+            if duracion <= 10: es_rapido = True
+        elif x_inicio <= 28:
+            if duracion <= 8: es_rapido = True
+        elif x_inicio <= 48:
+            if duracion <= 6: es_rapido = True
+        else:
+            # Para recuperaciones en campo rival (X > 48) que llegan a zona de tiro
+            if duracion <= 5: es_rapido = True
+
+    # 6. Conteo de pases
     num_pases = len(df_seq[df_seq['Event Name'] == 'Pass'])
+
     return llego_z4, es_rapido, num_pases, hay_tiro, x_inicio, x_fin, duracion
 
 def obtener_posesiones(df_match):
@@ -386,6 +422,10 @@ class AnalizadorPerdidas:
             pitch.scatter(contra_puntos.x, contra_puntos.y, ax=ax, s=120, color=self.colors['arrow_highlight'], edgecolors='black', linewidth=1.5, alpha=1.0, zorder=3)
 
         ax.text(50, 103, "ZONA DE PÉRDIDA", color=self.colors['text_blue'], fontsize=14, fontweight='bold', ha='center')
+        # Texto "Pérdida con contra del rival" debajo del campo
+        ax.text(50, -4, "Pérdida con contra del rival", 
+                color='#ffff00', fontsize=11, ha='center', fontweight='bold',
+                path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
 
     def draw_stats_table(self, ax):
         """Dibuja una tabla estilizada con Matplotlib."""
