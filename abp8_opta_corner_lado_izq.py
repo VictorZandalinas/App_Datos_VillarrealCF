@@ -96,9 +96,6 @@ class CornersOffensiveReport:
 
     def debug_remates_coordenadas(self):
         """Debug específico para ver remates, coordenadas y zonas"""
-        print("\n" + "="*60)
-        print("DEBUG REMATES - COORDENADAS Y ZONAS")
-        print("="*60)
         
         # Obtener córners desde y < 1 (DERECHA)
         corners_y1 = self.corner_data[
@@ -113,8 +110,6 @@ class CornersOffensiveReport:
             (self.corner_data['From corner'] == 'Sí')
         ]
         
-        print(f"📍 CÓRNERS DESDE Y < 1: {len(corners_y1)}")
-        print(f"🎯 REMATES TOTALES: {len(remates)}")
         
         contador_zona = {}
         remates_validos = 0
@@ -136,19 +131,10 @@ class CornersOffensiveReport:
                 
                 contador_zona[zona_nombre] = contador_zona.get(zona_nombre, 0) + 1
                 
-                print(f"\nREMATE {remates_validos}:")
-                print(f"  Rematador: {remate['playerName']}")
-                print(f"  Coordenadas: ({remate['x']:.1f}, {remate['y']:.1f})")
-                print(f"  Zona: {zona_nombre}")
-                print(f"  Tipo: {remate['Event Name']}")
-                print(f"  Tiempo: {remate['timeMin']}:{remate['timeSec']:02d}")
-                print(f"  Match ID: {remate['Match ID']}")
         
-        print(f"\n📊 RESUMEN POR ZONAS:")
         for zona, count in sorted(contador_zona.items(), key=lambda x: x[1], reverse=True):
-            print(f"  {zona}: {count} remates")
+            pass
         
-        print(f"\n✅ TOTAL REMATES VÁLIDOS: {remates_validos}")
         return contador_zona
 
     def get_aerial_duels_data(self):
@@ -205,8 +191,6 @@ class CornersOffensiveReport:
         
         aerial_stats = {}  # {player_name: {'exitos': int, 'total': int}}
         
-        print(f"DEBUG: Analizando {len(corners_y99)} córners desde y > 99")
-        print(f"DEBUG: Total duelos aéreos disponibles: {len(aerials_all)}")
         
         for _, corner in corners_y99.iterrows():
             corner_time = corner['timeMin'] * 60 + corner['timeSec']
@@ -219,7 +203,6 @@ class CornersOffensiveReport:
                 (aerials_all['timeMin'] * 60 + aerials_all['timeSec'] <= corner_time + 30)  # 30 segundos
             ]
             
-            print(f"DEBUG: Córner de {corner['playerName']} en {corner['timeMin']}:{corner['timeSec']} -> {len(matching_aerials)} duelos aéreos encontrados")
             
             # Contar duelos aéreos encontrados
             for _, aerial in matching_aerials.iterrows():
@@ -232,11 +215,9 @@ class CornersOffensiveReport:
                 
                 if aerial['outcome'] == 1:  # Éxito
                     aerial_stats[player_name]['exitos'] += 1
-                    print(f"DEBUG:   - {player_name}: duelo aéreo GANADO en {aerial['timeMin']}:{aerial['timeSec']}")
                 else:
-                    print(f"DEBUG:   - {player_name}: duelo aéreo perdido en {aerial['timeMin']}:{aerial['timeSec']}")
+                    pass
         
-        print(f"DEBUG: Estadísticas finales de duelos aéreos: {aerial_stats}")
         return aerial_stats
 
     def get_aerial_ranking_scores(self):
@@ -673,7 +654,6 @@ class CornersOffensiveReport:
         if not player_parts['full']:
             return None
 
-        print(f"🔍 Buscando foto para: '{player_name}' (Normalizado: '{player_parts['full']}')")
         
         found_matches = []
         
@@ -692,19 +672,17 @@ class CornersOffensiveReport:
                     "score": score,
                     "reason": reason
                 })
-                print(f"✅ Match potencial: '{photo_name}' (score: {score:.3f}) - Razón: {reason}")
                 
         # --- Lógica de desambiguación ---
         if len(found_matches) == 1:
             best_match = found_matches[0]
-            print(f"🎯 MATCH ÚNICO Y VÁLIDO ENCONTRADO: '{best_match['entry']['player_name']}' con score {best_match['score']:.3f}")
             return best_match['entry']
         
         elif len(found_matches) > 1:
             # Si hay múltiples matches con score alto, es ambiguo.
             print(f"⚠️  ADVERTENCIA: Se encontraron {len(found_matches)} matches de alta calidad para '{player_name}'. Se descarta por ambigüedad.")
             for match in sorted(found_matches, key=lambda x: x['score'], reverse=True):
-                print(f"  - Candidato: '{match['entry']['player_name']}' (Score: {match['score']:.2f}, Razón: {match['reason']})")
+                pass
             return None
             
         else:
@@ -774,7 +752,6 @@ class CornersOffensiveReport:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
             
-            print(f"✅ Datos cargados: {len(self.df)} eventos totales")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -784,7 +761,6 @@ class CornersOffensiveReport:
             print("❌ No hay datos cargados")
             return
         
-        print("🔍 Extrayendo datos de córneres ofensivos...")
         
         # Filtrar solo datos del equipo seleccionado
         team_data = self.df[self.df['Team Name'] == team_filter].copy()
@@ -793,7 +769,6 @@ class CornersOffensiveReport:
         team_data = team_data.sort_values(['Match ID', 'timeMin', 'timeSec']).reset_index(drop=True)
         
         self.corner_data = team_data
-        print(f"✅ Datos de córneres extraídos: {len(self.corner_data)} eventos")
     
     def get_lanzadores_data(self):
         """Obtiene datos de lanzadores de córner SOLO desde y > 99"""
@@ -858,50 +833,37 @@ class CornersOffensiveReport:
     
     def debug_aerial_complete(self):
         """Debug completo para eventos Aerial en todo el parquet"""
-        print("\n" + "="*60)
-        print("DEBUG COMPLETO - EVENTOS AERIAL EN TODO EL DATASET")
-        print("="*60)
         
         # 1. CARGAR DATOS COMPLETOS (SIN FILTRO DE EQUIPO)
         try:
             df_completo = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
-            print(f"📊 TOTAL EVENTOS EN PARQUET: {len(df_completo)}")
             
             # Ver todos los Event Name únicos
-            print(f"\n📋 TODOS LOS EVENT NAME:")
             event_names = df_completo['Event Name'].value_counts()
             for event, count in event_names.items():
-                print(f"  - {event}: {count}")
+                pass
             
             # 2. BUSCAR EVENTOS AERIAL
             aerials_all = df_completo[df_completo['Event Name'] == 'Aerial']
-            print(f"\n⚽ EVENTOS AERIAL TOTALES: {len(aerials_all)}")
             
             if len(aerials_all) > 0:
-                print(f"Valores únicos en 'outcome' para Aerial: {aerials_all['outcome'].unique()}")
-                print(f"Distribución de outcomes:")
-                print(aerials_all['outcome'].value_counts())
+                pass
                 
                 # Ver algunos ejemplos
-                print(f"\n📋 MUESTRA DE EVENTOS AERIAL:")
                 for i, row in aerials_all.head(5).iterrows():
-                    print(f"  - {row['playerName']} | Team: {row['Team Name']} | Outcome: {row['outcome']} | Tiempo: {row['timeMin']}:{row['timeSec']:02d}")
+                    pass
             
             # 3. VERIFICAR EVENTOS AERIAL PARA NUESTRO EQUIPO
             aerials_equipo = aerials_all[aerials_all['Team Name'] == self.team_filter]
-            print(f"\n🎯 EVENTOS AERIAL PARA {self.team_filter}: {len(aerials_equipo)}")
             
             if len(aerials_equipo) > 0:
-                print(f"Distribución de outcomes para {self.team_filter}:")
-                print(aerials_equipo['outcome'].value_counts())
+                pass
                 
-                print(f"\n📋 EVENTOS AERIAL DE {self.team_filter}:")
                 for i, row in aerials_equipo.iterrows():
-                    print(f"  - {row['playerName']} | Outcome: {row['outcome']} | Match: {row['Match ID']} | Tiempo: {row['timeMin']}:{row['timeSec']:02d}")
+                    pass
             
             # 4. VERIFICAR SI ESTÁN EN self.corner_data
             aerials_filtrados = self.corner_data[self.corner_data['Event Name'] == 'Aerial']
-            print(f"\n🔍 EVENTOS AERIAL EN DATOS FILTRADOS (self.corner_data): {len(aerials_filtrados)}")
             
             return aerials_all, aerials_equipo
             
@@ -911,9 +873,6 @@ class CornersOffensiveReport:
     
     def debug_secuencias_completo(self):
         """Debug completo para ver secuencias, tipos de lanzamiento y remates"""
-        print("\n" + "="*60)
-        print("DEBUG COMPLETO - SECUENCIAS Y REMATES")
-        print("="*60)
         
         # 1. CÓRNERS DESDE X > 99
         corners_x99 = self.corner_data[
@@ -922,15 +881,10 @@ class CornersOffensiveReport:
             (self.corner_data['x'] > 99)
         ]
         
-        print(f"\n📍 CÓRNERS DESDE X > 99: {len(corners_x99)}")
-        print("-" * 40)
         
         if not corners_x99.empty:
             for idx, corner in corners_x99.iterrows():
-                print(f"\nCÓRNER {idx + 1}:")
-                print(f"  Lanzador: {corner['playerName']}")
-                print(f"  Coordenadas: ({corner['x']:.1f}, {corner['y']:.1f})")
-                print(f"  Minuto: {corner['timeMin']}:{corner['timeSec']:02d}")
+                pass
                 
                 # Tipo de golpeo
                 if corner['In-swinger'] == 'Sí':
@@ -942,7 +896,6 @@ class CornersOffensiveReport:
                 else:
                     tipo_golpeo = "NO ESPECIFICADO"
                 
-                print(f"  Tipo de golpeo: {tipo_golpeo}")
                 
                 # Pierna
                 if corner['Right footed'] == 'Sí':
@@ -952,7 +905,6 @@ class CornersOffensiveReport:
                 else:
                     pierna = "NO ESPECIFICADO"
                 
-                print(f"  Pierna: {pierna}")
                 
                 # Buscar remates posteriores
                 corner_time = corner['timeMin'] * 60 + corner['timeSec']
@@ -965,7 +917,7 @@ class CornersOffensiveReport:
                 ]
                 
                 if not remates_posteriores.empty:
-                    print(f"  🎯 REMATES POSTERIORES: {len(remates_posteriores)}")
+                    pass
                     for r_idx, remate in remates_posteriores.iterrows():
                         zona = self.get_zona_from_coordinates(remate['x'], remate['y'])
                         zona_nombre = {
@@ -980,39 +932,20 @@ class CornersOffensiveReport:
                         
                         tiempo_diferencia = (remate['timeMin'] * 60 + remate['timeSec']) - corner_time
                         
-                        print(f"    - Rematador: {remate['playerName']}")
-                        print(f"      Coordenadas: ({remate['x']:.1f}, {remate['y']:.1f})")
-                        print(f"      Zona: {zona_nombre}")
-                        print(f"      Tipo: {remate['Event Name']}")
-                        print(f"      Tiempo después: {tiempo_diferencia:.1f}s")
-                        print()
                 else:
                     print("  ❌ Sin remates posteriores detectados")
         
         # 2. RESUMEN DE TIPOS DE LANZAMIENTO
-        print("\n" + "="*40)
-        print("RESUMEN TIPOS DE LANZAMIENTO")
-        print("="*40)
         
         tipos_data = self.get_tipo_lanzamiento_data()
         for tipo, cantidad in tipos_data.items():
-            print(f"{tipo}: {cantidad}")
+            pass
         
         # 3. SECUENCIA MÁS REPETIDA
-        print("\n" + "="*40)
-        print("SECUENCIA MÁS REPETIDA")
-        print("="*40)
         
         secuencia = self.get_secuencia_mas_repetida()
-        print(f"Lanzador: {secuencia['lanzador']}")
-        print(f"Zona: {secuencia['zona']}")
-        print(f"Golpeo: {secuencia['golpeo']}")
-        print(f"Pierna: {secuencia['pierna']}")
         
         # 4. TODAS LAS SECUENCIAS (CONTEO)
-        print("\n" + "="*40)
-        print("TODAS LAS SECUENCIAS ENCONTRADAS")
-        print("="*40)
         
         # Recrear la lógica para mostrar todas las secuencias
         secuencias = []
@@ -1077,7 +1010,6 @@ class CornersOffensiveReport:
         # Si hay solo una secuencia ganadora, devolverla normalmente
         if len(secuencias_empatadas) == 1:
             secuencia_ganadora = secuencias_empatadas[0]
-            print(f"🏆 SECUENCIA GANADORA: {secuencia_ganadora[0]} ({max_count} repeticiones)")
             
             return {
                 'lanzador': secuencia_ganadora[0],
@@ -1088,11 +1020,10 @@ class CornersOffensiveReport:
 
         # Si hay empate, mostrar todas las opciones
         else:
-            print(f"🎯 EMPATE DETECTADO: {len(secuencias_empatadas)} secuencias con {max_count} repeticiones cada una")
-            print("🏆 TODAS LAS OPCIONES EMPATADAS:")
+            pass
             
             for i, seq in enumerate(secuencias_empatadas, 1):
-                print(f"  {i}. {seq[0]} → {seq[1]} → {seq[2]} → {seq[3]}")
+                pass
             
             # Recopilar todas las opciones por categoría
             lanzadores = list(set(seq[0] for seq in secuencias_empatadas))
@@ -1274,28 +1205,21 @@ class CornersOffensiveReport:
     
     def debug_corner_data(self):
         """Debug para verificar qué datos tenemos"""
-        print("=== DEBUG CÓRNERS ===")
-        print(f"Total eventos: {len(self.corner_data)}")
         
         # Verificar columnas
-        print(f"Columnas disponibles: {list(self.corner_data.columns)}")
         
         # Verificar valores únicos en columnas clave
         if 'Corner taken' in self.corner_data.columns:
-            print(f"Valores únicos en 'Corner taken': {self.corner_data['Corner taken'].unique()}")
-            print(f"Eventos con Corner taken = 'Sí': {len(self.corner_data[self.corner_data['Corner taken'] == 'Sí'])}")
+            pass
         
         if 'From corner' in self.corner_data.columns:
-            print(f"Valores únicos en 'From corner': {self.corner_data['From corner'].unique()}")
-            print(f"Eventos con From corner = 'Sí': {len(self.corner_data[self.corner_data['From corner'] == 'Sí'])}")
+            pass
         
         # Verificar eventos de pase
         pases = self.corner_data[self.corner_data['Event Name'] == 'Pass']
-        print(f"Total pases: {len(pases)}")
         
         # Verificar eventos de remate
         remates = self.corner_data[self.corner_data['Event Name'].isin(['Miss', 'Goal', 'Attempt Saved', 'Post'])]
-        print(f"Total remates: {len(remates)}")
         
         return True
     
@@ -2416,12 +2340,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -2429,22 +2352,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE REPORTES DE CÓRNERES OFENSIVOS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte para {equipo}")
         analyzer = CornersOffensiveReport(team_filter=equipo)
         
         # AÑADIR ESTA LÍNEA PARA EL DEBUG:
@@ -2459,7 +2381,6 @@ def main():
             output_path = f"reporte_corners_ofensivos_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                        facecolor='white', dpi=300)
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -2482,7 +2403,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"reporte_corners_ofensivos_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300, orientation='landscape')  # ← AGREGAR orientation
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")
@@ -2496,7 +2416,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
 
 def verificar_assets():
     """Verifica la disponibilidad de assets necesarios"""
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -2509,20 +2428,18 @@ def verificar_assets():
         print(f"✅ Encontrado: {file_path}" if os.path.exists(file_path) else f"❌ Faltante: {file_path}")
     
     if os.path.exists('assets/escudos') and (escudos := [f for f in os.listdir('assets/escudos') if f.endswith('.png')]):
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+        pass
     else:
         print("⚠️  No hay escudos en el directorio")
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE REPORTES DE CÓRNERES OFENSIVOS ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("📝 Para generar un reporte ejecuta: main()")
-            print("📝 Para uso directo: generar_reporte_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
     

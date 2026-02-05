@@ -92,7 +92,6 @@ class LanzamientosLadoDerecho:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
             
-            print(f"✅ Datos filtrados cargados: {len(self.df)} eventos")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -118,7 +117,6 @@ class LanzamientosLadoDerecho:
             print("❌ No hay datos cargados")
             return
         
-        print("🔍 Extrayendo lanzamientos del lado derecho...")
         
         # Ordenar datos una sola vez
         df_sorted = self.df.sort_values(['Match ID', 'periodId', 'timeStamp']).reset_index(drop=True)
@@ -178,10 +176,7 @@ class LanzamientosLadoDerecho:
                 subset=['Match ID', 'timeMin', 'timeSec', 'playerName'], 
                 keep='first'
             )            
-            print(f"✅ Total de lanzamientos del lado derecho extraídos: {len(self.lanzamientos_data)}")
             
-            print("\n📊 Resumen por tipo de resultado:")
-            print(self.lanzamientos_data['result_type'].value_counts())
         else:
             print("❌ No se encontraron lanzamientos")
 
@@ -189,25 +184,17 @@ class LanzamientosLadoDerecho:
     def debug_lanzamientos(self, team_filter=None):
         """Debug detallado de lanzamientos extraídos"""
         if self.lanzamientos_data.empty:
-            print("No hay datos para debuggear")
+            pass
             return
         
         team_data = self.lanzamientos_data[
             self.lanzamientos_data['Team Name'] == team_filter
         ] if team_filter else self.lanzamientos_data
         
-        print(f"\n=== DEBUG LANZAMIENTOS {team_filter} ===")
         for idx, row in team_data.iterrows():
-            print(f"\nLanzamiento {idx+1}:")
-            print(f"  Match ID: {row['Match ID']}")
-            print(f"  Tiempo: {row['timeMin']}:{row['timeSec']:02d}")
-            print(f"  Lanzador: {row['playerName']}")
-            print(f"  Coordenadas inicio: ({row['x']}, {row['y']})")
-            print(f"  Coordenadas final: ({row['final_x']}, {row['final_y']})")
-            print(f"  Resultado: {row['result_type']}")
+            pass
             if row['goal_player']:
                 dorsal = self.get_player_shirt_number_by_name(row['goal_player'])
-                print(f"  Rematador: {row['goal_player']} (#{dorsal})")
            
     def analyze_lanzamiento_sequence(self, match_events, lanzamiento_idx, lanzamiento_pass):
         """
@@ -726,7 +713,6 @@ class LanzamientosLadoDerecho:
         if not player_parts['full']:
             return None
 
-        print(f"🔍 Buscando foto para: '{player_name}' (Normalizado: '{player_parts['full']}')")
         
         found_matches = []
         
@@ -745,12 +731,10 @@ class LanzamientosLadoDerecho:
                     "score": score,
                     "reason": reason
                 })
-                print(f"✅ Match potencial: '{photo_name}' (score: {score:.3f}) - Razón: {reason}")
                 
         # --- Lógica de desambiguación ---
         if len(found_matches) == 1:
             best_match = found_matches[0]
-            print(f"🎯 MATCH ÚNICO Y VÁLIDO ENCONTRADO: '{best_match['entry']['player_name']}' con score {best_match['score']:.3f}")
             return best_match['entry']
         
         elif len(found_matches) > 1:
@@ -1094,23 +1078,18 @@ class LanzamientosLadoDerecho:
     def print_summary(self, team_filter=None):
         """Imprime resumen de los datos"""
         if self.lanzamientos_data.empty:
-            print("No hay datos de lanzamientos para mostrar")
+            pass
             return
         
-        print(f"\n=== RESUMEN DE LANZAMIENTOS LADO DERECHO ===")
-        print(f"Total de lanzamientos: {len(self.lanzamientos_data)}")
         
         if team_filter:
             team_data = self.lanzamientos_data[self.lanzamientos_data['Team Name'] == team_filter]
-            print(f"\nLanzamientos de {team_filter}: {len(team_data)}")
             if not team_data.empty:
-                print(f"\nDistribución por tipo de resultado:")
-                print(team_data['result_type'].value_counts())
+                pass
 
                 # Top jugadores con más lanzamientos
                 if not team_data.empty:
-                    print(f"\nTop 5 jugadores con más lanzamientos:")
-                    print(team_data['playerName'].value_counts().head())
+                    pass
 
 def seleccionar_equipo_interactivo():
     """Función para seleccionar equipo interactivamente"""
@@ -1118,12 +1097,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1131,22 +1109,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE CAMPOGRAMAS DE LANZAMIENTOS LADO DERECHO ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando campogramas para {equipo}")
         analyzer = LanzamientosLadoDerecho(team_filter=equipo)
         analyzer.print_summary(team_filter=equipo)
         analyzer.debug_lanzamientos(team_filter=equipo)
@@ -1158,7 +1135,6 @@ def main():
             output_path = f"campogramas_lanzamientos_derecha_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                        facecolor='white', dpi=300, orientation='landscape')
-            print(f"✅ Campogramas guardados como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -1181,7 +1157,6 @@ def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"campogramas_lanzamientos_derecha_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300)
-                print(f"✅ Campogramas guardados como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")
@@ -1195,7 +1170,6 @@ def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
 
 def verificar_assets():
     """Verifica que todos los assets necesarios estén disponibles"""
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -1208,20 +1182,18 @@ def verificar_assets():
         print(f"✅ Encontrado: {file_path}" if os.path.exists(file_path) else f"❌ Faltante: {file_path}")
     
     if os.path.exists('assets/escudos') and (escudos := [f for f in os.listdir('assets/escudos') if f.endswith('.png')]):
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+        pass
     else:
         print("⚠️  No hay escudos en el directorio")
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE CAMPOGRAMAS DE LANZAMIENTOS ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("📝 Para generar campogramas ejecuta: main()")
-            print("📝 Para uso directo: generar_campogramas_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
     

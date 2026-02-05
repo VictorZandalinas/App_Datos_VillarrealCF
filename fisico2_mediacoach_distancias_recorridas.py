@@ -27,10 +27,8 @@ class DistanciasRecorridasReport:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
-            print(f"Columnas disponibles: {list(self.df.columns)}")
         except Exception as e:
-            print(f"Error al cargar los datos: {e}")
+            pass
             
     def similarity(self, a, b):
         """Calcula la similitud entre dos strings"""
@@ -84,8 +82,6 @@ class DistanciasRecorridasReport:
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
         
-        print(f"Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
-        print(f"Jornadas normalizadas en datos: {sorted(self.df['Jornada'].unique())}")
         
     def get_available_teams(self):
         """Retorna la lista de equipos disponibles"""
@@ -125,15 +121,12 @@ class DistanciasRecorridasReport:
             else:
                 normalized_jornadas.append(jornada)
         
-        print(f"Jornadas normalizadas: {normalized_jornadas}")
-        print(f"Jornadas únicas en datos: {sorted(self.df['Jornada'].unique())}")
         
         filtered_df = self.df[
             (self.df['Equipo'] == equipo) & 
             (self.df['Jornada'].isin(normalized_jornadas))
         ].copy()
         
-        print(f"Datos filtrados: {len(filtered_df)} filas para {equipo}")
         return filtered_df
     
     @staticmethod
@@ -157,7 +150,7 @@ class DistanciasRecorridasReport:
         """
         escudos_dir = "assets/escudos"
         if not os.path.exists(escudos_dir):
-            print(f"Directorio de escudos no encontrado: {escudos_dir}")
+            pass
             return None
 
         # --- Nivel 1: MAPEO MANUAL (Máxima Prioridad) ---
@@ -174,11 +167,11 @@ class DistanciasRecorridasReport:
             for ext in ['.png', '.jpg', '.jpeg']:
                 logo_path = os.path.join(escudos_dir, f"{logo_filename}{ext}")
                 if os.path.exists(logo_path):
-                    print(f"✅ Escudo encontrado por Mapeo Manual: {logo_path}")
+                    pass
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo mapeado: {e}")
+                        pass
             print(f"⚠️ Advertencia: El archivo mapeado '{logo_filename}' no fue encontrado.")
 
         # --- Búsqueda Automática ---
@@ -189,11 +182,10 @@ class DistanciasRecorridasReport:
             file_base_norm = self.normalize_text(os.path.splitext(filename)[0])
             if file_base_norm == equipo_norm:
                 logo_path = os.path.join(escudos_dir, filename)
-                print(f"✅ Escudo encontrado por Coincidencia Exacta: {logo_path}")
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo por coincidencia exacta: {e}")
+                    pass
 
         # --- Nivel 3: COINCIDENCIA DE PALABRA LARGA (Tu idea) ---
         MIN_WORD_LENGTH = 4 # Busca palabras con 5 o más letras
@@ -209,11 +201,10 @@ class DistanciasRecorridasReport:
                 # Comprueba si alguna palabra larga del equipo está en las palabras del nombre del archivo
                 if not team_long_words.isdisjoint(file_words):
                     logo_path = os.path.join(escudos_dir, original_filename)
-                    print(f"✅ Escudo encontrado por Palabra Larga Común ({team_long_words.intersection(file_words)}): {logo_path}")
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo por palabra larga: {e}")
+                        pass
 
         # --- Nivel 4: BÚSQUEDA POR SIMILITUD (Último Recurso) ---
         best_match_file = None
@@ -228,11 +219,10 @@ class DistanciasRecorridasReport:
         
         if best_match_file:
             logo_path = os.path.join(escudos_dir, best_match_file)
-            print(f"✅ Escudo encontrado por Similitud (score: {best_similarity:.2f}): {logo_path}")
             try:
                 return plt.imread(logo_path)
             except Exception as e:
-                print(f"Error al cargar escudo por similitud: {e}")
+                pass
 
         print(f"❌ No se encontró un escudo definitivo para: {equipo} (normalizado como: {equipo_norm})")
         return None
@@ -241,28 +231,28 @@ class DistanciasRecorridasReport:
         """Carga la imagen del balón"""
         ball_path = "assets/balon.png"
         if os.path.exists(ball_path):
-            print(f"Balón encontrado: {ball_path}")
+            pass
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el balón: {ball_path}")
+            pass
             return None
     
     def load_background(self):
         """Carga el fondo del informe"""
         bg_path = "assets/fondo_informes.png"
         if os.path.exists(bg_path):
-            print(f"Fondo encontrado: {bg_path}")
+            pass
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el fondo: {bg_path}")
+            pass
             return None
     
     def create_distances_data(self, filtered_df, jornadas):
@@ -340,7 +330,7 @@ class DistanciasRecorridasReport:
         # Filtrar datos
         filtered_df = self.filter_data(equipo, jornadas)
         if filtered_df is None or len(filtered_df) == 0:
-            print("No hay datos para los filtros especificados")
+            pass
             return None
         
         # Crear figura
@@ -357,9 +347,8 @@ class DistanciasRecorridasReport:
                 ax_background.set_yticks([])
                 for spine in ax_background.spines.values():
                     spine.set_visible(False)
-                print("Fondo aplicado correctamente")
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid: header + 4 gráficos verticales con barras horizontales
         gs = fig.add_gridspec(2, 4, 
@@ -387,7 +376,6 @@ class DistanciasRecorridasReport:
                 imagebox = OffsetImage(ball, zoom=0.15)
                 ab = AnnotationBbox(imagebox, (0.05, 0.5), frameon=False)
                 ax_title.add_artist(ab)
-                print("✅ Balón aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar balón: {e}")
         else:
@@ -400,7 +388,6 @@ class DistanciasRecorridasReport:
                 imagebox = OffsetImage(logo, zoom=0.40)
                 ab = AnnotationBbox(imagebox, (0.97, 0.5), frameon=False)
                 ax_title.add_artist(ab)
-                print("✅ Escudo aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar escudo: {e}")
         else:
@@ -573,12 +560,11 @@ def seleccionar_equipo_interactivo():
         equipos = report_generator.get_available_teams()
         
         if len(equipos) == 0:
-            print("No se encontraron equipos en los datos.")
+            pass
             return None, None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -589,13 +575,12 @@ def seleccionar_equipo_interactivo():
                     equipo_seleccionado = equipos[indice]
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         # Obtener jornadas disponibles
         jornadas_disponibles = report_generator.get_available_jornadas(equipo_seleccionado)
-        print(f"\nJornadas disponibles para {equipo_seleccionado}: {jornadas_disponibles}")
         
         # Preguntar cuántas jornadas incluir
         while True:
@@ -607,28 +592,27 @@ def seleccionar_equipo_interactivo():
                     jornadas_seleccionadas = sorted(jornadas_disponibles)[-num_jornadas:]
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(jornadas_disponibles)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         return equipo_seleccionado, jornadas_seleccionadas
         
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None, None
 
 def main():
     try:
-        print("=== GENERADOR DE REPORTES DE DISTANCIAS RECORRIDAS ===")
+        pass
         
         # Selección interactiva
         equipo, jornadas = seleccionar_equipo_interactivo()
         
         if equipo is None or jornadas is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte para {equipo} - Jornadas: {jornadas}")
         
         # Crear el reporte
         report_generator = DistanciasRecorridasReport()
@@ -649,7 +633,6 @@ def main():
                           facecolor='none', edgecolor='none', dpi=300,
                           transparent=True)
             
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -679,7 +662,6 @@ def generar_reporte_distancias_personalizado(equipo, jornadas, mostrar=True, gua
                               facecolor='none', edgecolor='none', dpi=300,
                               transparent=True)
                 
-                print(f"✅ Reporte guardado como: {output_path}")
             
             return fig
         else:
@@ -690,15 +672,12 @@ def generar_reporte_distancias_personalizado(equipo, jornadas, mostrar=True, gua
         return None
 
 # Inicialización
-print("=== INICIALIZANDO GENERADOR DE REPORTES DE DISTANCIAS ===")
 try:
     report_generator = DistanciasRecorridasReport()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
     
     if len(equipos) > 0:
-        print("📝 Para generar un reporte ejecuta: main()")
-        print("📝 Para uso directo: generar_reporte_distancias_personalizado('Nombre_Equipo', [33,34,35])")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

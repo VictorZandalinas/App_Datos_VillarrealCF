@@ -41,7 +41,6 @@ class AnalizadorLanzamientosPortero:
         
         try:
             self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
-            print(f"✅ Player stats cargado: {len(self.player_stats)} registros")
         except Exception as e:
             print(f"❌ Error cargando player_stats: {e}")
             self.player_stats = None
@@ -1349,21 +1348,15 @@ class AnalizadorLanzamientosPortero:
         """
         🔍 FUNCIÓN DE DIAGNÓSTICO: Muestra qué columnas y valores tienen los pases del portero
         """
-        print("\n" + "="*80)
-        print("🔍 DIAGNÓSTICO PROFUNDO DE LANZAMIENTOS DEL PORTERO")
-        print("="*80)
         
         # 1. Buscar si EXISTE algún evento con GK kick from hands = Sí en TODO el dataset
         gk_kicks = self.df[self.df['GK kick from hands'] == 'Sí']
-        print(f"\n🔎 BÚSQUEDA GLOBAL: ¿Existe 'GK kick from hands = Sí' en el dataset?")
         print(f"   {'✅' if len(gk_kicks) > 0 else '❌'} Encontrados {len(gk_kicks)} eventos con GK kick from hands = Sí")
         
         if len(gk_kicks) > 0:
-            print(f"\n   📊 Distribución de estos eventos:")
-            print(gk_kicks['Event Name'].value_counts().to_string())
-            print(f"\n   🔍 Primeros 5 ejemplos:")
+            pass
             for idx, evento in gk_kicks.head(5).iterrows():
-                print(f"      • Evento #{idx}: {evento['Event Name']} | Team: {evento.get('Team Name', 'N/A')}")
+                pass
         
         # 2. Buscar eventos de portero
         keeper_events = self.df[
@@ -1372,23 +1365,18 @@ class AnalizadorLanzamientosPortero:
             (self.df['outcome'] == 1)
         ].head(max_samples)
         
-        print(f"\n✅ Encontrados {len(keeper_events)} eventos de portero para analizar")
         
         # Buscar columnas relacionadas con portero y pases
         columnas_relevantes = [col for col in self.df.columns if any(keyword in col.lower() 
                               for keyword in ['keeper', 'throw', 'kick', 'hand', 'long', 'ball', 'goal kick'])]
         
-        print(f"\n📋 Columnas relevantes encontradas ({len(columnas_relevantes)}):")
         for col in sorted(columnas_relevantes):
-            print(f"   - {col}")
+            pass
         
         # 3. Analizar TODOS los eventos siguientes (no solo Pass)
-        print("\n" + "-"*80)
-        print("📊 ANÁLISIS DE EVENTOS DESPUÉS DE KEEPER PICK-UP/CLAIM:")
-        print("-"*80)
         
         for idx, keeper_event in keeper_events.iterrows():
-            print(f"\n🟢 Evento #{idx} - {keeper_event['Event Name']} (Match ID: {keeper_event['Match ID']})")
+            pass
             
             # Ver los siguientes 3 eventos
             for offset in range(1, 4):
@@ -1397,46 +1385,38 @@ class AnalizadorLanzamientosPortero:
                     siguiente = self.df.loc[siguiente_idx]
                     
                     if siguiente['Team Name'] == team_name:
-                        print(f"\n   📍 Evento +{offset}: {siguiente['Event Name']}")
+                        pass
                         if siguiente['Event Name'] == 'Pass':
-                            print(f"      Coordenadas: x={siguiente['x']:.1f}, y={siguiente['y']:.1f} → end_x={siguiente.get('Pass End X', 'N/A')}")
+                            pass
                             
-                            print(f"      Valores relevantes:")
                             for col in ['Keeper Throw', 'GK kick from hands', 'Long ball', 'Goal Kick']:
                                 valor = siguiente.get(col)
                                 if pd.notna(valor) and valor != '':
-                                    print(f"         • {col}: {valor}")
+                                    pass
                         break
                     else:
                         print(f"   ⚠️ Evento +{offset} es de otro equipo: {siguiente['Team Name']}")
         
         # 4. Buscar específicamente Drop of Ball
-        print("\n" + "-"*80)
-        print("📊 ANÁLISIS DE 'DROP OF BALL':")
-        print("-"*80)
         
         drop_events = self.df[
             (self.df['Team Name'] == team_name) &
             (self.df['Event Name'] == 'Drop of Ball')
         ].head(5)
         
-        print(f"   Encontrados {len(drop_events)} eventos 'Drop of Ball'")
         
         for idx, drop_event in drop_events.iterrows():
-            print(f"\n🔵 Drop of Ball #{idx}")
+            pass
             siguiente_idx = idx + 1
             if siguiente_idx in self.df.index:
                 siguiente = self.df.loc[siguiente_idx]
                 if siguiente['Event Name'] == 'Pass' and siguiente['Team Name'] == team_name:
-                    print(f"   ✓ Siguiente es Pass")
+                    pass
                     for col in ['Keeper Throw', 'GK kick from hands', 'Long ball', 'Goal Kick']:
                         valor = siguiente.get(col)
                         if pd.notna(valor) and valor != '':
-                            print(f"      • {col}: {valor}")
+                            pass
         
-        print("\n" + "="*80)
-        print("🔍 FIN DEL DIAGNÓSTICO")
-        print("="*80 + "\n")
     
     def _classify_launch_type(self, launch_event_index):
         """
@@ -1854,10 +1834,9 @@ class AnalizadorLanzamientosPortero:
             self.df = self.df.sort_values(['Match ID', 'timeStamp']).reset_index(drop=True)
             self.df_complete = self.df_complete.sort_values(['Match ID', 'timeStamp']).reset_index(drop=True)
             
-            print(f"Datos cargados: {len(self.df)} eventos para el equipo seleccionado.")
             return True
         except Exception as e:
-            print(f"Error al cargar datos: {e}")
+            pass
             return False
 
     def get_zone_center(self, zone_number):
@@ -1979,7 +1958,7 @@ class AnalizadorLanzamientosPortero:
     # 🔥 ====================================================================
     def extract_keeper_launch_sequences(self, team_name):
         if self.df is None:
-            print("No hay datos cargados")
+            pass
             return []
         
         sequences = []
@@ -1990,7 +1969,6 @@ class AnalizadorLanzamientosPortero:
             (team_df['outcome'] == 1)
         ]
         
-        print(f"Encontrados {len(keeper_events)} eventos de inicio ('Keeper pick-up', 'Claim', 'Drop of Ball').")
         
         for idx, keeper_event in keeper_events.iterrows():
             start_search_index = keeper_event.name + 1
@@ -2013,7 +1991,6 @@ class AnalizadorLanzamientosPortero:
                         sequences.append(sequence)
         
         self.sequences = sequences
-        print(f"Extraidas {len(sequences)} secuencias válidas de lanzamiento tras blocaje/cesión.")
         return sequences
 
     def extract_sequence_from_pass(self, start_idx, team_name, time_diff=None):
@@ -2183,7 +2160,6 @@ class AnalizadorLanzamientosPortero:
                 return fig
                 
             total_valid_sequences = len(sequences_for_analysis)
-            print(f"✅ Encontradas {total_valid_sequences} secuencias con primer pase exitoso para analizar.")
 
             # 2. Análisis de datos
             top_zone_patterns = self.analyze_zone_patterns(sequences_for_analysis)
@@ -2249,17 +2225,9 @@ class AnalizadorLanzamientosPortero:
         # La extracción se hace ahora en create_visualization, así que la llamamos primero
         sequences = self.extract_keeper_launch_sequences(team_name)
         
-        print(f"\n{'='*60}")
-        print(f"RESUMEN DE SECUENCIAS TRAS BLOCAJE DE PORTERO")
-        print(f"{'='*60}")
-        print(f"Equipo: {team_name}")
-        print(f"Total de secuencias validas: {len(sequences)}")
         
         if sequences:
             lengths = [len(seq) for seq in sequences]
-            print(f"Promedio de pases por secuencia: {np.mean(lengths):.1f}")
-            print(f"Secuencia mas larga: {max(lengths)} pases")
-            print(f"Secuencia mas corta: {min(lengths)} pases")
 
 def seleccionar_equipo_interactivo():
     try:
@@ -2269,7 +2237,6 @@ def seleccionar_equipo_interactivo():
         
         if not equipos: print("No se encontraron equipos."); return None
         
-        print("\n" + "="*60 + "\nSELECCION DE EQUIPO\n" + "="*60)
         for i, equipo in enumerate(equipos, 1): print(f"{i:2d}. {equipo}")
         
         for _ in range(3):
@@ -2282,18 +2249,15 @@ def seleccionar_equipo_interactivo():
             except ValueError: print("Por favor, ingresa un numero valido")
         return equipos[0] if equipos else None
     except Exception as e:
-        print(f"Error en la seleccion: {e}"); return None
+        pass
 
 def main():
     try:
-        print("\n" + "="*60)
-        print("ANALISIS DE SECUENCIAS TRAS BLOCAJE DE PORTERO")
-        print("="*60)
+        pass
         
         equipo = seleccionar_equipo_interactivo()
         if equipo is None: print("No se pudo completar la seleccion."); return
         
-        print(f"\nAnalizando secuencias para {equipo}...")
         
         analyzer = AnalizadorLanzamientosPortero()
         
@@ -2313,24 +2277,22 @@ def main():
             equipo_filename = re.sub(r'[\s/]', '_', equipo)
             output_path = f"lanzamientos_portero_blocaje_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, facecolor='white', dpi=300)
-            print(f"\nVisualizacion guardada como: {output_path}")
             plt.show()
         else:
-            print("No se pudo generar la visualizacion")
+            pass
     
     except Exception as e:
-        print(f"Error en la ejecucion: {e}")
+        pass
         import traceback
         traceback.print_exc()
 
 if __name__ == "__main__":
-    print("\nINICIALIZANDO ANALIZADOR DE LANZAMIENTOS DE PORTERO")
+    pass
     try:
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("Para ejecutar el analisis, ejecute: main()")
+            pass
         main()
     except Exception as e:
-        print(f"Error al inicializar: {e}")
+        pass

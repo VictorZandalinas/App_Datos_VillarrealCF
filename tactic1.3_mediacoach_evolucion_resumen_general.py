@@ -163,10 +163,9 @@ class EvolucionRendimientoMediaCoach:
             )
             self.df_stats.dropna(subset=['VALOR'], inplace=True)
             self.df_stats['NOMBRE MÉTRICA'] = self.df_stats['NOMBRE MÉTRICA'].str.strip()
-            print(f"Datos cargados: {len(self.df_stats)} registros")
             return self.df_stats
         except Exception as e:
-            print(f"Error al cargar {self.parquet_path}: {e}")
+            pass
             return None
     
     def obtener_equipos_disponibles(self):
@@ -394,7 +393,7 @@ class VisualizadorEvolucion:
         jornadas = sorted(self.analyzer.df_stats['jornada'].unique(), key=extraer_numero_jornada)
         
         if not jornadas:
-            print("No hay datos de jornadas disponibles.")
+            pass
             return None
         
         # Crear figura con dimensiones A3 (como tactic1_2)
@@ -950,16 +949,14 @@ class VisualizadorEvolucion:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"evolucion_rendimiento_{equipo1_fn}_vs_{equipo2_fn}_{timestamp}.pdf"
         fig.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0.2, format='pdf')
-        print(f"Reporte guardado: {filename}")
 
 
 def main():
     """Función principal."""
-    print("--- Generador de Evolución del Rendimiento ---")
     
     analyzer = EvolucionRendimientoMediaCoach()
     if analyzer.cargar_datos() is None:
-        print("Error: No se pudieron cargar los datos.")
+        pass
         return
     
     equipos_disponibles = analyzer.obtener_equipos_disponibles()
@@ -967,15 +964,13 @@ def main():
     villarreal_nombre = next((eq for eq in equipos_disponibles if 'villarreal' in eq.lower()), None)
     
     if not villarreal_nombre:
-        print("\nNo se encontró al Villarreal CF en los datos.")
+        pass
         return
     
-    print(f"\nEquipo de referencia: {villarreal_nombre}")
     
     equipos_comparar = [eq for eq in equipos_disponibles if eq != villarreal_nombre]
-    print(f"\n--- Elige un equipo para comparar contra {villarreal_nombre} ---")
     for i, equipo in enumerate(equipos_comparar, 1):
-        print(f"{i}. {equipo}")
+        pass
     
     equipo_oponente = None
     for _ in range(3):
@@ -985,27 +980,25 @@ def main():
                 equipo_oponente = equipos_comparar[seleccion - 1]
                 break
             else:
-                print(f"Número fuera de rango.")
+                pass
         except EOFError:
             equipo_oponente = equipos_comparar[0] if equipos_comparar else None
             break
         except ValueError:
-            print("Entrada no válida. Ingresa un número.")
+            pass
     if equipo_oponente is None and equipos_comparar:
         equipo_oponente = equipos_comparar[0]
     
-    print(f"\nGenerando reporte: {equipo_oponente} vs {villarreal_nombre}")
     
     visualizador = VisualizadorEvolucion(analyzer)
     fig = visualizador.crear_informe_evolucion(equipo_oponente, villarreal_nombre)
     
     if fig:
-        print("\nVisualización generada. Mostrando vista previa...")
+        pass
         plt.show()
         visualizador.guardar_reporte(fig, equipo_oponente, villarreal_nombre)
-        print("\nProceso completado exitosamente.")
     else:
-        print("\nError: No se pudo generar el reporte.")
+        pass
 
 
 if __name__ == "__main__":

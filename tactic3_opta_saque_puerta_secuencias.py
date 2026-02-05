@@ -42,7 +42,6 @@ class AnalizadorSaquesPorteria:
         # 🔥 CARGAR PLAYER_STATS
         try:
             self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
-            print(f"✅ Player stats cargado: {len(self.player_stats)} registros")
         except Exception as e:
             print(f"❌ Error cargando player_stats: {e}")
             self.player_stats = None
@@ -57,9 +56,6 @@ class AnalizadorSaquesPorteria:
         # 🔥 USAR EL DATAFRAME COMPLETO para encontrar rivales
         team_matches = self.df_complete[self.df_complete['Team Name'] == team_name][['Match ID', 'Week']].drop_duplicates()
         
-        print(f"\n🔍 DEBUG get_opponent_by_week:")
-        print(f"   Equipo buscado: {team_name}")
-        print(f"   Partidos encontrados: {len(team_matches)}")
         
         for _, match_row in team_matches.iterrows():
             match_id = match_row['Match ID']
@@ -68,15 +64,12 @@ class AnalizadorSaquesPorteria:
             # 🔥 Buscar en el dataframe COMPLETO
             match_teams = self.df_complete[self.df_complete['Match ID'] == match_id]['Team Name'].unique()
             
-            print(f"   Match ID {match_id}, Week {week}: Equipos = {match_teams}")
             
             for opponent in match_teams:
                 if opponent != team_name:
                     opponents[week] = opponent
-                    print(f"      ✅ Rival asignado: J{week} vs {opponent}")
                     break
         
-        print(f"   Total rivales encontrados: {len(opponents)}")
         
         return opponents
 
@@ -560,7 +553,6 @@ class AnalizadorSaquesPorteria:
                     transform=ax.transAxes, fontsize=12, color='white')
             return [], 0
 
-        print(f"\n🎯 Analizando primeros pases para {team_name} (Lógica directa con colores unificados)")
 
         # 1. Recopilar pases (sin cambios)
         first_passes_data = []
@@ -610,9 +602,8 @@ class AnalizadorSaquesPorteria:
         
         top_5_receivers = sorted(receiver_stats, key=lambda x: x['count'], reverse=True)[:5]
         
-        print(f"\n🏆 TOP 5 RECEPTORES (conteo directo):")
         for recv in top_5_receivers:
-            print(f"   #{recv['dorsal']} ({recv['player_name']}): {recv['count']} recepciones ({recv['percentage']:.1f}%)")
+            pass
 
         # 3. Paleta de colores (sin cambios)
         position_colors = ['#00BFFF', '#FF1493', '#32CD32', '#FFD700', '#9400D3']
@@ -920,8 +911,6 @@ class AnalizadorSaquesPorteria:
         
         goal_kicks_data = []
         
-        print(f"\n🔍 DEBUG analyze_goal_kicks_by_week:")
-        print(f"   Total eventos en self.df: {len(self.df)}")
         
         # Buscar usando columna 'Goal Kick'
         for idx in range(len(self.df)):
@@ -959,36 +948,27 @@ class AnalizadorSaquesPorteria:
         
         df_gk = pd.DataFrame(goal_kicks_data)
         
-        print(f"\n📊 Total saques de puerta extraídos: {len(df_gk)}")
-        print(f"   - Exitosos (outcome=1): {len(df_gk[df_gk['Outcome'] == 1])}")
-        print(f"   - Fallidos (outcome=0): {len(df_gk[df_gk['Outcome'] == 0])}")
         
         # 🔥 DEBUG: Ver todas las jornadas encontradas
         all_weeks_found = sorted(df_gk['Week'].unique())
-        print(f"\n📅 Jornadas encontradas en TODOS los datos: {all_weeks_found}")
-        print(f"   Total jornadas distintas: {len(all_weeks_found)}")
         
         # Contar saques por jornada ANTES de filtrar
         for week in all_weeks_found:
             week_count = len(df_gk[df_gk['Week'] == week])
-            print(f"   J{week}: {week_count} saques")
         
         # 🔥 FILTRAR ÚLTIMAS 10 JORNADAS
         all_weeks = sorted(df_gk['Week'].unique())
         if len(all_weeks) > 10:
             last_10_weeks = all_weeks[-10:]
-            print(f"\n🔥 FILTRANDO últimas 10 jornadas: {last_10_weeks}")
             df_gk_filtered = df_gk[df_gk['Week'].isin(last_10_weeks)]
-            print(f"   Saques DESPUÉS del filtro: {len(df_gk_filtered)}")
             
             # 🔥 Ver cuántos saques quedaron por jornada
             for week in last_10_weeks:
                 week_count = len(df_gk_filtered[df_gk_filtered['Week'] == week])
-                print(f"   J{week}: {week_count} saques (después de filtrar)")
             
             df_gk = df_gk_filtered
         else:
-            print(f"\n✅ Se muestran TODAS las {len(all_weeks)} jornadas (< 10)")
+            pass
         
         stats_by_week = []
         
@@ -996,7 +976,6 @@ class AnalizadorSaquesPorteria:
             week_data = df_gk[df_gk['Week'] == week]
             row = {'Week': week}
             
-            print(f"\n   Procesando J{week}: {len(week_data)} saques totales")
             
             for dist_type in ['CORTO', 'MEDIO', 'LARGO']:
                 dist_data = week_data[week_data['Distance'] == dist_type]
@@ -1008,7 +987,7 @@ class AnalizadorSaquesPorteria:
                 row[f'{dist_type}_pct'] = pct
                 
                 if total > 0:
-                    print(f"      {dist_type}: {total} saques ({pct:.0f}% exitosos)")
+                    pass
             
             stats_by_week.append(row)
         
@@ -1026,7 +1005,6 @@ class AnalizadorSaquesPorteria:
         
         stats_by_week.append(total_row)
         
-        print(f"\n✅ stats_by_week contiene {len(stats_by_week)} filas (incluyendo TOTAL)")
         
         return pd.DataFrame(stats_by_week)
 
@@ -1294,14 +1272,12 @@ class AnalizadorSaquesPorteria:
             print("⚠️ No hay datos de fotos cargados")
             return None
         
-        print(f"   🔍 Buscando foto para: {player_name}")
         match = self.match_player_name(player_name, self.photos_data, self.team_filter)
         
         if not match:
             print(f"   ❌ No se encontró match para {player_name}")
             return None
         
-        print(f"   ✅ Match encontrado: {match.get('player_name', 'N/A')}")
         
         try:
             import base64
@@ -1355,7 +1331,6 @@ class AnalizadorSaquesPorteria:
             background_mask = flood_fill_iterative(border_points, threshold=230)
             data[background_mask] = [0, 0, 0, 0]
             
-            print(f"   ✅ Foto procesada correctamente")
             return data.astype(np.float32) / 255.0
         
         except Exception as e:
@@ -1600,15 +1575,13 @@ class AnalizadorSaquesPorteria:
         # Ordenar por longitud (más larga primero)
         palabras_ordenadas = sorted(palabras_normalizadas, key=len, reverse=True)
         
-        print(f"🔍 Buscando escudo para '{equipo}'")
-        print(f"   Palabras a buscar (orden): {palabras_ordenadas}")
         
         # Obtener todos los archivos disponibles
         all_files = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
         
         # Buscar por cada palabra en orden de longitud
         for palabra_buscar in palabras_ordenadas:
-            print(f"   → Buscando con: '{palabra_buscar}'")
+            pass
             
             for filename in all_files:
                 nombre_archivo = os.path.splitext(filename)[0]
@@ -1617,7 +1590,6 @@ class AnalizadorSaquesPorteria:
                 # Coincidencia exacta de la palabra en el nombre del archivo
                 if palabra_buscar == nombre_archivo_norm or palabra_buscar in nombre_archivo_norm:
                     logo_path = f"assets/escudos/{filename}"
-                    print(f"   ✅ Encontrado: {filename}")
                     
                     try:
                         with Image.open(logo_path) as img:
@@ -1650,7 +1622,7 @@ class AnalizadorSaquesPorteria:
                 best_match_path = f"assets/escudos/{filename}"
         
         if best_match_path and best_score > 0.5:
-            print(f"   ✅ Encontrado por similitud ({best_score:.2f}): {os.path.basename(best_match_path)}")
+            pass
             try:
                 with Image.open(best_match_path) as img:
                     if img.mode != 'RGBA':
@@ -1693,10 +1665,9 @@ class AnalizadorSaquesPorteria:
             self.df = self.df.sort_values(['Match ID', 'timeStamp']).reset_index(drop=True)
             self.df_complete = self.df_complete.sort_values(['Match ID', 'timeStamp']).reset_index(drop=True)
             
-            print(f"Datos cargados: {len(self.df)} eventos")
             return True
         except Exception as e:
-            print(f"Error al cargar datos: {e}")
+            pass
             return False
     
     def calculate_average_path(self, sequences):
@@ -1803,7 +1774,6 @@ class AnalizadorSaquesPorteria:
         fig.set_size_inches(11.69, 8.27)
         fig.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0,
                    facecolor='white', format='pdf', orientation='landscape')
-        print(f"✅ Archivo guardado: {filename}")
 
     def get_zone_center(self, zone_number):
         """Devuelve las coordenadas (y, x) del centro de una zona para el gráfico."""
@@ -1926,34 +1896,22 @@ class AnalizadorSaquesPorteria:
         
     def print_sequence_details(self, sequences, n_examples=4):
         """Imprime detalles de N secuencias de ejemplo"""
-        print(f"\n{'='*80}")
-        print(f"EJEMPLOS DE SECUENCIAS (mostrando {min(n_examples, len(sequences))} de {len(sequences)} totales)")
-        print(f"{'-'*80}\n")
         
         for seq_num, sequence in enumerate(sequences[:n_examples], 1):
-            print(f"SECUENCIA #{seq_num} ({len(sequence)} pases)")
-            print(f"{'-'*80}")
+            pass
             
             for i, pass_data in enumerate(sequence, 1):
-                print(f"  Pase {i}:")
-                print(f"    Inicio:    x={pass_data['x']:.2f}, y={pass_data['y']:.2f}")
-                print(f"    Destino:   x={pass_data['end_x']:.2f}, y={pass_data['end_y']:.2f}")
-                print(f"    Event:     Pass")
-                print(f"    Equipo:    {pass_data.get('team_name', 'N/A')}")
-                print(f"    Outcome:   {'Exitoso' if pass_data['outcome'] == 1 else 'Fallido'}")
+                pass
                 
                 # Calcular distancia
                 dist = np.sqrt((pass_data['end_x'] - pass_data['x'])**2 + 
                             (pass_data['end_y'] - pass_data['y'])**2)
-                print(f"    Distancia: {dist:.2f} unidades")
-                print()
             
-            print()
         
     def extract_goal_kick_sequences(self, team_name):
         """Extrae todas las secuencias que comienzan con un saque de puerta"""
         if self.df is None:
-            print("No hay datos cargados")
+            pass
             return []
         
         sequences = []
@@ -1971,14 +1929,12 @@ class AnalizadorSaquesPorteria:
             if pd.notna(current_event.get('Goal Kick')) and current_event['Goal Kick'] == 'Sí':
                 goal_kicks.append(team_df.index[idx])
         
-        print(f"Encontrados {len(goal_kicks)} saques de puerta (Goal Kick = Sí)")
         
         for gk_idx in goal_kicks:
             sequence = self.extract_sequence_from_goal_kick(gk_idx, team_name)
             if sequence and len(sequence) >= 2:  # Al menos 2 pases
                 sequences.append(sequence)
         
-        print(f"Extraidas {len(sequences)} secuencias validas")
         return sequences
     
     def extract_sequence_from_goal_kick(self, start_idx, team_name):
@@ -2303,7 +2259,6 @@ class AnalizadorSaquesPorteria:
             zone = get_detailed_zone(first_pass)
             sequences_by_zone[zone].append((idx, seq))
         
-        print(f"\n📍 Secuencias agrupadas por dirección y profundidad:")
         zone_names = {
             'LS': 'Izquierda-Corto', 'LM': 'Izquierda-Medio', 'LL': 'Izquierda-Largo',
             'CS': 'Centro-Corto', 'CM': 'Centro-Medio', 'CL': 'Centro-Largo',
@@ -2311,7 +2266,6 @@ class AnalizadorSaquesPorteria:
         }
         for zone, seqs in sorted(sequences_by_zone.items()):
             zone_name = zone_names.get(zone, zone)
-            print(f"   {zone_name}: {len(seqs)} secuencias")
         
         # 🔥 3. CLUSTERING DTW DENTRO DE CADA ZONA
         all_clusters = []
@@ -2380,9 +2334,8 @@ class AnalizadorSaquesPorteria:
                 'all_sequences': cluster['sequences']
             })
         
-        print(f"\n✅ Encontrados {len(result)} patrones distintos")
         for i, r in enumerate(result, 1):
-            print(f"   Patrón {i}: {r['count']} repeticiones - {r['pattern']}")
+            pass
 
         return result
     
@@ -2437,7 +2390,6 @@ class AnalizadorSaquesPorteria:
             return None
             
         total_valid_sequences = len(sequences_for_analysis)
-        print(f"✅ Encontradas {total_valid_sequences} secuencias con primer pase exitoso para analizar.")
 
         # Obtenemos los datos para las leyendas usando estas secuencias
         top_zone_patterns = self.analyze_zone_patterns(sequences_for_analysis)
@@ -2496,17 +2448,9 @@ class AnalizadorSaquesPorteria:
         """Imprime un resumen de las secuencias encontradas"""
         sequences = self.extract_goal_kick_sequences(team_name)
         
-        print(f"\n{'='*60}")
-        print(f"RESUMEN DE SECUENCIAS TRAS SAQUE DE PUERTA")
-        print(f"{'='*60}")
-        print(f"Equipo: {team_name}")
-        print(f"Total de secuencias validas: {len(sequences)}")
         
         if sequences:
             lengths = [len(seq) for seq in sequences]
-            print(f"Promedio de pases por secuencia: {np.mean(lengths):.1f}")
-            print(f"Secuencia mas larga: {max(lengths)} pases")
-            print(f"Secuencia mas corta: {min(lengths)} pases")
             
             # 🔥 MISMO PARÁMETRO
             top_sequences = self.find_most_similar_sequences(
@@ -2518,11 +2462,9 @@ class AnalizadorSaquesPorteria:
             )
 
             if top_sequences:
-                print(f"\nTop 3 patrones de 3 pases más repetidos:")
+                pass
                 for i, seq_data in enumerate(top_sequences, 1):
                     pattern_str = seq_data['pattern']
-                    print(f"  {i}. {pattern_str}")
-                    print(f"     Repeticiones: {seq_data['count']} veces")
             else:
                 print("\n⚠️ No se encontraron patrones claros en los 3 primeros pases.")
 
@@ -2533,14 +2475,11 @@ def seleccionar_equipo_interactivo():
         equipos = sorted(df['Team Name'].dropna().unique())
         
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n" + "="*60)
-        print("SELECCION DE EQUIPO")
-        print("="*60)
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i:2d}. {equipo}")
+            pass
         
         for _ in range(3):
             try:
@@ -2548,30 +2487,27 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un numero entre 1 y {len(equipos)}")
+                    pass
             except EOFError:
                 return equipos[0] if equipos else None
             except ValueError:
-                print("Por favor, ingresa un numero valido")
+                pass
         return equipos[0] if equipos else None
     except Exception as e:
-        print(f"Error en la seleccion: {e}")
+        pass
         return None
 
 def main():
     """Funcion principal"""
     try:
-        print("\n" + "="*60)
-        print("ANALISIS DE SECUENCIAS TRAS SAQUE DE PUERTA")
-        print("="*60)
+        pass
         
         # Seleccionar equipo
         equipo = seleccionar_equipo_interactivo()
         if equipo is None:
-            print("No se pudo completar la seleccion.")
+            pass
             return
         
-        print(f"\nAnalizando secuencias para {equipo}...")
         
         # Crear analizador
         analyzer = AnalizadorSaquesPorteria()
@@ -2592,14 +2528,13 @@ def main():
             output_path = f"secuencias_saque_porteria_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1,
                        facecolor='white', dpi=300)
-            print(f"\nVisualizacion guardada como: {output_path}")
             
             plt.show()
         else:
-            print("No se pudo generar la visualizacion")
+            pass
     
     except Exception as e:
-        print(f"Error en la ejecucion: {e}")
+        pass
         import traceback
         traceback.print_exc()
 
@@ -2620,31 +2555,28 @@ def generar_secuencias_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"secuencias_saque_porteria_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1,
                            facecolor='white', dpi=300)
-                print(f"Visualizacion guardada como: {output_path}")
             
             if mostrar:
                 plt.show()
             
             return fig
         else:
-            print("No se pudo generar la visualizacion")
+            pass
             return None
             
     except Exception as e:
-        print(f"Error: {e}")
+        pass
         import traceback
         traceback.print_exc()
         return None
 
 if __name__ == "__main__":
-    print("\nINICIALIZANDO ANALIZADOR DE SAQUES DE PUERTA")
+    pass
     try:
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("Para ejecutar el analisis: main()")
-            print("Para uso directo: generar_secuencias_personalizado('Nombre_Equipo')")
+            pass
         main()
     except Exception as e:
-        print(f"Error al inicializar: {e}")
+        pass

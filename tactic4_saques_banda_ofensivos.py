@@ -27,15 +27,13 @@ class AnalizadorSaquesBanda:
     def load_data(self, team_filter=None):
         """Carga y filtra los datos de eventos"""
         try:
-            print(f"📂 Cargando datos desde {self.data_path}...")
+            pass
             self.df_complete = pd.read_parquet(self.data_path)
-            print(f"✅ Datos cargados: {len(self.df_complete)} eventos totales")
             
             # Filtrar por equipo si se especifica
             if team_filter:
                 self.team_filter = team_filter
                 self.df = self.df_complete[self.df_complete['Team Name'] == team_filter].copy()
-                print(f"🔍 Filtrado por equipo '{team_filter}': {len(self.df)} eventos")
             else:
                 self.df = self.df_complete.copy()
             
@@ -80,7 +78,6 @@ class AnalizadorSaquesBanda:
             (self.df['Throw in'] == 'Sí')
         ].copy()
         
-        print(f"🎯 Saques de banda encontrados: {len(throw_ins)}")
         
         if len(throw_ins) == 0:
             return []
@@ -822,7 +819,6 @@ class AnalizadorSaquesBanda:
             ax.axis('off')
             return fig
         
-        print(f"✅ Encontrados {len(sequences)} saques de banda")
         
         # 2. Clasificación por zona y lado
         classification = self.classify_throw_ins_by_zone_and_side(sequences)
@@ -954,17 +950,12 @@ class AnalizadorSaquesBanda:
         """Imprime un resumen del análisis"""
         sequences = self.extract_throw_in_sequences(team_name)
         
-        print(f"\n{'='*60}")
-        print(f"RESUMEN DE SAQUES DE BANDA OFENSIVOS")
-        print(f"{'='*60}")
-        print(f"Equipo: {team_name}")
-        print(f"Total de saques de banda: {len(sequences)}")
         
         if sequences:
             classification = self.classify_throw_ins_by_zone_and_side(sequences)
             
             for side in ['Izquierda', 'Derecha']:
-                print(f"\n{side}:")
+                pass
                 # Mostrar en orden: Zona 3 (ofensiva), Zona 2 (media), Zona 1 (defensiva)
                 for zone in ['Zona 3', 'Zona 2', 'Zona 1']:
                     throw_ins = classification[side][zone]
@@ -972,7 +963,6 @@ class AnalizadorSaquesBanda:
                     exitosos = sum(1 for t in throw_ins if t.get('outcome', 0) == 1)
                     porcentaje = (exitosos / total * 100) if total > 0 else 0
                     zone_desc = {'Zona 3': 'Ofensiva', 'Zona 2': 'Media', 'Zona 1': 'Defensiva'}[zone]
-                    print(f"  {zone} ({zone_desc}): {total} saques ({porcentaje:.1f}% éxito)")
 
 
 def seleccionar_equipo_interactivo():
@@ -982,14 +972,11 @@ def seleccionar_equipo_interactivo():
         equipos = sorted(df['Team Name'].dropna().unique())
         
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n" + "="*60)
-        print("SELECCIÓN DE EQUIPO")
-        print("="*60)
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i:2d}. {equipo}")
+            pass
         
         for _ in range(3):
             try:
@@ -997,31 +984,28 @@ def seleccionar_equipo_interactivo():
                 if 0 <= idx < len(equipos):
                     return equipos[idx]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except EOFError:
                 return equipos[0] if equipos else None
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         return equipos[0] if equipos else None
 
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 
 def main():
     """Función principal"""
     try:
-        print("\n" + "="*60)
-        print("ANÁLISIS DE SAQUES DE BANDA OFENSIVOS")
-        print("="*60)
+        pass
         
         equipo = seleccionar_equipo_interactivo()
         if equipo is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nAnalizando saques de banda para {equipo}...")
         
         analyzer = AnalizadorSaquesBanda()
         
@@ -1039,7 +1023,6 @@ def main():
             output_path = f"saques_banda_ofensivos_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', 
                        pad_inches=0.1, facecolor='white', dpi=300)
-            print(f"\n✅ Visualización guardada como: {output_path}")
             plt.show()
         else:
             print("❌ No se pudo generar la visualización")
@@ -1051,15 +1034,12 @@ def main():
 
 
 if __name__ == "__main__":
-    print("\nINICIALIZANDO ANALIZADOR DE SAQUES DE BANDA")
+    pass
     try:
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("Para ejecutar el análisis, ejecute: main()")
+            pass
         main()
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
-        print("\nAsegúrate de que el archivo 'open_play_events.parquet' existe en:")
-        print("  extraccion_opta/datos_opta_parquet/open_play_events.parquet")

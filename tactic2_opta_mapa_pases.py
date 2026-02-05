@@ -33,7 +33,6 @@ class RedPasesEquipo:
         self.player_stats_df = None
         try:
             self.player_stats_df = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
-            print("✅ Datos de player_stats.parquet cargados.")
         except Exception as e:
             print(f"⚠️ Error al cargar player_stats.parquet: {e}")
         
@@ -244,7 +243,6 @@ class RedPasesEquipo:
             self.events_df = pd.read_parquet(events_path)
             if 'Week' in self.events_df.columns:
                 self.events_df['Week'] = self.events_df['Week'].astype(str)
-            print(f"✅ Eventos cargados: {self.events_df.shape[0]} filas")
             return True
         except Exception as e:
             print(f"⚠️ Error al cargar eventos: {e}")
@@ -280,7 +278,7 @@ class RedPasesEquipo:
             formation_name = self.formation_mapping.get(int(formation_number), f"Unknown_{formation_number}")
             return {'formation_number': int(formation_number), 'formation_name': formation_name, 'starters': ordered_starters}
         except Exception as e:
-            print(f"Error procesando formación: {e}")
+            pass
             return None
 
     # --- VERSIÓN CORRECTA Y ÚNICA DE GET_PASS_RANKING ---
@@ -409,8 +407,6 @@ class RedPasesEquipo:
         
         jugadores_primarios = [top_players_by_position[i]['primary'] for i in range(11) if i in top_players_by_position]
         
-        print(f"✅ Formación más usada: {formacion_ganadora}")
-        print(f"✅ Once más frecuente: {jugadores_primarios}")
         
         return {
             'formation': formacion_ganadora, 
@@ -444,7 +440,6 @@ class RedPasesEquipo:
             print("❌ No se pudo determinar el once titular")
             return
         titulares_dorsales = set(str(d) for d in titular_info['starters'])
-        print(f"🔍 Filtrando pases solo entre dorsales: {sorted(titulares_dorsales)}")
         team_data = self.df[self.df['Team Name'] == team_filter].copy()
         for col in ['x', 'y', 'Pass End X', 'Pass End Y']:
             team_data[col] = pd.to_numeric(team_data[col], errors='coerce')
@@ -454,8 +449,6 @@ class RedPasesEquipo:
             team_data['Pass End X'].notna() &
             team_data['Pass End Y'].notna()
         ].copy()
-        print(f"✅ Pases del once titular: {len(self.passes_data)}")
-        print(f"   (Antes había {len(team_data)} pases totales del equipo)")
     
     def load_data(self, team_filter=None):
         try:
@@ -467,7 +460,6 @@ class RedPasesEquipo:
             if team_filter:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
-            print(f"✅ Datos cargados: {len(self.df)} pases exitosos")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -572,7 +564,6 @@ class RedPasesEquipo:
         if team_data.empty:
             return {}, {}
         
-        print(f"\n📊 Analizando TODOS los pases del equipo: {len(team_data)} pases")
         
         pass_counts_by_demarcation = defaultdict(int)
         demarcation_positions = defaultdict(lambda: {'x': [], 'y': [], 'count': 0, 'dorsales': set()})
@@ -692,11 +683,8 @@ class RedPasesEquipo:
         
         top_11_demarcations = dict(sorted_demarcations)
         
-        print(f"\n🎯 Top 11 Demarcaciones más usadas (de {len(all_demarcations)} totales):")
         for i, (dem, info) in enumerate(sorted_demarcations, 1):
-            print(f"   {i:2d}. {dem} ({self.demarcation_labels.get(dem, dem)}): "
-                f"{info['count']} pases, {len(info['players'])} jugadores, "
-                f"dorsales: {info['dorsales']}")
+            pass
         
         # 🔥 FILTRAR SOLO PASES ENTRE LAS TOP 11 DEMARCACIONES
         filtered_passes = {}
@@ -707,7 +695,6 @@ class RedPasesEquipo:
             if dem1 in top_11_keys and dem2 in top_11_keys:
                 filtered_passes[pass_key] = count
         
-        print(f"   💫 Total conexiones entre top 11: {len(filtered_passes)}")
         
         return filtered_passes, top_11_demarcations
     
@@ -837,15 +824,13 @@ class RedPasesEquipo:
         # Ordenar por longitud (más larga primero)
         palabras_ordenadas = sorted(palabras_normalizadas, key=len, reverse=True)
         
-        print(f"🔍 Buscando escudo para '{equipo}'")
-        print(f"   Palabras a buscar (orden): {palabras_ordenadas}")
         
         # Obtener todos los archivos disponibles
         all_files = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
         
         # Buscar por cada palabra en orden de longitud
         for palabra_buscar in palabras_ordenadas:
-            print(f"   → Buscando con: '{palabra_buscar}'")
+            pass
             
             for filename in all_files:
                 nombre_archivo = os.path.splitext(filename)[0]
@@ -854,7 +839,6 @@ class RedPasesEquipo:
                 # Coincidencia exacta de la palabra en el nombre del archivo
                 if palabra_buscar == nombre_archivo_norm or palabra_buscar in nombre_archivo_norm:
                     logo_path = f"assets/escudos/{filename}"
-                    print(f"   ✅ Encontrado: {filename}")
                     
                     try:
                         with Image.open(logo_path) as img:
@@ -887,7 +871,7 @@ class RedPasesEquipo:
                 best_match_path = f"assets/escudos/{filename}"
         
         if best_match_path and best_score > 0.5:
-            print(f"   ✅ Encontrado por similitud ({best_score:.2f}): {os.path.basename(best_match_path)}")
+            pass
             try:
                 with Image.open(best_match_path) as img:
                     if img.mode != 'RGBA':
@@ -941,7 +925,6 @@ class RedPasesEquipo:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
 
     def extract_names_parts(self, name):
         """Extrae las partes de un nombre normalizado"""
@@ -1026,7 +1009,6 @@ class RedPasesEquipo:
             # Ordenar por longitud (más larga primero)
             palabras_equipo_ordenadas = sorted(palabras_equipo_norm, key=len, reverse=True)
             
-            print(f"   🔍 Filtrando equipo '{team_filter}' con palabras: {palabras_equipo_ordenadas}")
             
             # Buscar fotos que contengan al menos UNA de las palabras del equipo
             for photo_entry in photos_data:
@@ -1050,7 +1032,6 @@ class RedPasesEquipo:
             
             if not team_players:
                 print(f"   ⚠️ No hay fotos para el equipo: {team_filter}")
-                print(f"      Intentando con búsqueda más flexible...")
                 
                 # Fallback: buscar con similitud en el nombre completo
                 team_filter_norm = normalize_word(team_filter.replace(' ', ''))
@@ -1070,22 +1051,20 @@ class RedPasesEquipo:
                     print(f"   ❌ No se encontraron fotos para '{team_filter}'")
                     return None
                 else:
-                    print(f"   ✅ Encontrados {len(team_players)} jugadores por similitud")
+                    pass
         else:
             team_players = photos_data
 
-        print(f"   🔍 Buscando '{player_name}' en {len(team_players)} jugadores del equipo")
 
         # 🔥 PASO 2: Ordenar palabras del jugador por longitud (más larga primero)
         # Filtrar palabras muy cortas (< 3 caracteres)
         player_words = [w for w in player_parts['all_parts'] if len(w) >= 3]
         player_words_sorted = sorted(player_words, key=len, reverse=True)
         
-        print(f"   → Palabras a buscar (orden): {player_words_sorted}")
 
         # 🔥 PASO 3: Buscar por cada palabra en orden de longitud
         for palabra_buscar in player_words_sorted:
-            print(f"   → Buscando con: '{palabra_buscar}'")
+            pass
             
             for photo_entry in team_players:
                 photo_name = photo_entry.get('player_name', '')
@@ -1094,7 +1073,7 @@ class RedPasesEquipo:
                 
                 # Coincidencia exacta de la palabra
                 if palabra_buscar in photo_words:
-                    print(f"   ✅ Match exacto encontrado: {photo_name}")
+                    pass
                     return photo_entry
                 
                 # Tolerancia para palabras largas (1 letra de diferencia)
@@ -1103,7 +1082,7 @@ class RedPasesEquipo:
                         if len(ph_word) > 5:
                             distance = self.levenshtein_distance(palabra_buscar, ph_word)
                             if distance == 1:
-                                print(f"   ✅ Match tolerante encontrado: {photo_name} ('{palabra_buscar}' ≈ '{ph_word}')")
+                                pass
                                 return photo_entry
 
         # 🔥 PASO 4: Si no encuentra match exacto, usar sistema de scoring (fallback)
@@ -1140,13 +1119,13 @@ class RedPasesEquipo:
             print(f"   ❌ No se encontró ningún candidato para: {player_name}")
             return None
         elif len(candidates) == 1:
-            print(f"   ✅ Un candidato encontrado: {candidates[0]['entry']['player_name']}")
+            pass
             return candidates[0]['entry']
         else:
             best_candidates = sorted(candidates, key=lambda x: x['match_count'], reverse=True)
             
             if best_candidates[0]['match_count'] > best_candidates[1]['match_count']:
-                print(f"   ✅ Mejor candidato por scoring: {best_candidates[0]['entry']['player_name']}")
+                pass
                 return best_candidates[0]['entry']
             
             # Desempate por palabras cortas que coincidan al inicio
@@ -1157,7 +1136,7 @@ class RedPasesEquipo:
                     if len(p_word) <= 3:
                         for ph_word in photo_parts['all_parts']:
                             if ph_word.startswith(p_word):
-                                print(f"   ✅ Match por palabra corta: {candidate['entry']['player_name']}")
+                                pass
                                 return candidate['entry']
             
             print(f"   ⚠️ Múltiples candidatos, devolviendo el primero: {best_candidates[0]['entry']['player_name']}")
@@ -1287,7 +1266,6 @@ class RedPasesEquipo:
                 'shirt': shirt_str
             }
         
-        print(f"🔍 Total jugadores únicos por dorsal: {len(unique_players)}")
         
         # 🔥 PASO 3: CREAR LISTA PARA VISUALIZACIÓN
         average_locs_list = []
@@ -1611,9 +1589,6 @@ class RedPasesEquipo:
                     'progression': sequence_max_progression[seq_tuple_2]
                 })
                 
-                print(f"  🎯 Secuencia #{sequence_length+1}:")
-                print(f"     1ª → Frecuencia: {count_1}, Progresión: {sequence_max_progression[seq_tuple_1]:.1f}")
-                print(f"     2ª → Frecuencia: {count_2}, Progresión: {sequence_max_progression[seq_tuple_2]:.1f} ⚡")
         
         return result
 
@@ -1802,7 +1777,6 @@ class RedPasesEquipo:
         self.create_pass_flow_map(ax_flow, "FLUJO DE PASES")
         
         # 🔥 COLUMNAS 4-5: SECUENCIAS DE PASES
-        print("📊 Calculando secuencias de pases...")
 
         # 🔥 TÍTULO GENERAL PARA LAS SECUENCIAS (similar a los otros títulos)
         ax_titulo_secuencias = fig.add_axes([0.70, 0.89, 0.28, 0.03])  # Posición y tamaño
@@ -1849,25 +1823,19 @@ class RedPasesEquipo:
             ax_seq3_2 = fig.add_subplot(gs[5, 3:5])
             self.draw_pass_sequence(ax_seq3_2, sequences_3[1], "", color_3_pases, is_second=True)
         
-        print("✅ Secuencias calculadas y dibujadas")
         
         return fig
 
     def print_summary(self, team_filter=None):
         """Imprime resumen de los datos"""
         if self.passes_data.empty:
-            print("No hay datos de pases para mostrar")
+            pass
             return
         
-        print(f"\n=== RESUMEN DE RED DE PASES ===")
-        print(f"Equipo: {team_filter}")
-        print(f"Total de pases exitosos (once titular): {len(self.passes_data)}")
         
         top_passers = self.passes_data['playerName'].value_counts().head(5)
-        print(f"\nTop 5 pasadores:")
         for i, (player, count) in enumerate(top_passers.items(), 1):
             shirt = self.passes_data[self.passes_data['playerName'] == player]['shirt_number'].iloc[0]
-            print(f"  {i}. #{shirt} {player}: {count} pases")
 
 def seleccionar_equipo_interactivo():
     """Función para seleccionar equipo interactivamente"""
@@ -1875,12 +1843,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         for _ in range(3):
             try:
@@ -1888,25 +1855,24 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except EOFError:
                 return equipos[0] if equipos else None
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         return equipos[0] if equipos else None
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE RED DE PASES Y SECUENCIAS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando visualización para {equipo}...")
         analyzer = RedPasesEquipo(team_filter=equipo)
         analyzer.print_summary(team_filter=equipo)
         
@@ -1914,7 +1880,6 @@ def main():
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
             output_path = f"red_pases_y_secuencias_{equipo_filename}.pdf"
             analyzer.guardar_sin_espacios(fig, output_path)
-            print(f"✅ Visualización guardada como: {output_path}")
             plt.show()
         else:
             print("❌ No se pudo generar la visualización")
@@ -1939,7 +1904,6 @@ def generar_red_pases_personalizado(equipo, mostrar=True, guardar=True):
                 analyzer.guardar_sin_espacios(fig, output_path)
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300)
-                print(f"✅ Visualización guardada como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")
@@ -1952,14 +1916,12 @@ def generar_red_pases_personalizado(equipo, mostrar=True, guardar=True):
         return None
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE RED DE PASES ===")
+    pass
     try:
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("🔍 Para generar red de pases ejecuta: main()")
-            print("🔍 Para uso directo: generar_red_pases_personalizado('Nombre_Equipo')")
+            pass
         main()
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")

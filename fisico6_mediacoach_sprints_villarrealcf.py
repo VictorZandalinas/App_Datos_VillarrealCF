@@ -26,10 +26,8 @@ class VillarrealSprintsReport:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
-            print(f"Columnas disponibles: {list(self.df.columns)}")
         except Exception as e:
-            print(f"Error al cargar los datos: {e}")
+            pass
             
     def similarity(self, a, b):
         """Calcula la similitud entre dos strings"""
@@ -83,8 +81,6 @@ class VillarrealSprintsReport:
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
         
-        print(f"Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
-        print(f"Jornadas normalizadas en datos: {sorted(self.df['Jornada'].unique())}")
         
     def get_available_jornadas(self):
         """Retorna las jornadas disponibles para el Villarreal CF"""
@@ -95,7 +91,6 @@ class VillarrealSprintsReport:
         villarreal_df = self.df[self.df['Equipo'].str.contains('Villarreal', case=False, na=False)]
         if len(villarreal_df) == 0:
             print("⚠️ No se encontraron datos del Villarreal CF. Equipos disponibles:")
-            print(self.df['Equipo'].unique())
             return []
         
         return sorted(villarreal_df['Jornada'].unique())
@@ -121,8 +116,6 @@ class VillarrealSprintsReport:
             else:
                 normalized_jornadas.append(jornada)
         
-        print(f"Jornadas normalizadas: {normalized_jornadas}")
-        print(f"Jornadas únicas en datos: {sorted(self.df['Jornada'].unique())}")
         
         # Filtrar por Villarreal CF y jornadas
         filtered_df = self.df[
@@ -130,7 +123,6 @@ class VillarrealSprintsReport:
             (self.df['Jornada'].isin(normalized_jornadas))
         ].copy()
         
-        print(f"Datos filtrados: {len(filtered_df)} filas para Villarreal CF")
         return filtered_df
     
     def load_team_logo(self):
@@ -148,42 +140,41 @@ class VillarrealSprintsReport:
         for name in possible_names:
             logo_path = f"assets/escudos/{name}.png"
             if os.path.exists(logo_path):
-                print(f"Escudo del Villarreal encontrado: {logo_path}")
+                pass
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo {logo_path}: {e}")
+                    pass
                     continue
         
-        print(f"No se encontró el escudo del Villarreal CF")
         return None
     
     def load_ball_image(self):
         """Carga la imagen del balón"""
         ball_path = "assets/balon.png"
         if os.path.exists(ball_path):
-            print(f"Balón encontrado: {ball_path}")
+            pass
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el balón: {ball_path}")
+            pass
             return None
     
     def load_background(self):
         """Carga el fondo del informe"""
         bg_path = "assets/fondo_informes.png"
         if os.path.exists(bg_path):
-            print(f"Fondo encontrado: {bg_path}")
+            pass
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el fondo: {bg_path}")
+            pass
             return None
     
     def create_sprints_data(self, filtered_df, jornadas):
@@ -273,7 +264,7 @@ class VillarrealSprintsReport:
         # Filtrar datos
         filtered_df = self.filter_data(jornadas)
         if filtered_df is None or len(filtered_df) == 0:
-            print("No hay datos para las jornadas especificadas del Villarreal CF")
+            pass
             return None
         
         # Crear figura
@@ -290,9 +281,8 @@ class VillarrealSprintsReport:
                 ax_background.set_yticks([])
                 for spine in ax_background.spines.values():
                     spine.set_visible(False)
-                print("Fondo aplicado correctamente")
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid: header + 4 gráficos (2 izq, 1 centro, 2 der apilados)
         gs = fig.add_gridspec(3, 3, 
@@ -320,7 +310,6 @@ class VillarrealSprintsReport:
                 imagebox = OffsetImage(ball, zoom=0.15)
                 ab = AnnotationBbox(imagebox, (0.05, 0.5), frameon=False)
                 ax_title.add_artist(ab)
-                print("✅ Balón aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar balón: {e}")
         else:
@@ -333,7 +322,6 @@ class VillarrealSprintsReport:
                 imagebox = OffsetImage(logo, zoom=0.45)
                 ab = AnnotationBbox(imagebox, (0.95, 0.5), frameon=False)
                 ax_title.add_artist(ab)
-                print("✅ Escudo del Villarreal aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar escudo: {e}")
         else:
@@ -583,11 +571,9 @@ def seleccionar_jornadas_villarreal_sprints():
         jornadas_disponibles = report_generator.get_available_jornadas()
         
         if len(jornadas_disponibles) == 0:
-            print("No se encontraron jornadas para el Villarreal CF.")
+            pass
             return None
         
-        print(f"\n=== VILLARREAL CF - Nº SPRINTS ===")
-        print(f"Jornadas disponibles: {jornadas_disponibles}")
         
         # Preguntar cuántas jornadas incluir
         while True:
@@ -599,28 +585,27 @@ def seleccionar_jornadas_villarreal_sprints():
                     jornadas_seleccionadas = sorted(jornadas_disponibles)[-num_jornadas:]
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(jornadas_disponibles)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         return jornadas_seleccionadas
         
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main_villarreal_sprints():
     try:
-        print("=== GENERADOR DE REPORTES - Nº SPRINTS - VILLARREAL CF ===")
+        pass
         
         # Selección de jornadas para Villarreal CF
         jornadas = seleccionar_jornadas_villarreal_sprints()
         
         if jornadas is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte de sprints para Villarreal CF - Jornadas: {jornadas}")
         
         # Crear el reporte
         report_generator = VillarrealSprintsReport()
@@ -640,7 +625,6 @@ def main_villarreal_sprints():
                           facecolor='none', edgecolor='none', dpi=300,
                           transparent=True)
             
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -669,7 +653,6 @@ def generar_reporte_sprints_villarreal_personalizado(jornadas, mostrar=True, gua
                               facecolor='none', edgecolor='none', dpi=300,
                               transparent=True)
                 
-                print(f"✅ Reporte guardado como: {output_path}")
             
             return fig
         else:
@@ -680,16 +663,12 @@ def generar_reporte_sprints_villarreal_personalizado(jornadas, mostrar=True, gua
         return None
 
 # Inicialización específica para Villarreal CF - Sprints
-print("=== INICIALIZANDO GENERADOR DE REPORTES DE SPRINTS - VILLARREAL CF ===")
 try:
     report_generator = VillarrealSprintsReport()
     jornadas_disponibles = report_generator.get_available_jornadas()
-    print(f"\n✅ Sistema listo para Villarreal CF - Nº Sprints. Jornadas disponibles: {len(jornadas_disponibles)}")
-    print(f"Jornadas: {jornadas_disponibles}")
     
     if len(jornadas_disponibles) > 0:
-        print("📝 Para generar un reporte ejecuta: main_villarreal_sprints()")
-        print("📝 Para uso directo: generar_reporte_sprints_villarreal_personalizado([33,34,35])")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

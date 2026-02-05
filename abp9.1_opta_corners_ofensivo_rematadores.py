@@ -70,12 +70,10 @@ class ReporteRematadoresCorners:
                 
                 # El merge ahora funcionará porque ambas columnas 'timeStamp' son del mismo tipo (datetime)
                 self.df = pd.merge(self.df, xg_data, on=['timeStamp', 'playerId', 'Match ID'], how='left')
-                print(f"✅ Merge xG exitoso: {self.df['xg_value'].notna().sum()} eventos con xG")
             except Exception as e:
                 print(f"⚠️ Error en merge xG: {e}")
                 self.df['xg_value'] = None
             
-            print(f"✅ Datos filtrados cargados: {len(self.df)} eventos")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
             import traceback
@@ -102,7 +100,6 @@ class ReporteRematadoresCorners:
             print("❌ No hay datos cargados")
             return
 
-        print("🔍 Extrayendo remates de corners con la nueva estructura por partido...")
         
         # --- ESTRUCTURA PRINCIPAL: Ordenar datos una sola vez ---
         df_sorted = self.df.sort_values(['Match ID', 'timeStamp']).reset_index(drop=True)
@@ -152,8 +149,6 @@ class ReporteRematadoresCorners:
         else:
             self.remates_derecha = pd.DataFrame()
         
-        print(f"✅ Remates lado izquierdo encontrados: {len(self.remates_izquierda)}")
-        print(f"✅ Remates lado derecho encontrados: {len(self.remates_derecha)}")
 
     def analyze_corner_sequence(self, match_events, corner_idx, corner_pass):
         """
@@ -774,7 +769,6 @@ class ReporteRematadoresCorners:
             transparent=False,
             orientation='landscape'
         )
-        print(f"✅ Archivo guardado: {filename}")
 
     def create_reporte_rematadores(self, figsize=(11.69, 8.27)):
         """Crea reporte completo"""
@@ -840,12 +834,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -853,21 +846,20 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     try:
-        print("=== GENERADOR DE REPORTE REMATADORES CÓRNERS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte de rematadores para {equipo}")
         analyzer = ReporteRematadoresCorners(team_filter=equipo)
         
         if (fig := analyzer.create_reporte_rematadores()):
@@ -875,7 +867,6 @@ def main():
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
             output_path = f"reporte_rematadores_corners_{equipo_filename}.pdf"
             analyzer.guardar_sin_espacios(fig, output_path)
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -896,7 +887,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 equipo_filename = equipo.replace(' ', '_').replace('/', '_')
                 output_path = f"reporte_rematadores_corners_{equipo_filename}.pdf"
                 analyzer.guardar_sin_espacios(fig, output_path)
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")

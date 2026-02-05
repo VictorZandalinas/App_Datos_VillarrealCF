@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 try:
     from scipy.stats import gaussian_kde
 except ImportError:
-    print("âš ï¸ scipy no disponible - los mapas de calor no funcionarÃ¡n")
+    pass
 
 class FreeKicksAnalysis:
     def __init__(self, data_path="extraccion_opta/datos_opta_parquet/abp_events.parquet", team_filter=None):
@@ -52,7 +52,7 @@ class FreeKicksAnalysis:
                             on='Team ID', how='left')
                 self.extract_free_kicks_data(team_filter)
             else:
-                print("âŒ Error: No se pudieron cargar los datos")
+                pass
 
     def guardar_sin_espacios(self, fig, filename):
         """Guarda sin espacios manteniendo landscape A4"""
@@ -69,7 +69,6 @@ class FreeKicksAnalysis:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
 
     def format_player_name_multiline(self, player_name, max_chars_per_line=12):
         """Divide nombres largos en 2 lÃ­neas de forma inteligente"""
@@ -122,7 +121,7 @@ class FreeKicksAnalysis:
         ].copy()
         
         if len(free_kicks) == 0:
-            print(f"No hay faltas {zone_filter} (x>{x_threshold}) para {team_name}")
+            pass
             return None
         
         # Crear figura
@@ -180,7 +179,7 @@ class FreeKicksAnalysis:
             with open('assets/jugadores_optimizados.json', 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("âš ï¸ No se encontrÃ³ el archivo jugadores_optimizados.json")
+            pass
             return []
 
     def get_player_photo_with_team_filter(self, player_name, photos_data, team_filter):
@@ -261,7 +260,7 @@ class FreeKicksAnalysis:
             return data.astype(np.float32) / 255.0
         
         except Exception as e:
-            print(f"âš ï¸ Error procesando foto de {player_name}: {e}")
+            pass
             return None
 
     def match_player_name(self, player_name, photos_data, team_filter=None):
@@ -538,19 +537,15 @@ class FreeKicksAnalysis:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
             
-            print(f"âœ… Datos filtrados cargados: {len(self.df)} eventos")
 
             # *** AÃ‘ADIR ESTE DEBUG ***
-            print("\n=== DEBUG FALTAS ===")
             if 'Free kick taken' in self.df.columns:
-                print(f"Columna 'Free kick taken' encontrada")
+                pass
                 fk_values = self.df['Free kick taken'].value_counts()
-                print(f"Valores Ãºnicos en 'Free kick taken': {fk_values}")
             
             if 'Zone' in self.df.columns:
-                print(f"Columna 'Zone' encontrada")
+                pass
                 zone_values = self.df['Zone'].value_counts()
-                print(f"Valores Ãºnicos en 'Zone': {zone_values}")
             
             # Contar potenciales faltas
             potential_fks = self.df[
@@ -558,22 +553,19 @@ class FreeKicksAnalysis:
                 (self.df['x'] > 50) &
                 (self.df.get('Zone', '') == 'Center')
             ]
-            print(f"Faltas potenciales (Free kick taken=Sí­, x>50, Zone=Center): {len(potential_fks)}")
             
             if len(potential_fks) == 0:
-                print("Probando otros filtros...")
+                pass
                 # Probar sin filtro Zone
                 potential_fks2 = self.df[
                     (self.df.get('Free kick taken', '') == 'Sí­') &
                     (self.df['x'] > 50)
                 ]
-                print(f"Solo Free kick taken=Sí­ y x>50: {len(potential_fks2)}")
                 
                 if len(potential_fks2) > 0:
-                    print("Zonas de estas faltas:")
-                    print(potential_fks2['Zone'].value_counts())
+                    pass
         except Exception as e:
-            print(f"âŒ Error al cargar los datos: {e}")
+            pass
 
     def normalize_timestamp(self, timestamp):
         """Normaliza timestamps quitando la Z final si existe"""
@@ -618,20 +610,16 @@ class FreeKicksAnalysis:
     def extract_free_kicks_data(self, team_filter=None):
         """Extrae datos de faltas ofensivas lejanas desde zonas 12, 13 y 14"""
         if self.df is None:
-            print("â Œ No hay datos cargados")
+            pass
             return
 
-        print("ðŸ”  Extrayendo datos de faltas ofensivas desde zonas 12, 13 y 14...")
-        print(f"Total eventos en df: {len(self.df)}")
 
         if team_filter:
             team_matches = set(self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique())
-            print(f"Partidos de {team_filter}: {len(team_matches)}")
 
         df_sorted = self.df.sort_values(['Match ID', 'periodId', 'timeStamp']).reset_index(drop=True)
 
         # --- CAMBIO 1: CALCULAR LA ZONA DE INICIO PARA TODOS LOS EVENTOS ---
-        print("ðŸ”  Calculando zona de inicio para los eventos...")
         df_sorted['start_zone'] = df_sorted.apply(
             lambda row: self.get_zone_for_coordinates(row['x'], row['y']),
             axis=1
@@ -689,23 +677,20 @@ class FreeKicksAnalysis:
                 free_kicks_list.append(free_kick_data)
                 
             except (ValueError, TypeError) as e:
-                print(f"âš ï¸  Error procesando falta: {e}")
+                pass
                 continue
 
         # Crear DataFrame final
         if free_kicks_list:
             self.free_kicks_data = pd.DataFrame(free_kicks_list)
-            print(f"âœ… Total de faltas extraÃ­das desde zonas 12, 13 y 14: {len(self.free_kicks_data)}")
 
             if 'result_type' in self.free_kicks_data.columns:
-                print("\nðŸ“Š Resumen por tipo de resultado:")
-                print(self.free_kicks_data['result_type'].value_counts())
+                pass
                 
             if 'zone' in self.free_kicks_data.columns:
-                print("\nðŸ“Š Resumen por zona de lanzamiento:")
-                print(self.free_kicks_data['zone'].value_counts().sort_index())
+                pass
         else:
-            print("â Œ No se encontraron faltas desde las zonas 12, 13 o 14.")
+            pass
 
     def analyze_free_kick_sequence(self, match_events, free_kick):
         """Analiza la secuencia posterior a la falta"""
@@ -830,7 +815,7 @@ class FreeKicksAnalysis:
             from PIL import Image
             import numpy as np
         except ImportError:
-            print("âš ï¸ PIL no estÃ¡ instalado. Usando mÃ©todo original sin redimensiÃ³n.")
+            pass
             return self._load_team_logo_original(equipo)
         
         possible_names = [
@@ -879,7 +864,7 @@ class FreeKicksAnalysis:
                     
                     return np.array(final_img) / 255.0
             except Exception as e:
-                print(f"âš ï¸ Error procesando {logo_path}: {e}")
+                pass
                 return self._load_team_logo_original(equipo)
         
         return None
@@ -914,7 +899,7 @@ class FreeKicksAnalysis:
     def prepare_free_kicks_data(self, team_filter=None):
         """Prepara datos de faltas para visualizaciÃ³n"""
         if self.free_kicks_data.empty:
-            print("âŒ No hay datos de faltas para preparar")
+            pass
             return {}
 
         # Estructura para organizar los datos por zona y posiciÃ³n
@@ -958,11 +943,10 @@ class FreeKicksAnalysis:
             zone_data[zone][team_pos].append(point_data)
 
 
-        print("\nðŸ“Š Resumen de faltas preparadas por zona:")
         for zone, data in zone_data.items():
             home_count, away_count = len(data['home']), len(data['away'])
             if home_count + away_count > 0:
-                print(f"  Zona {zone}: home={home_count}, away={away_count}")
+                pass
 
         return zone_data
     
@@ -1257,11 +1241,9 @@ class FreeKicksAnalysis:
     def print_summary(self, team_filter=None):
         """Imprime resumen de faltas"""
         if self.free_kicks_data.empty:
-            print("No hay datos de faltas para mostrar")
+            pass
             return
         
-        print(f"\n=== RESUMEN DE FALTAS OFENSIVAS LEJANAS ===")
-        print(f"Total de faltas: {len(self.free_kicks_data)}")
         
         if team_filter:
             team_free_kicks = self.free_kicks_data[self.free_kicks_data['Team Name'] == team_filter]
@@ -1270,16 +1252,12 @@ class FreeKicksAnalysis:
                     self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 )) & (self.free_kicks_data['Team Name'] != team_filter)
             ]
-            print(f"\nFaltas de {team_filter}: {len(team_free_kicks)}")
-            print(f"Faltas de rivales: {len(rival_free_kicks)}")
             
             if not team_free_kicks.empty and 'result_type' in team_free_kicks.columns:
-                print(f"\nResultados de faltas de {team_filter}:")
-                print(team_free_kicks['result_type'].value_counts())
+                pass
         
         if 'zone' in self.free_kicks_data.columns:
-            print("\nDistribuciÃ³n por zona:")
-            print(self.free_kicks_data['zone'].value_counts().sort_index())
+            pass
 
 def seleccionar_equipo_interactivo():
     """SelecciÃ³n interactiva de equipo"""
@@ -1287,12 +1265,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÃ“N DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1300,22 +1277,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un nÃºmero entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un nÃºmero vÃ¡lido")
+                pass
     except Exception as e:
-        print(f"Error en la selecciÃ³n: {e}")
+        pass
         return None
 
 def main():
     """FunciÃ³n principal"""
     try:
-        print("=== GENERADOR DE REPORTES DE ANÁLISIS DE FALTAS OFENSIVAS LEJANAS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selecciÃ³n.")
+            pass
             return
         
-        print(f"\nGenerando reporte para {equipo}")
         analyzer = FreeKicksAnalysis(team_filter=equipo)
         analyzer.print_summary(team_filter=equipo)
         
@@ -1324,12 +1300,11 @@ def main():
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
             output_path = f"reporte_faltas_lejanas_{equipo_filename}.pdf"
             analyzer.guardar_sin_espacios(fig, output_path)
-            print(f"âœ… Reporte guardado como: {output_path}")
         else:
-            print("âŒ No se pudo generar la visualizaciÃ³n")
+            pass
             
     except Exception as e:
-        print(f"âŒ Error en la ejecuciÃ³n: {e}")
+        pass
         import traceback
         traceback.print_exc()
 
@@ -1347,21 +1322,19 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 equipo_filename = equipo.replace(' ', '_').replace('/', '_')
                 output_path = f"reporte_faltas_lejanas_{equipo_filename}.pdf"
                 analyzer.guardar_sin_espacios(fig, output_path)
-                print(f"âœ… Reporte guardado como: {output_path}")
             return fig
         else:
-            print("âŒ No se pudo generar la visualizaciÃ³n")
+            pass
             return None
             
     except Exception as e:
-        print(f"âŒ Error: {e}")
+        pass
         import traceback
         traceback.print_exc()
         return None
 
 def verificar_assets():
     """Verificar assets necesarios"""
-    print("\n=== VERIFICACIÃ“N DE ASSETS ===")
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -1372,30 +1345,28 @@ def verificar_assets():
     ]
     for file_path in files_to_check:
         if os.path.exists(file_path):
-            print(f"âœ… Encontrado: {file_path}")
+            pass
         else:
-            print(f"âŒ Faltante: {file_path}")
+            pass
     
     if os.path.exists('assets/escudos'):
         escudos = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
         if escudos:
-            print(f"âœ… Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+            pass
         else:
-            print("âš ï¸  No hay escudos en el directorio")
+            pass
     else:
-        print("âš ï¸  Directorio de escudos no existe")
+        pass
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE REPORTES DE FALTAS OFENSIVAS FRONTALES ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\nâœ… Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("ðŸ” Para generar un reporte ejecuta: main()")
-            print("ðŸ” Para uso directo: generar_reporte_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
-        print(f"âŒ Error al inicializar: {e}")
+        pass
     
     main()

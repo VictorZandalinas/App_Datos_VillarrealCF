@@ -53,7 +53,8 @@ class CampoFutbolAcumulado:
             
             available_optional = [col for col in optional_columns if col in self.opta_df.columns]
             if available_optional:
-            
+                pass
+
             # Normalizar nombres de equipos en Opta
             if 'Team Name' in self.opta_df.columns:
                 self.opta_df['Team Name Normalized'] = self.opta_df['Team Name'].apply(self.normalize_text)
@@ -403,7 +404,7 @@ class CampoFutbolAcumulado:
             
             
             if pd.isna(opta_position_raw) or opta_position_raw == "Substitute" or str(opta_position_raw).strip() == "":
-                print(f"   🔄 {player_alias}: Posición Opta inválida ({opta_position_raw}), usando MediaCoach fallback")
+                pass
                 return None  # Esto hará que use el fallback de MediaCoach
 
             has_centre = self.has_striker_centre_in_match(team_name, opta_week)
@@ -416,7 +417,7 @@ class CampoFutbolAcumulado:
             )
 
             if opta_position:
-                print(f"   ✅ {player_alias}: {opta_position} (Opta: {opta_position_raw} + {opta_position_side_raw})")
+                pass
                 return opta_position
             else:
                 print(f"   ❌ {player_alias}: Posición Opta no mapeada: {opta_position_raw} {opta_position_side_raw}")
@@ -583,13 +584,13 @@ class CampoFutbolAcumulado:
         for mc_var in mc_variations:
             for opta_var in opta_variations:
                 if mc_var.lower() == opta_var.lower():
-                    print(f"     🎯 MATCH exacto: '{mc_var}' = '{opta_var}'")
+                    pass
                     return True
         
         # Si no hay coincidencia exacta, usar similitud como fallback
         similarity = self.enhanced_team_similarity(mediacoach_team, opta_team)
         if similarity > 0.7:
-            print(f"     🎯 MATCH por similitud: {similarity:.2f}")
+            pass
             return True
         
         return False
@@ -599,7 +600,6 @@ class CampoFutbolAcumulado:
         if self.opta_df is None or player_dorsal is None:
             return None
         
-        print(f"   🔍 {player_alias}: Buscando en TODAS las jornadas para equipo '{team_name}'...")
 
     def __init__(self, data_path="extraccion_mediacoach/data/rendimiento_fisico.parquet"):
         """
@@ -724,7 +724,6 @@ class CampoFutbolAcumulado:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"✅ Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
             
@@ -779,7 +778,6 @@ class CampoFutbolAcumulado:
             return jornada
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
-        print(f"✅ Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
         
     def get_available_teams(self):
         """Retorna la lista de equipos disponibles"""
@@ -800,7 +798,6 @@ class CampoFutbolAcumulado:
     
     def fill_missing_demarcaciones(self, df):
         """Rellena demarcaciones vacías con la más frecuente para cada jugador"""
-        print("🔄 Rellenando demarcaciones vacías...")
         
         # Crear copia para trabajar
         df_work = df.copy()
@@ -810,7 +807,7 @@ class CampoFutbolAcumulado:
         empty_count = mask_empty.sum()
         
         if empty_count > 0:
-            print(f"📝 Encontrados {empty_count} registros con demarcación vacía")
+            pass
             
             # Para cada jugador con demarcación vacía, buscar su demarcación más frecuente
             for idx in df_work[mask_empty].index:
@@ -829,7 +826,6 @@ class CampoFutbolAcumulado:
                     # Usar la demarcación más frecuente
                     demarcacion_mas_frecuente = jugador_demarcaciones.value_counts().index[0]
                     df_work.loc[idx, 'Demarcacion'] = demarcacion_mas_frecuente
-                    print(f"   ✅ {jugador_alias}: {demarcacion_mas_frecuente} (histórico)")
                 else:
                     # Si no hay datos históricos, asignar "Sin Posición"
                     df_work.loc[idx, 'Demarcacion'] = 'Sin Posición'
@@ -887,7 +883,6 @@ class CampoFutbolAcumulado:
         filtered_df = self.fill_missing_demarcaciones(filtered_df)
         
         # ✅ NUEVO: HACER MATCHING DE OPTA ANTES DE ACUMULAR
-        print(f"🎯 Buscando posiciones Opta para {equipo}...")
         filtered_df['Opta_Position'] = None  # Nueva columna
         
         for idx, row in filtered_df.iterrows():
@@ -911,7 +906,6 @@ class CampoFutbolAcumulado:
             return None
         
         # Agrupar por jugador y calcular estadísticas acumuladas
-        print(f"🔄 Procesando datos acumulados por jugador para {equipo}...")
         
         accumulated_data = []
         
@@ -974,13 +968,11 @@ class CampoFutbolAcumulado:
                     'Velocidad Máxima 2P': jugador_data_filtered.get('Velocidad Máxima 2P', pd.Series([0])).max(),
                 }
                 
-                print(f"   ✅ {jugador}: {final_position} ({position_source})")
                 accumulated_data.append(accumulated_record)
         
         # Convertir a DataFrame
         if accumulated_data:
             result_df = pd.DataFrame(accumulated_data)
-            print(f"✅ {len(result_df)} jugadores con al menos 1 partido de {min_avg_minutes}+ minutos")
             return result_df
         else:
             print(f"❌ No hay jugadores con al menos 1 partido de {min_avg_minutes}+ minutos para {equipo}")
@@ -1049,7 +1041,7 @@ class CampoFutbolAcumulado:
         if best_match:
             logo_path = f"{escudos_dir}/{best_match}"
             try:
-                print(f"Escudo encontrado por similitud: {logo_path} (similitud: {best_similarity:.2f})")
+                pass
                 return plt.imread(logo_path)
             except:
                 pass
@@ -1061,13 +1053,11 @@ class CampoFutbolAcumulado:
                 if len(name) > 3 and (name in file_norm or file_norm in name):
                     logo_path = f"{escudos_dir}/{filename}"
                     try:
-                        print(f"Escudo encontrado por contención: {logo_path}")
+                        pass
                         return plt.imread(logo_path)
                     except:
                         continue
         
-        print(f"No se encontró escudo para: {equipo}")
-        print(f"Archivos disponibles: {available_files}")
         return None
 
     def get_team_colors(self, equipo):
@@ -1110,7 +1100,6 @@ class CampoFutbolAcumulado:
             'SEGUNDO_DELANTERO': [],
         }
         
-        print("🎯 Agrupando jugadores por posiciones finales...")
         
         for _, player in filtered_df_sorted.iterrows():
             player_dict = player.to_dict()
@@ -1120,14 +1109,12 @@ class CampoFutbolAcumulado:
             position = player_dict.get('Final_Position', 'MC_BOX_TO_BOX')
             source = player_dict.get('Position_Source', 'Unknown')
             
-            print(f"   ✅ {player_alias}: {position} ({source})")
             
             # Agrupar por posiciones específicas
             if position in grouped_players:
                 grouped_players[position].append(player_dict)
         
         # 🔥 BALANCEO DE CENTRALES MEJORADO
-        print("⚖️ Balanceando centrales...")
         centrales_derecho = grouped_players['CENTRAL_DERECHO']
         centrales_izquierdo = grouped_players['CENTRAL_IZQUIERDO']
         
@@ -1138,17 +1125,14 @@ class CampoFutbolAcumulado:
                 jugador_a_mover = min(centrales_derecho, key=lambda x: x['Minutos jugados'])
                 grouped_players['CENTRAL_IZQUIERDO'].append(jugador_a_mover)
                 grouped_players['CENTRAL_DERECHO'].remove(jugador_a_mover)
-                print(f"   ⚖️ {jugador_a_mover['Alias']} movido a Central Izquierdo (balanceo)")
             
             elif len(centrales_izquierdo) > len(centrales_derecho) + 1:
                 # Mover el que menos minutos tenga a derecho
                 jugador_a_mover = min(centrales_izquierdo, key=lambda x: x['Minutos jugados'])
                 grouped_players['CENTRAL_DERECHO'].append(jugador_a_mover)
                 grouped_players['CENTRAL_IZQUIERDO'].remove(jugador_a_mover)
-                print(f"   ⚖️ {jugador_a_mover['Alias']} movido a Central Derecho (balanceo)")
         
         # 🔥 DIVISIÓN DE DELANTEROS MEJORADA
-        print("⚽ Dividiendo delanteros...")
         delanteros = grouped_players['DELANTERO_CENTRO']
         
         if len(delanteros) > 2:  # Si hay más de 2 delanteros
@@ -1163,7 +1147,6 @@ class CampoFutbolAcumulado:
             grouped_players['DELANTERO_CENTRO'] = primer_grupo
             grouped_players['SEGUNDO_DELANTERO'] = segundo_grupo
             
-            print(f"   ⚽ Divididos: {len(primer_grupo)} en Delantero Centro, {len(segundo_grupo)} en Segundo Delantero")
         else:
             grouped_players['SEGUNDO_DELANTERO'] = []
         
@@ -1210,13 +1193,11 @@ class CampoFutbolAcumulado:
         # Es dominante si ha jugado >30% de sus minutos en esa posición
         dominance_ratio = target_minutes / total_minutes if total_minutes > 0 else 0
         
-        print(f"     📈 {player_dict.get('Alias', '')}: {target_minutes:.0f}/{total_minutes:.0f} min en {target_position} ({dominance_ratio:.1%})")
         
         return dominance_ratio > 0.3  # 30% de sus minutos
     
     def create_campo_sin_espacios(self, figsize=(11.69, 8.27)):
         """Crea el campo que ocupe TODA la página sin espacios"""
-        print("🎯 Creando campo SIN espacios...")
         
         # Crear pitch sin padding
         pitch = Pitch(
@@ -1344,7 +1325,6 @@ class CampoFutbolAcumulado:
                 
                 ax.add_artist(ab)
                 
-                print(f"✅ Escudo añadido en celda de métricas")
             except Exception as e:
                 print(f"⚠️  Error al añadir escudo en celda: {e}")
 
@@ -1599,7 +1579,6 @@ class CampoFutbolAcumulado:
             ax.add_artist(ab)
         
         # Agrupar jugadores por posiciones específicas CON NUEVA LÓGICA
-        print("🔄 Aplicando lógica mejorada de distribución...")
         villarreal_grouped = self.group_players_by_specific_position(villarreal_data)
         rival_grouped = self.group_players_by_specific_position(rival_data)
 
@@ -1659,7 +1638,6 @@ class CampoFutbolAcumulado:
             format='pdf' if filename.endswith('.pdf') else 'png',
             transparent=False
         )
-        print(f"✅ Archivo guardado SIN espacios: {filename}")
 
 def seleccionar_equipo_jornadas_campo():
     """Permite al usuario seleccionar un equipo rival y jornadas"""
@@ -1674,9 +1652,8 @@ def seleccionar_equipo_jornadas_campo():
             print("❌ No se encontraron equipos rivales en los datos.")
             return None, None
         
-        print("\n=== SELECCIÓN DE EQUIPO RIVAL - POSICIONES MEJORADAS ===")
         for i, equipo in enumerate(equipos_rival, 1):
-            print(f"{i:2d}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1693,7 +1670,6 @@ def seleccionar_equipo_jornadas_campo():
         
         # Obtener jornadas disponibles
         jornadas_disponibles = report_generator.get_available_jornadas()
-        print(f"\nJornadas disponibles: {jornadas_disponibles}")
         
         # Preguntar cuántas jornadas incluir
         while True:
@@ -1718,7 +1694,7 @@ def seleccionar_equipo_jornadas_campo():
 def main_campo_futbol():
     """Función principal para generar el informe con posiciones mejoradas"""
     try:
-        print("🏟️ === GENERADOR DE INFORMES - POSICIONES MEJORADAS ===")
+        pass
         
         # Selección interactiva
         equipo_rival, jornadas = seleccionar_equipo_jornadas_campo()
@@ -1727,8 +1703,6 @@ def main_campo_futbol():
             print("❌ No se pudo completar la selección.")
             return
         
-        print(f"\n🔄 Generando reporte con POSICIONES MEJORADAS para Villarreal CF vs {equipo_rival}")
-        print(f"📅 Jornadas: {jornadas}")
         
         # Crear el reporte
         report_generator = CampoFutbolAcumulado()
@@ -1776,20 +1750,12 @@ def generar_reporte_campo_personalizado(equipo_rival, jornadas, mostrar=True, gu
         return None
 
 # Inicialización
-print("🏟️ === INICIALIZANDO GENERADOR DE POSICIONES MEJORADAS ===")
 try:
     report_generator = CampoFutbolAcumulado()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema de POSICIONES MEJORADAS listo. Equipos disponibles: {len(equipos)}")
     
     if len(equipos) > 0:
-        print("📝 Para generar un reporte con POSICIONES MEJORADAS ejecuta: main_campo_futbol()")
-        print("📝 Para uso directo: generar_reporte_campo_personalizado('Equipo_Rival', [33,34,35])")
-        print("\n🔥 NUEVAS CARACTERÍSTICAS:")
-        print("   • Mediapuntas también aparecen en MC Box to Box")
-        print("   • Balanceo automático de centrales derecho/izquierdo")
-        print("   • Distribución inteligente entre delantero centro y segundo delantero")
-        print("   • Considera historial de posiciones para decisiones de reubicación")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

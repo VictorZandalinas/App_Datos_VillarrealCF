@@ -34,7 +34,6 @@ class XGFaltasIndirectasReport:
         """Exporta las secuencias completas a CSV"""
         if self.sequences_data is not None and not self.sequences_data.empty:
             self.sequences_data.to_csv(filename, index=False, encoding='utf-8')
-            print(f"✅ Secuencias guardadas en: {filename}")
         else:
             print("❌ No hay secuencias para exportar")
     
@@ -53,7 +52,6 @@ class XGFaltasIndirectasReport:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
     
     def normalize_timestamp(self, timestamp):
         """Normaliza timestamps quitando la Z final si existe"""
@@ -80,7 +78,6 @@ class XGFaltasIndirectasReport:
                 return
             self.match_events_df = pd.read_parquet(self.match_events_path)
             self.match_events_df['timeStamp'] = self.match_events_df['timeStamp'].apply(self.normalize_timestamp)
-            print(f"✅ Match events cargados: {self.match_events_df.shape[0]} filas")
             
             # Cargar xG events
             if not os.path.exists(self.xg_events_path):
@@ -88,12 +85,10 @@ class XGFaltasIndirectasReport:
                 return
             self.xg_events_df = pd.read_parquet(self.xg_events_path)
             self.xg_events_df['timeStamp'] = self.xg_events_df['timeStamp'].apply(self.normalize_timestamp)
-            print(f"✅ xG events cargados: {self.xg_events_df.shape[0]} filas")
             
             # Team stats (opcional)
             if os.path.exists(self.team_stats_path):
                 self.team_stats_df = pd.read_parquet(self.team_stats_path)
-                print(f"✅ Team stats cargados: {self.team_stats_df.shape[0]} filas")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -132,7 +127,6 @@ class XGFaltasIndirectasReport:
             print("❌ No se pueden procesar datos: archivos faltantes")
             return
         
-        print("🔍 Extrayendo secuencias de faltas indirectas con xG...")
         
         # Obtener todos los equipos
         teams = self.match_events_df['Team Name'].dropna().unique()
@@ -198,14 +192,12 @@ class XGFaltasIndirectasReport:
         # Crear DataFrames
         if falta_xg_list:
             self.falta_xg_data = pd.DataFrame(falta_xg_list)
-            print(f"✅ Secuencias de faltas indirectas con xG extraídas: {len(self.falta_xg_data)}")
         else:
             print("❌ No se encontraron secuencias de faltas indirectas con xG")
             self.falta_xg_data = pd.DataFrame()
         
         if sequences_list:
             self.sequences_data = pd.DataFrame(sequences_list)
-            print(f"✅ Secuencias completas extraídas: {len(self.sequences_data)} eventos")
         else:
             self.sequences_data = pd.DataFrame()  
     
@@ -245,7 +237,6 @@ class XGFaltasIndirectasReport:
         # Rellenar valores faltantes
         team_stats = team_stats.fillna(0)
         
-        print(f"\n📊 Estadísticas calculadas para {len(team_stats)} equipos")
         
         if equipo_seleccionado:
             equipo_data = team_stats[team_stats['Team Name'] == equipo_seleccionado]
@@ -283,12 +274,11 @@ class XGFaltasIndirectasReport:
         if best_match:
             try:
                 logo_path = f"assets/escudos/{best_match}"
-                print(f"Escudo encontrado para {equipo}: {best_match} (similitud: {best_similarity:.2f})")
                 escudo_original = plt.imread(logo_path)
                 escudo_redimensionado = self.resize_image_to_fixed_size(escudo_original, target_size=100)
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
     
@@ -418,7 +408,7 @@ class XGFaltasIndirectasReport:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
     
     def convert_to_grayscale(self, image):
@@ -436,7 +426,7 @@ class XGFaltasIndirectasReport:
                 gray = np.dot(image, [0.2989, 0.5870, 0.1140])
                 return np.stack([gray, gray, gray], axis=2)
         except Exception as e:
-            print(f"Error al convertir a escala de grises: {e}")
+            pass
             return image
     
     def similarity(self, a, b):
@@ -450,7 +440,7 @@ class XGFaltasIndirectasReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -461,7 +451,7 @@ class XGFaltasIndirectasReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
     
@@ -491,7 +481,7 @@ class XGFaltasIndirectasReport:
         # Obtener datos de xG
         team_stats, equipo_data = self.get_team_xg_falta_stats(equipo_seleccionado)
         if team_stats is None:
-            print("No se pudieron obtener las estadísticas de xG de faltas indirectas")
+            pass
             return None
         
         # Crear figura
@@ -506,7 +496,7 @@ class XGFaltasIndirectasReport:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid - Ajustado para A4 horizontal
         gs = fig.add_gridspec(2, 4, 
@@ -665,7 +655,6 @@ class XGFaltasIndirectasReport:
             if is_selected or is_villarreal:
                 continue
                 
-            print(f"Procesando equipo normal {equipo}: x={x_val}, y={y_val}")
             
             escudo = self.find_team_logo_by_similarity(equipo)
             
@@ -677,7 +666,6 @@ class XGFaltasIndirectasReport:
                     imagebox = OffsetImage(escudo_bn, zoom=zoom_size, alpha=0.8)
                     ab = AnnotationBbox(imagebox, (x_val, y_val), frameon=False, pad=0, zorder=1)  # z-order bajo
                     ax.add_artist(ab)
-                    print(f"  → Escudo normal añadido para {equipo}")
                     continue
                 except Exception as e:
                     print(f"❌ Error al mostrar escudo para {equipo}: {e}")
@@ -697,7 +685,6 @@ class XGFaltasIndirectasReport:
             if not (is_selected or is_villarreal):
                 continue
                 
-            print(f"Procesando equipo destacado {equipo}: x={x_val}, y={y_val}")
             
             escudo = self.find_team_logo_by_similarity(equipo)
             
@@ -708,7 +695,6 @@ class XGFaltasIndirectasReport:
                     imagebox = OffsetImage(escudo, zoom=zoom_size, alpha=1.0)
                     ab = AnnotationBbox(imagebox, (x_val, y_val), frameon=False, pad=0, zorder=10)  # z-order alto
                     ax.add_artist(ab)
-                    print(f"  → Escudo destacado añadido para {equipo}")
                     continue
                 except Exception as e:
                     print(f"❌ Error al mostrar escudo para {equipo}: {e}")
@@ -734,7 +720,6 @@ class XGFaltasIndirectasReport:
         ax.set_xlim(x_min - x_margin, x_max + x_margin)
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
         
-        print(f"Límites del gráfico: x=[{x_min - x_margin:.1f}, {x_max + x_margin:.1f}], y=[{y_min - y_margin:.1f}, {y_max + y_margin:.1f}]")
         
         ax.grid(True, alpha=0.3)
         ax.spines['top'].set_visible(False)
@@ -749,7 +734,6 @@ def verificar_datos_xg_faltas_disponibles():
         'team_stats': "./extraccion_opta/datos_opta_parquet/team_stats.parquet"
     }
     
-    print("=== VERIFICACIÓN DE DATOS PARA XG FALTAS INDIRECTAS ===")
     
     available_data = {}
     for name, path in paths_to_check.items():
@@ -757,25 +741,20 @@ def verificar_datos_xg_faltas_disponibles():
             try:
                 df = pd.read_parquet(path)
                 available_data[name] = df
-                print(f"✅ {name}: {df.shape[0]} filas, {df.shape[1]} columnas")
                 
                 if name == 'match_events':
                     if 'Free kick taken' in df.columns:
-                        print(f"   ✅ Columna 'Free kick taken' encontrada")
+                        pass
                         faltas_si = (df['Free kick taken'] == 'Sí').sum()
-                        print(f"   📊 Faltas indirectas tomadas: {faltas_si}")
                     else:
                         print(f"   ❌ Columna 'Free kick taken' NO encontrada")
-                        print(f"   📋 Columnas disponibles: {list(df.columns)}")
                         
                 if name == 'xg_events':
                     if 'qualifier 321' in df.columns:
-                        print(f"   ✅ Columna 'qualifier 321' encontrada")
+                        pass
                         non_null_xg = df['qualifier 321'].notna().sum()
-                        print(f"   📊 Valores xG no nulos: {non_null_xg}")
                     else:
                         print(f"   ❌ Columna 'qualifier 321' NO encontrada")
-                        print(f"   📋 Columnas disponibles: {list(df.columns)}")
                         
             except Exception as e:
                 print(f"❌ Error al cargar {name}: {e}")
@@ -791,12 +770,11 @@ def seleccionar_equipo_interactivo_faltas():
         equipos = sorted(df['Team Name'].dropna().unique())
         
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO PARA XG FALTAS INDIRECTAS ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -805,17 +783,16 @@ def seleccionar_equipo_interactivo_faltas():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
                 
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal para ejecutar el reporte de xG faltas indirectas"""
-    print("=== GENERADOR DE REPORTES DE XG FALTAS INDIRECTAS OFENSIVAS ===")
     
     # Verificar datos disponibles
     available_data = verificar_datos_xg_faltas_disponibles()
@@ -828,7 +805,6 @@ def main():
     if not equipo_seleccionado:
         return
     
-    print(f"\n📄 Generando reporte de xG faltas indirectas para: {equipo_seleccionado}")
     
     # Crear reporte
     try:
@@ -848,7 +824,6 @@ def main():
             output_path = f"reporte_xg_faltas_indirectas_{equipo_filename}.pdf"
             report_generator.guardar_sin_espacios(fig, output_path)
             
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             

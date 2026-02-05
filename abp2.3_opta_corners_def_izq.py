@@ -76,9 +76,7 @@ class LanzamientosLadoIzquierdo:
                     (self.df['Match ID'].isin(team_matches)) & 
                     (self.df['Team Name'] != team_filter)
                 ]
-                print(f"🔍 Equipos rivales encontrados: {self.df['Team Name'].unique()}")
             
-            print(f"✅ Datos filtrados cargados: {len(self.df)} eventos")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -88,7 +86,6 @@ class LanzamientosLadoIzquierdo:
             print("❌ No hay datos cargados")
             return
         
-        print("🔍 Extrayendo lanzamientos del lado izquierdo...")
         
         # Ordenar datos una sola vez
         df_sorted = self.df.sort_values(['Match ID', 'timeMin', 'timeSec']).reset_index(drop=True)
@@ -139,26 +136,19 @@ class LanzamientosLadoIzquierdo:
                 lanzamiento_data.update(result_data)
                 lanzamientos_list.append(lanzamiento_data)
         # Debug: Verificar qué hay en los datos
-        print(f"\n🔍 DEBUG - Analizando {len(df_sorted)} eventos totales")
         
         # Verificar valores únicos en Corner taken
         corner_values = df_sorted['Corner taken'].value_counts(dropna=False)
-        print(f"📊 Valores en 'Corner taken': {dict(corner_values)}")
         
         # Verificar si hay corners en general
         corners_encontrados = df_sorted[df_sorted.get('Corner taken', '').notna()]
-        print(f"🎯 Total eventos con Corner taken no-nulo: {len(corners_encontrados)}")
         
         # Verificar coordenadas Y para eventos con corners
         if not corners_encontrados.empty:
             y_values = corners_encontrados['y'].describe()
-            print(f"📍 Coordenadas Y de corners:")
-            print(f"   Min: {y_values['min']}, Max: {y_values['max']}")
-            print(f"   Media: {y_values['mean']:.1f}")
             
             # Verificar específicamente si hay y > 99
             lado_izq_y = corners_encontrados[corners_encontrados['y'] > 99]
-            print(f"🎯 Corners con y > 99: {len(lado_izq_y)}")
 
         # Crear DataFrame final
         if lanzamientos_list:
@@ -167,42 +157,30 @@ class LanzamientosLadoIzquierdo:
             # AÑADIR ESTA LÍNEA PARA ELIMINAR DUPLICADOS:
             self.lanzamientos_data = self.lanzamientos_data.drop_duplicates(subset=['Match ID', 'timeMin', 'timeSec'], keep='first')
             
-            print(f"✅ Total de lanzamientos del lado izquierdo extraídos: {len(self.lanzamientos_data)}")
             
-            print("\n📊 Resumen por tipo de resultado:")
-            print(self.lanzamientos_data['result_type'].value_counts())
             
         else:
             print("❌ No se encontraron lanzamientos")
-            print("🔍 Verificando condiciones paso a paso...")
         
             # Test diferentes valores para Corner taken
             for test_value in ['Sí', 'Si', 'YES', 'Yes', 'yes', '1', True]:
                 test_corners = df_sorted[df_sorted.get('Corner taken', '') == test_value]
                 if not test_corners.empty:
-                    print(f"✅ Encontrados {len(test_corners)} eventos con Corner taken = '{test_value}'")
+                    pass
 
 
     def debug_lanzamientos(self, team_filter=None):
         """Debug detallado de lanzamientos extraídos"""
         if self.lanzamientos_data.empty:
-            print("No hay datos para debuggear")
+            pass
             return
         
         team_data = self.lanzamientos_data
         
-        print(f"\n=== DEBUG LANZAMIENTOS RIVALES DE {team_filter} ===")
         for idx, row in team_data.iterrows():
-            print(f"\nLanzamiento {idx+1}:")
-            print(f"  Match ID: {row['Match ID']}")
-            print(f"  Tiempo: {row['timeMin']}:{row['timeSec']:02d}")
-            print(f"  Lanzador: {row['playerName']}")
-            print(f"  Coordenadas inicio: ({row['x']}, {row['y']})")
-            print(f"  Coordenadas final: ({row['final_x']}, {row['final_y']})")
-            print(f"  Resultado: {row['result_type']}")
+            pass
             if row['goal_player']:
                 dorsal = self.get_player_shirt_number_by_name(row['goal_player'])
-                print(f"  Rematador: {row['goal_player']} (#{dorsal})")
            
     def analyze_lanzamiento_sequence(self, match_events, lanzamiento_idx, lanzamiento_pass):
         """
@@ -721,7 +699,6 @@ class LanzamientosLadoIzquierdo:
         if not player_parts['full']:
             return None
 
-        print(f"🔍 Buscando foto para: '{player_name}' (Normalizado: '{player_parts['full']}')")
         
         found_matches = []
         
@@ -740,19 +717,17 @@ class LanzamientosLadoIzquierdo:
                     "score": score,
                     "reason": reason
                 })
-                print(f"✅ Match potencial: '{photo_name}' (score: {score:.3f}) - Razón: {reason}")
                 
         # --- Lógica de desambiguación ---
         if len(found_matches) == 1:
             best_match = found_matches[0]
-            print(f"🎯 MATCH ÚNICO Y VÁLIDO ENCONTRADO: '{best_match['entry']['player_name']}' con score {best_match['score']:.3f}")
             return best_match['entry']
         
         elif len(found_matches) > 1:
             # Si hay múltiples matches con score alto, es ambiguo.
             print(f"⚠️  ADVERTENCIA: Se encontraron {len(found_matches)} matches de alta calidad para '{player_name}'. Se descarta por ambigüedad.")
             for match in sorted(found_matches, key=lambda x: x['score'], reverse=True):
-                print(f"  - Candidato: '{match['entry']['player_name']}' (Score: {match['score']:.2f}, Razón: {match['reason']})")
+                pass
             return None
             
         else:
@@ -1091,26 +1066,18 @@ class LanzamientosLadoIzquierdo:
     def print_summary(self, team_filter=None):
         """Imprime resumen de los datos"""
         if self.lanzamientos_data.empty:
-            print("No hay datos de lanzamientos para mostrar")
+            pass
             return
         
-        print(f"\n=== RESUMEN DE LANZAMIENTOS LADO IZQUIERDO ===")
-        print(f"Total de lanzamientos: {len(self.lanzamientos_data)}")
         
         if team_filter:
             # CAMBIO: Ya no filtrar por team_filter, usar todos los datos
             team_data = self.lanzamientos_data
-            print(f"\nLanzamientos de equipos rivales a {team_filter}: {len(team_data)}")
             if not team_data.empty:
-                print(f"\nDistribución por tipo de resultado:")
-                print(team_data['result_type'].value_counts())
+                pass
                 
-                print(f"\nEquipos rivales que lanzaron:")
-                print(team_data['Team Name'].value_counts())
 
                 # Top jugadores con más lanzamientos
-                print(f"\nTop 5 jugadores rivales con más lanzamientos:")
-                print(team_data['playerName'].value_counts().head())
 
 def seleccionar_equipo_interactivo():
     """Función para seleccionar equipo interactivamente"""
@@ -1118,12 +1085,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1131,22 +1097,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE CAMPOGRAMAS DE LANZAMIENTOS LADO IZQUIERDO ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando campogramas para {equipo}")
         analyzer = LanzamientosLadoIzquierdo(team_filter=equipo)
         analyzer.print_summary(team_filter=equipo)
         analyzer.debug_lanzamientos(team_filter=equipo)
@@ -1158,7 +1123,6 @@ def main():
             output_path = f"campogramas_lanzamientos_izquierda_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                        facecolor='white', dpi=300, orientation='landscape')
-            print(f"✅ Campogramas guardados como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -1181,7 +1145,6 @@ def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"campogramas_lanzamientos_izquierda_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300)
-                print(f"✅ Campogramas guardados como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")
@@ -1195,7 +1158,6 @@ def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
 
 def verificar_assets():
     """Verifica que todos los assets necesarios estén disponibles"""
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -1208,20 +1170,18 @@ def verificar_assets():
         print(f"✅ Encontrado: {file_path}" if os.path.exists(file_path) else f"❌ Faltante: {file_path}")
     
     if os.path.exists('assets/escudos') and (escudos := [f for f in os.listdir('assets/escudos') if f.endswith('.png')]):
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+        pass
     else:
         print("⚠️  No hay escudos en el directorio")
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE CAMPOGRAMAS DE LANZAMIENTOS ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("📝 Para generar campogramas ejecuta: main()")
-            print("📝 Para uso directo: generar_campogramas_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
     

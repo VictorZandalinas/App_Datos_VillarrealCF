@@ -28,7 +28,7 @@ plt.rcParams.update({
 try:
     from mplsoccer import Pitch
 except ImportError:
-    print("Instalando mplsoccer...")
+    pass
     import subprocess
     subprocess.check_call(["pip", "install", "mplsoccer"])
     from mplsoccer import Pitch
@@ -167,7 +167,6 @@ class CampoFutbolBarras:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"✅ Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
             
@@ -222,14 +221,12 @@ class CampoFutbolBarras:
             return jornada
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
-        print(f"✅ Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
 
     def load_opta_positions(self):
         """Carga las posiciones desde el archivo Opta"""
         try:
             opta_path = "extraccion_opta/datos_opta_parquet/player_stats.parquet"
             self.opta_df = pd.read_parquet(opta_path)
-            print(f"✅ Datos Opta cargados: {self.opta_df.shape[0]} filas")
             
             # Verificar columnas necesarias
             required_columns = ['Match Name', 'Team Name', 'Position', 'Position Side']
@@ -243,7 +240,7 @@ class CampoFutbolBarras:
             
             available_optional = [col for col in optional_columns if col in self.opta_df.columns]
             if available_optional:
-                print(f"✅ Columnas opcionales disponibles: {available_optional}")
+                pass
             
             # Normalizar nombres de equipos en Opta
             if 'Team Name' in self.opta_df.columns:
@@ -418,15 +415,14 @@ class CampoFutbolBarras:
             return None
         
         if player_dorsal is None:
-            print(f"   🔍 {player_alias}: Sin dorsal → no buscar en Opta")
+            pass
             return None
         
         opta_week = self.convert_jornada_to_week(jornada)
         if opta_week is None:
-            print(f"   🔍 {player_alias}: Jornada '{jornada}' no válida → no buscar en Opta")
+            pass
             return None
         
-        print(f"   🔍 {player_alias}: Buscando Dorsal={player_dorsal}, Week={opta_week}, Team≈{team_name}")
         
         for _, opta_player in self.opta_df.iterrows():
             # 1. VERIFICAR DORSAL
@@ -467,15 +463,13 @@ class CampoFutbolBarras:
             if not team_match:
                 continue
             
-            print(f"     ✅ MATCH TRIPLE: Dorsal={player_dorsal}, Week={opta_week}, Team={opta_team}")
 
             opta_position_raw = opta_player.get('Position')
             opta_position_side_raw = opta_player.get('Position Side')
             
-            print(f"     🔍 Opta Original: Position='{opta_position_raw}' | Position Side='{opta_position_side_raw}'")
             
             if pd.isna(opta_position_raw) or opta_position_raw == "Substitute" or str(opta_position_raw).strip() == "":
-                print(f"   🔄 {player_alias}: Posición Opta inválida ({opta_position_raw}), usando MediaCoach fallback")
+                pass
                 return None
                 
             opta_position = self.map_opta_position_to_system(
@@ -486,7 +480,7 @@ class CampoFutbolBarras:
             )
 
             if opta_position:
-                print(f"   ✅ {player_alias}: {opta_position} (Opta: {opta_position_raw} + {opta_position_side_raw})")
+                pass
                 return opta_position
             else:
                 print(f"   ❌ {player_alias}: Posición Opta no mapeada: {opta_position_raw} {opta_position_side_raw}")
@@ -525,7 +519,6 @@ class CampoFutbolBarras:
     
     def fill_missing_demarcaciones(self, df):
         """Rellena demarcaciones vacías con la más frecuente para cada jugador"""
-        print("🔄 Rellenando demarcaciones vacías...")
         
         # Crear copia para trabajar
         df_work = df.copy()
@@ -535,7 +528,7 @@ class CampoFutbolBarras:
         empty_count = mask_empty.sum()
         
         if empty_count > 0:
-            print(f"📝 Encontrados {empty_count} registros con demarcación vacía")
+            pass
             
             # Para cada jugador con demarcación vacía, buscar su demarcación más frecuente
             for idx in df_work[mask_empty].index:
@@ -554,7 +547,6 @@ class CampoFutbolBarras:
                     # Usar la demarcación más frecuente
                     demarcacion_mas_frecuente = jugador_demarcaciones.value_counts().index[0]
                     df_work.loc[idx, 'Demarcacion'] = demarcacion_mas_frecuente
-                    print(f"   ✅ {jugador_alias}: {demarcacion_mas_frecuente} (histórico)")
                 else:
                     # Si no hay datos históricos, asignar "Sin Posición"
                     df_work.loc[idx, 'Demarcacion'] = 'Sin Posición'
@@ -585,7 +577,6 @@ class CampoFutbolBarras:
         filtered_df = self.fill_missing_demarcaciones(filtered_df)
         
         # PASO 1: Buscar posiciones Opta para cada partido individual
-        print(f"🎯 Buscando posiciones Opta para {equipo}...")
         filtered_df['Opta_Position'] = None
         
         for idx, row in filtered_df.iterrows():
@@ -607,7 +598,6 @@ class CampoFutbolBarras:
             return None
         
         # PASO 2: Acumular datos y determinar la posición final
-        print(f"🔄 Procesando datos acumulados por jugador para {equipo}...")
         accumulated_data = []
         
         for jugador in filtered_df['Alias'].unique():
@@ -631,7 +621,6 @@ class CampoFutbolBarras:
                 player_key = (latest_record['Alias'], latest_record['Equipo'])
                 if player_key in self.player_position_overrides:
                     new_position = self.player_position_overrides[player_key]
-                    print(f"    manually overriding position for {player_key[0]} to {new_position}")
                     final_position = new_position
                     position_source = "Manual Override"
 
@@ -652,7 +641,6 @@ class CampoFutbolBarras:
                     'Velocidad Máxima Total': jugador_data_filtered['Velocidad Máxima Total'].max(),
                 }
                 
-                print(f"   ✅ {jugador}: {final_position} ({position_source})")
                 accumulated_data.append(accumulated_record)
         
         if accumulated_data:
@@ -683,13 +671,10 @@ class CampoFutbolBarras:
                     for idx in duplicates.index:
                         if idx != keep_idx:
                             to_remove.append(idx)
-                            print(f"   🗑️ Eliminando duplicado: {result_df.loc[idx, 'Alias']} (Dorsal {dorsal})")
                 
                 # Eliminar duplicados
                 result_df = result_df.drop(to_remove)
-                print(f"✅ Deduplicación completada. {len(result_df)} jugadores únicos.")
             
-            print(f"✅ {len(result_df)} jugadores con al menos 1 partido de {min_avg_minutes}+ minutos")
             return result_df
         else:
             print(f"❌ No hay jugadores con al menos 1 partido de {min_avg_minutes}+ minutos para {equipo}")
@@ -705,7 +690,7 @@ class CampoFutbolBarras:
         """
         escudos_dir = "assets/escudos"
         if not os.path.exists(escudos_dir):
-            print(f"Directorio de escudos no encontrado: {escudos_dir}")
+            pass
             return None
 
         # --- Nivel 1: MAPEO MANUAL (Máxima Prioridad) ---
@@ -723,11 +708,11 @@ class CampoFutbolBarras:
             for ext in ['.png', '.jpg', '.jpeg']:
                 logo_path = os.path.join(escudos_dir, f"{logo_filename}{ext}")
                 if os.path.exists(logo_path):
-                    print(f"✅ Escudo encontrado por Mapeo Manual: {logo_path}")
+                    pass
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo mapeado: {e}")
+                        pass
             print(f"⚠️ Advertencia: El archivo mapeado '{logo_filename}' no fue encontrado.")
 
         # --- Búsqueda Automática ---
@@ -738,11 +723,10 @@ class CampoFutbolBarras:
             file_base_norm = self.normalize_text(os.path.splitext(filename)[0])
             if file_base_norm == equipo_norm:
                 logo_path = os.path.join(escudos_dir, filename)
-                print(f"✅ Escudo encontrado por Coincidencia Exacta: {logo_path}")
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo por coincidencia exacta: {e}")
+                    pass
 
         # --- Nivel 3: COINCIDENCIA DE PALABRA LARGA ---
         MIN_WORD_LENGTH = 4 # Busca palabras con 5 o más letras
@@ -758,11 +742,10 @@ class CampoFutbolBarras:
                 # Comprueba si alguna palabra larga del equipo está en las palabras del nombre del archivo
                 if not team_long_words.isdisjoint(file_words):
                     logo_path = os.path.join(escudos_dir, original_filename)
-                    print(f"✅ Escudo encontrado por Palabra Larga Común ({team_long_words.intersection(file_words)}): {logo_path}")
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo por palabra larga: {e}")
+                        pass
 
         # --- Nivel 4: BÚSQUEDA POR SIMILITUD (Último Recurso) ---
         best_match_file = None
@@ -777,11 +760,10 @@ class CampoFutbolBarras:
         
         if best_match_file:
             logo_path = os.path.join(escudos_dir, best_match_file)
-            print(f"✅ Escudo encontrado por Similitud (score: {best_similarity:.2f}): {logo_path}")
             try:
                 return plt.imread(logo_path)
             except Exception as e:
-                print(f"Error al cargar escudo por similitud: {e}")
+                pass
 
         print(f"❌ No se encontró un escudo definitivo para: {equipo} (normalizado como: {equipo_norm})")
         return None
@@ -806,7 +788,6 @@ class CampoFutbolBarras:
         if filtered_df is None or 'Final_Position' not in filtered_df.columns:
             return {}
             
-        print("🎯 Agrupando jugadores por posiciones finales para los gráficos...")
         
         # Ordenar por Distancia Total para que los gráficos muestren de mayor a menor
         filtered_df_sorted = filtered_df.sort_values('Distancia Total', ascending=False)
@@ -816,13 +797,11 @@ class CampoFutbolBarras:
         # Agrupar por la nueva columna 'Final_Position'
         for position, group in filtered_df_sorted.groupby('Final_Position'):
             grouped_players[position] = group.to_dict('records')
-            print(f"   ✅ Grupo '{position}': {len(group)} jugadores")
             
         return grouped_players
     
     def create_campo_sin_espacios(self, figsize=(11.69, 8.27)):
         """Crea el campo que ocupe TODA la página sin espacios"""
-        print("🎯 Creando campo SIN espacios...")
         
         # Crear pitch sin padding
         pitch = Pitch(
@@ -886,7 +865,6 @@ class CampoFutbolBarras:
         Prioriza mover a jugadores que ya han jugado en la posición de destino.
         Si no, mueve al que menos minutos ha jugado en la posición actual.
         """
-        print("⚖️ Iniciando redistribución inteligente de jugadores...")
         
         redistributed_players = {pos: list(players) for pos, players in grouped_players.items()}
 
@@ -927,15 +905,13 @@ class CampoFutbolBarras:
                     if eligible_candidates:
                         eligible_candidates.sort(key=lambda p: p['Minutos jugados'])
                         player_to_move = eligible_candidates[0]
-                        print(f"   🔍 Criterio 1: {player_to_move['Alias']} elegido por haber jugado antes en {target_position}.")
 
                     if not player_to_move:
                         candidates.sort(key=lambda p: p['Minutos jugados'])
                         player_to_move = candidates[0]
-                        print(f"   🔍 Criterio 2: {player_to_move['Alias']} elegido por tener menos minutos en {position}.")
 
                     if player_to_move:
-                        print(f"   ⚖️ REDISTRIBUCIÓN: Moviendo a {player_to_move['Alias']} de {position} a {target_position}...")
+                        pass
                         
                         redistributed_players[position].remove(player_to_move)
                         
@@ -946,9 +922,8 @@ class CampoFutbolBarras:
                         made_a_change = True
                         break
             
-        print("✅ Redistribución finalizada.")
         for pos, players in redistributed_players.items():
-            print(f"   - {pos}: {len(players)} jugadores.")
+            pass
             
         return redistributed_players
     
@@ -957,7 +932,6 @@ class CampoFutbolBarras:
         if not players_list or len(players_list) < 1:
             return
         
-        print(f"🎯 Creando gráfico de barras para {demarcacion} con {len(players_list)} jugadores")
         
         if team_colors['primary'] == '#FFD700':
             texto_color = '#001A4B'  # Un azul oscuro
@@ -1371,14 +1345,12 @@ class CampoFutbolBarras:
         villarreal_colors = self.get_team_colors('Villarreal CF')
         rival_colors = self.get_team_colors(equipo_rival)
 
-        print(f"🔄 Creando {len(villarreal_by_position)} gráficos de barras para Villarreal CF")
         for position, players in villarreal_by_position.items():
             if players and position in self.coordenadas_graficos['villarreal']:
                 x, y = self.coordenadas_graficos['villarreal'][position]
                 self.create_position_graph(players, position, x, y, ax, 
                                          villarreal_colors, villarreal_logo)
 
-        print(f"🔄 Creando {len(rival_by_position)} gráficos de barras para {equipo_rival}")
         for position, players in rival_by_position.items():
             if players and position in self.coordenadas_graficos['rival']:
                 x, y = self.coordenadas_graficos['rival'][position]
@@ -1447,14 +1419,12 @@ class CampoFutbolBarras:
         rival_colors = self.get_team_colors(equipo_rival)
 
         # 🔥 CREAR GRÁFICOS EN LAS POSICIONES CORRECTAS DEL SCRIPT ORIGINAL
-        print(f"🔄 Creando {len(villarreal_by_position)} gráficos de barras para Villarreal CF")
         for position, players in villarreal_by_position.items():
             if players and position in self.coordenadas_graficos['villarreal']:
                 x, y = self.coordenadas_graficos['villarreal'][position]
                 self.create_position_graph(players, position, x, y, ax, 
                                          villarreal_colors, villarreal_logo)
 
-        print(f"🔄 Creando {len(rival_by_position)} gráficos de barras para {equipo_rival}")
         for position, players in rival_by_position.items():
             if players and position in self.coordenadas_graficos['rival']:
                 x, y = self.coordenadas_graficos['rival'][position]
@@ -1481,7 +1451,6 @@ class CampoFutbolBarras:
             format='pdf' if filename.endswith('.pdf') else 'png',
             transparent=False
         )
-        print(f"✅ Archivo guardado SIN espacios: {filename}")
 
 def seleccionar_equipo_jornadas_barras():
     """Permite al usuario seleccionar un equipo rival y jornadas"""
@@ -1496,9 +1465,8 @@ def seleccionar_equipo_jornadas_barras():
             print("❌ No se encontraron equipos rivales en los datos.")
             return None, None
         
-        print("\n=== SELECCIÓN DE EQUIPO RIVAL - GRÁFICOS DE BARRAS POR DEMARCACIÓN ===")
         for i, equipo in enumerate(equipos_rival, 1):
-            print(f"{i:2d}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1515,7 +1483,6 @@ def seleccionar_equipo_jornadas_barras():
         
         # Obtener jornadas disponibles
         jornadas_disponibles = report_generator.get_available_jornadas()
-        print(f"\nJornadas disponibles: {jornadas_disponibles}")
         
         # Preguntar cuántas jornadas incluir
         while True:
@@ -1540,7 +1507,7 @@ def seleccionar_equipo_jornadas_barras():
 def main_campo_futbol_barras():
     """Función principal para generar el informe con gráficos de barras por demarcación"""
     try:
-        print("🏟️ === GENERADOR DE INFORMES CON GRÁFICOS DE BARRAS ===")
+        pass
         
         # Selección interactiva
         equipo_rival, jornadas = seleccionar_equipo_jornadas_barras()
@@ -1549,17 +1516,6 @@ def main_campo_futbol_barras():
             print("❌ No se pudo completar la selección.")
             return
         
-        print(f"\n🔄 Generando reporte CON GRÁFICOS DE BARRAS para Villarreal CF vs {equipo_rival}")
-        print(f"📅 Jornadas: {jornadas}")
-        print(f"🔥 Características:")
-        print(f"   • Mínimo 60 minutos (en lugar de 70)")
-        print(f"   • Gráfico de barras por cada demarcación")
-        print(f"   • Jugadores ordenados por Distancia Total (mayor a menor)")
-        print(f"   • 3 barras por jugador: 14-21 Km/h, >21 Km/h, >24 Km/h")
-        print(f"   • Punto rojo con Vmax variable en altura")
-        print(f"   • Líneas discontinuas conectando puntos rojos")
-        print(f"   • Leyenda global en esquina superior derecha")
-        print(f"   • COMBINADAS: Mediapunta + Box to Box | Delantero Centro + 2º Delantero | MC Organizador + Sin Posición")
         
         # Crear el reporte
         report_generator = CampoFutbolBarras()
@@ -1607,28 +1563,12 @@ def generar_reporte_barras_personalizado(equipo_rival, jornadas, mostrar=True, g
         return None
 
 # Inicialización
-print("🏟️ === INICIALIZANDO GENERADOR CON GRÁFICOS DE BARRAS MEJORADO ===")
 try:
     report_generator = CampoFutbolBarras()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema CON GRÁFICOS DE BARRAS MEJORADO listo. Equipos disponibles: {len(equipos)}")
     
     if len(equipos) > 0:
-        print("📝 Para generar un reporte CON GRÁFICOS DE BARRAS ejecuta: main_campo_futbol_barras()")
-        print("📝 Para uso directo: generar_reporte_barras_personalizado('Equipo_Rival', [33,34,35])")
-        print("\n🔥 CARACTERÍSTICAS MEJORADAS:")
-        print("   • Mínimo 60 minutos (en lugar de 70)")
-        print("   • GRÁFICO DE BARRAS por cada demarcación")
-        print("   • Jugadores ordenados por Distancia Total (mayor → menor)")
-        print("   • 3 barras por jugador: 14-21 Km/h, >21 Km/h, >24 Km/h")
-        print("   • Puntos rojos con altura variable según Velocidad Máxima")
-        print("   • Líneas discontinuas conectando puntos rojos de jugadores")
-        print("   • Leyenda global única en esquina superior derecha")
-        print("   • Nombres de jugadores más altos")
-        print("   • DEMARCACIONES COMBINADAS:")
-        print("     - MC Box to Box + Mediapunta = Mismo gráfico")
-        print("     - Delantero Centro + Segundo Delantero = Mismo gráfico")
-        print("     - MC Organizador + Sin Posición = Mismo gráfico")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

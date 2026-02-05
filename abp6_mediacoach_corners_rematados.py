@@ -34,7 +34,7 @@ class CornersRematadosReport:
             # Convertir de vuelta a numpy array normalizado
             return np.array(gray_rgb) / 255.0
         except Exception as e:
-            print(f"Error convirtiendo a escala de grises: {e}")
+            pass
             return image
     
     def convert_to_grayscale_no_background(self, image):
@@ -65,7 +65,6 @@ class CornersRematadosReport:
             most_common = Counter(corner_colors).most_common(1)[0][0]
             bg_r, bg_g, bg_b = most_common
             
-            print(f"Color de fondo detectado: RGB({bg_r}, {bg_g}, {bg_b})")
             
             # Convertir a escala de grises
             gray_img = pil_img.convert('L')
@@ -101,7 +100,7 @@ class CornersRematadosReport:
             return np.array(gray_rgba) / 255.0
             
         except Exception as e:
-            print(f"Error convirtiendo a escala de grises sin fondo: {e}")
+            pass
             # Fallback: simplemente convertir a escala de grises normal
             return self.convert_to_grayscale(image)
     
@@ -120,16 +119,13 @@ class CornersRematadosReport:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
         
     def load_data(self):
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
-            print(f"Columnas disponibles: {list(self.df.columns)}")
         except Exception as e:
-            print(f"Error al cargar los datos: {e}")
+            pass
             
     def similarity(self, a, b):
         """Calcula la similitud entre dos strings"""
@@ -140,9 +136,6 @@ class CornersRematadosReport:
         if self.df is None:
             return
         
-        print("Datos originales:")
-        print(f"- Métricas únicas: {self.df['NOMBRE MÉTRICA'].unique()}")
-        print(f"- Períodos únicos: {self.df['PERIODO'].unique()}")
         
         # Filtrar por la métrica específica y período
         self.df = self.df[
@@ -150,7 +143,6 @@ class CornersRematadosReport:
             (self.df['PERIODO'] == 'Total Partido')
         ].copy()
         
-        print(f"Datos después del filtro: {self.df.shape[0]} filas")
         
         if len(self.df) == 0:
             print("⚠️ No se encontraron datos con los filtros aplicados")
@@ -186,8 +178,6 @@ class CornersRematadosReport:
         # AÑADIR ESTA LÍNEA:
         self.clean_numeric_data()
         
-        print(f"Limpieza completada. Equipos únicos: {len(self.df['EQUIPO'].unique())}")
-        print(f"Jornadas disponibles: {sorted(self.df['jornada'].unique())}")
 
     def clean_numeric_data(self):
         """Limpia y convierte los datos numéricos de la columna VALOR"""
@@ -212,11 +202,8 @@ class CornersRematadosReport:
                 return 0.0
         
         # Aplicar limpieza a la columna VALOR
-        print("Limpiando datos numéricos...")
         self.df['VALOR'] = self.df['VALOR'].apply(clean_valor)
         
-        print(f"✅ Datos numéricos limpiados. Tipo de columna VALOR: {self.df['VALOR'].dtype}")
-        print(f"Valores VALOR únicos (muestra): {sorted(self.df['VALOR'].unique())[:10]}")
         
     def get_available_teams(self):
         """Retorna la lista de equipos disponibles"""
@@ -243,14 +230,12 @@ class CornersRematadosReport:
         # Obtener todas las jornadas desde 1 hasta jornada_hasta
         jornadas_incluir = [f'j{i}' for i in range(1, jornada_hasta + 1)]
         
-        print(f"Jornadas a incluir: {jornadas_incluir}")
         
         filtered_df = self.df[
             (self.df['EQUIPO'] == equipo) & 
             (self.df['jornada'].isin(jornadas_incluir))
         ].copy()
         
-        print(f"Datos filtrados: {len(filtered_df)} filas para {equipo}")
         return filtered_df
     
     def get_all_teams_data(self, jornada_hasta):
@@ -343,11 +328,11 @@ class CornersRematadosReport:
         for name in possible_names:
             logo_path = f"assets/escudos/{name}.png"
             if os.path.exists(logo_path):
-                print(f"Escudo Villarreal encontrado: {logo_path}")
+                pass
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo Villarreal {logo_path}: {e}")
+                    pass
                     continue
         
         # Si no encuentra nada, buscar por similitud
@@ -366,13 +351,12 @@ class CornersRematadosReport:
                         best_match = escudo_file
             
             if best_match:
-                print(f"Escudo Villarreal encontrado por similitud: {best_match}")
+                pass
                 try:
                     return plt.imread(f"assets/escudos/{best_match}.png")
                 except:
                     pass
         
-        print("No se encontró el escudo del Villarreal")
         return None
     
     def load_any_team_logo(self, equipo):
@@ -486,24 +470,22 @@ class CornersRematadosReport:
         # Obtener todas las variantes posibles
         possible_names = create_variants(equipo)
         
-        print(f"Buscando escudo para '{equipo}'. Variantes: {possible_names[:10]}...")  # Mostrar solo las primeras 10
         
         # Búsqueda exacta primero
         for name in possible_names:
             logo_path = f"assets/escudos/{name}.png"
             if os.path.exists(logo_path):
-                print(f"✅ Escudo encontrado por coincidencia exacta: {logo_path}")
+                pass
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo {logo_path}: {e}")
+                    pass
                     continue
         
         # Si no encuentra nada, buscar por similitud
         if os.path.exists('assets/escudos'):
             escudos_disponibles = [f.replace('.png', '') for f in os.listdir('assets/escudos') if f.endswith('.png')]
             
-            print(f"Escudos disponibles para similitud: {escudos_disponibles}")
             
             best_match = None
             best_similarity = 0
@@ -528,11 +510,11 @@ class CornersRematadosReport:
                         best_variant = variant
             
             if best_match:
-                print(f"✅ Escudo encontrado por similitud: '{best_variant}' -> '{best_match}' (similitud: {best_similarity:.2f})")
+                pass
                 try:
                     return plt.imread(f"assets/escudos/{best_match}.png")
                 except Exception as e:
-                    print(f"Error al cargar escudo por similitud {best_match}: {e}")
+                    pass
         
         print(f"❌ No se encontró escudo para: {equipo}")
         return None
@@ -544,10 +526,10 @@ class CornersRematadosReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el balón: {ball_path}")
+            pass
             return None
     
     def find_real_team_name(self, extracted_name):
@@ -570,7 +552,6 @@ class CornersRematadosReport:
                 best_similarity = similarity
                 best_match = team
         
-        print(f"'{extracted_name}' -> '{best_match}' (similitud: {best_similarity:.2f})")
         return best_match
 
     def load_background(self):
@@ -580,10 +561,10 @@ class CornersRematadosReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el fondo: {bg_path}")
+            pass
             return None
     
     def create_visualization(self, equipo, jornada_hasta, figsize=(11.69, 8.27)):
@@ -591,7 +572,7 @@ class CornersRematadosReport:
         # Filtrar datos del equipo específico
         filtered_df = self.filter_data(equipo, jornada_hasta)
         if filtered_df is None or len(filtered_df) == 0:
-            print("No hay datos para los filtros especificados")
+            pass
             return None
         
         # Obtener datos de todos los equipos para comparación
@@ -607,9 +588,8 @@ class CornersRematadosReport:
                 ax_background = fig.add_axes([0, 0, 1, 1], zorder=-1)
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
-                print("Fondo aplicado correctamente")
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid
         gs = fig.add_gridspec(3, 4, 
@@ -638,7 +618,7 @@ class CornersRematadosReport:
                 ab = AnnotationBbox(imagebox, (0.05, 0.5), frameon=False)
                 ax_title.add_artist(ab)
             except Exception as e:
-                print(f"Error al aplicar balón: {e}")
+                pass
         
         # Escudo del equipo seleccionado arriba derecha (segundo)
         team_logo = self.load_team_logo(equipo)
@@ -648,7 +628,7 @@ class CornersRematadosReport:
                 ab = AnnotationBbox(imagebox, (0.95, 0.7), frameon=False, pad=0)  # Cambiar de 0.5 a 0.7
                 ax_title.add_artist(ab)
             except Exception as e:
-                print(f"Error al aplicar logo del equipo: {e}")
+                pass
                 
         # Escudo Villarreal arriba derecha (primero)
         villarreal_logo = self.load_villarreal_logo()
@@ -658,7 +638,7 @@ class CornersRematadosReport:
                 ab = AnnotationBbox(imagebox, (0.92, 0.7), frameon=False, pad=0)  # Cambiar de 0.90, 0.5 a 0.92, 0.7
                 ax_title.add_artist(ab)
             except Exception as e:
-                print(f"Error al aplicar logo Villarreal: {e}")
+                pass
         
         # Gráfico 1: Evolución por jornadas (fila 2, spanning 2 columnas)
         ax_evolution = fig.add_subplot(gs[1, :3])
@@ -734,7 +714,6 @@ class CornersRematadosReport:
             
             if len(partidos_jornada) > 0 and 'partido' in df_original.columns:
                 partido_str = partidos_jornada['partido'].iloc[0]
-                print(f"Jornada {jornada}: Partido = {partido_str}")
                 
                 # Parsear el formato "sevillafc0-2gironafc"
                 import re
@@ -745,7 +724,6 @@ class CornersRematadosReport:
                     equipo1 = match.group(1).strip()
                     equipo2 = match.group(4).strip()
                     
-                    print(f"Equipos encontrados: '{equipo1}' vs '{equipo2}'")
                     
                     # Determinar cuál es el rival
                     # Comparar con el equipo principal (sin espacios y en minúsculas)
@@ -760,7 +738,6 @@ class CornersRematadosReport:
                     else:
                         rival = self.find_real_team_name(equipo1)
                         
-                    print(f"Rival identificado: {rival}")
             
             # Intentar cargar escudo del rival
             escudo = self.load_any_team_logo(rival)
@@ -774,7 +751,6 @@ class CornersRematadosReport:
                 imagebox = OffsetImage(escudo, zoom=0.08)
                 ab = AnnotationBbox(imagebox, (jornada, y_pos), frameon=False)
                 ax.add_artist(ab)
-                print(f"Escudo colocado para {rival}")
             else:
                 # Crear abreviatura de 3 letras
                 abrev = rival[:3].upper()
@@ -815,7 +791,6 @@ class CornersRematadosReport:
         df_original['VALOR'] = df_original['VALOR'].apply(clean_valor)
         
         # AHORA verificar métricas
-        print("=== VERIFICACIÓN DE MÉTRICAS ===")
         metricas_buscar = [
             'B.P Saque de esquina a favor (% Éxito)',
             'B.P Saque de esquina a favor (% Rematados)', 
@@ -826,18 +801,15 @@ class CornersRematadosReport:
 
         for metrica in metricas_buscar:
             existe = metrica in df_original['NOMBRE MÉTRICA'].unique()
-            print(f"¿Existe '{metrica}'? {existe}")
             
             if not existe:
                 # Buscar métricas similares
                 similares = [m for m in df_original['NOMBRE MÉTRICA'].unique() if 'Acciones totales' in m and 'favor' in m]
-                print(f"  Métricas similares: {similares}")
         
         # Función para obtener datos de un equipo específico
         def get_team_metrics(team_name, jornada_hasta):
             # DEBUG: Ver métricas disponibles
             metricas_bp = [m for m in df_original['NOMBRE MÉTRICA'].unique() if 'B.P' in m]
-            print(f"DEBUG - Métricas B.P disponibles: {metricas_bp}")
             
             # Determinar jornadas a incluir
             if len(filtered_df) > 0:
@@ -863,14 +835,12 @@ class CornersRematadosReport:
             
             # Métrica 1: % Éxito corners
             exito_corners_data = team_data[team_data['NOMBRE MÉTRICA'] == 'B.P Saque de esquina a favor (% Éxito)']
-            print(f"DEBUG - {team_name} Éxito corners: {len(exito_corners_data)} filas encontradas")
             if len(exito_corners_data) > 0:
-                print(f"DEBUG - Valores: {exito_corners_data['VALOR'].tolist()}")
+                pass
             exito_corners = exito_corners_data['VALOR'].mean() if len(exito_corners_data) > 0 else 0
 
             # Métrica 2: % Rematados corners
             rematados_corners_data = team_data[team_data['NOMBRE MÉTRICA'] == 'B.P Saque de esquina a favor (% Rematados)']
-            print(f"DEBUG - {team_name} Rematados corners: {len(rematados_corners_data)} filas encontradas")
             rematados_corners = rematados_corners_data['VALOR'].mean() if len(rematados_corners_data) > 0 else 0
             
             # Métrica 3: xG Peligrosidad Ofensiva Rival por partido
@@ -1230,7 +1200,7 @@ class CornersRematadosReport:
                     ax.add_artist(ab)
                     continue
                 except Exception as e:
-                    print(f"Error al cargar escudo para {equipo}: {e}")
+                    pass
             
             # Si no hay escudo, mostrar texto
             ax.text(x_val, y_val, equipo, ha='center', va='center', fontsize=7, 
@@ -1267,7 +1237,7 @@ class CornersRematadosReport:
                     color = '#e74c3c' if is_selected else '#f39c12'
                     continue
                 except Exception as e:
-                    print(f"Error al cargar escudo para {equipo}: {e}")
+                    pass
             
             # Si no hay escudo, mostrar texto destacado
             color = '#e74c3c' if is_selected else '#f39c12'
@@ -1313,12 +1283,11 @@ def seleccionar_equipo_interactivo():
         equipos = report_generator.get_available_teams()
         
         if len(equipos) == 0:
-            print("No se encontraron equipos en los datos.")
+            pass
             return None, None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1329,14 +1298,13 @@ def seleccionar_equipo_interactivo():
                     equipo_seleccionado = equipos[indice]
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         # Obtener jornadas disponibles para el equipo seleccionado
         jornadas_disponibles = report_generator.get_available_jornadas(equipo_seleccionado)
         
-        print(f"\nJornadas disponibles para {equipo_seleccionado}: {jornadas_disponibles}")
         
         # Extraer números de las jornadas disponibles
         jornadas_numericas = []
@@ -1358,29 +1326,28 @@ def seleccionar_equipo_interactivo():
                 if 1 <= jornada_hasta <= max_jornada:
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {max_jornada}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         return equipo_seleccionado, jornada_hasta
         
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None, None
 
 # Función principal
 def main():
     try:
-        print("=== GENERADOR DE REPORTES DE CÓRNERS REMATADOS ===")
+        pass
         
         # Selección interactiva
         equipo, jornada_hasta = seleccionar_equipo_interactivo()
         
         if equipo is None or jornada_hasta is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte para {equipo} - Desde jornada 1 hasta jornada {jornada_hasta}")
         
         # Crear el reporte
         report_generator = CornersRematadosReport()
@@ -1437,13 +1404,12 @@ def generar_reporte_personalizado(equipo, jornada_hasta, mostrar=True, guardar=T
 # Verificar archivos necesarios
 def verificar_assets():
     """Verifica que existan los directorios y archivos necesarios"""
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
     
     # Verificar directorios
     dirs_to_check = ['assets', 'assets/escudos']
     for dir_path in dirs_to_check:
         if os.path.exists(dir_path):
-            print(f"✅ Directorio encontrado: {dir_path}")
+            pass
         else:
             print(f"❌ Directorio faltante: {dir_path}")
             
@@ -1455,28 +1421,24 @@ def verificar_assets():
     
     for file_path in files_to_check:
         if os.path.exists(file_path):
-            print(f"✅ Archivo encontrado: {file_path}")
+            pass
         else:
             print(f"❌ Archivo faltante: {file_path}")
     
     # Verificar escudos
     if os.path.exists('assets/escudos'):
         escudos = [f for f in os.listdir('assets/escudos') if f.endswith('.png')]
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos}")
     else:
         print("❌ No se encontró el directorio de escudos")
 
 # Inicialización
-print("=== INICIALIZANDO GENERADOR DE REPORTES CÓRNERS REMATADOS ===")
 try:
     verificar_assets()
     report_generator = CornersRematadosReport()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
     
     if len(equipos) > 0:
-        print("📝 Para generar un reporte ejecuta: main()")
-        print("📝 Para uso directo: generar_reporte_personalizado('Nombre_Equipo', 15)")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")
