@@ -5,8 +5,8 @@
   "j_inicio": 1,
   "j_fin": 21,
   "status": "processing",
-  "progress": 50,
-  "message": "Generando 6/12: tactic2_opta_mapa_pases.py",
+  "progress": 57,
+  "message": "Generando 7/12: tactic2.1_opta_mapa_pases_campo_contrario.py",
   "created_at": "2026-02-02T16:53:21.330837",
-  "updated_at": "2026-02-07T08:24:46.407384"
+  "updated_at": "2026-02-07T08:26:31.636247"
 }
