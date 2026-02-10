@@ -458,10 +458,10 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
     import select
     import time
 
-    # Timeout global de 20 minutos para todo el proceso
-    TIMEOUT_GLOBAL = 1200  # 20 minutos
-    # Timeout de inactividad: si no hay output en 3 minutos, asumir que está colgado
-    TIMEOUT_INACTIVIDAD = 180  # 3 minutos
+    # Timeout global de 1 hora para todo el proceso (ABP requiere ~35 scripts)
+    TIMEOUT_GLOBAL = 3600  # 1 hora
+    # Timeout de inactividad: si no hay output en 10 minutos, asumir que está colgado (scripts tácticos pueden tardar)
+    TIMEOUT_INACTIVIDAD = 600  # 10 minutos
 
     process = None
     last_module_name = ''
@@ -657,10 +657,10 @@ def run_report_process_with_restore(script_name, equipo_nombre, j_inicio, j_fin,
     import select
     import time
 
-    # Timeout global de 20 minutos para todo el proceso
-    TIMEOUT_GLOBAL = 1200  # 20 minutos
-    # Timeout de inactividad: si no hay output en 3 minutos, asumir que está colgado
-    TIMEOUT_INACTIVIDAD = 180  # 3 minutos
+    # Timeout global de 1 hora para todo el proceso (ABP requiere ~35 scripts)
+    TIMEOUT_GLOBAL = 3600  # 1 hora
+    # Timeout de inactividad: si no hay output en 10 minutos, asumir que está colgado (scripts tácticos pueden tardar)
+    TIMEOUT_INACTIVIDAD = 600  # 10 minutos
 
     process = None
 
