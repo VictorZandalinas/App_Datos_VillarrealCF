@@ -27,10 +27,8 @@ class ComparativaSprintsReport:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
-            print(f"Columnas disponibles: {list(self.df.columns)}")
         except Exception as e:
-            print(f"Error al cargar los datos: {e}")
+            pass
     
     @staticmethod
     def normalize_text(text):
@@ -97,8 +95,6 @@ class ComparativaSprintsReport:
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
         
-        print(f"Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
-        print(f"Jornadas normalizadas en datos: {sorted(self.df['Jornada'].unique())}")
         
     def get_available_teams(self):
         """Retorna la lista de equipos disponibles (excluyendo Villarreal)"""
@@ -143,8 +139,6 @@ class ComparativaSprintsReport:
             else:
                 normalized_jornadas.append(jornada)
         
-        print(f"Jornadas normalizadas: {normalized_jornadas}")
-        print(f"Jornadas únicas en datos: {sorted(self.df['Jornada'].unique())}")
         
         # Filtrar por ambos equipos y jornadas
         filtered_df = self.df[
@@ -153,7 +147,6 @@ class ComparativaSprintsReport:
             (self.df['Jornada'].isin(normalized_jornadas))
         ].copy()
         
-        print(f"Datos filtrados: {len(filtered_df)} filas para Villarreal CF vs {equipo_rival}")
         return filtered_df
     
     def load_team_logo(self, equipo):
@@ -166,7 +159,7 @@ class ComparativaSprintsReport:
         """
         escudos_dir = "assets/escudos"
         if not os.path.exists(escudos_dir):
-            print(f"Directorio de escudos no encontrado: {escudos_dir}")
+            pass
             return None
 
         # --- Nivel 1: MAPEO MANUAL (Máxima Prioridad) ---
@@ -183,11 +176,11 @@ class ComparativaSprintsReport:
             for ext in ['.png', '.jpg', '.jpeg']:
                 logo_path = os.path.join(escudos_dir, f"{logo_filename}{ext}")
                 if os.path.exists(logo_path):
-                    print(f"✅ Escudo encontrado por Mapeo Manual: {logo_path}")
+                    pass
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo mapeado: {e}")
+                        pass
             print(f"⚠️ Advertencia: El archivo mapeado '{logo_filename}' no fue encontrado.")
 
         # --- Búsqueda Automática ---
@@ -198,11 +191,10 @@ class ComparativaSprintsReport:
             file_base_norm = self.normalize_text(os.path.splitext(filename)[0])
             if file_base_norm == equipo_norm:
                 logo_path = os.path.join(escudos_dir, filename)
-                print(f"✅ Escudo encontrado por Coincidencia Exacta: {logo_path}")
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo por coincidencia exacta: {e}")
+                    pass
 
         # --- Nivel 3: COINCIDENCIA DE PALABRA LARGA (Tu idea) ---
         MIN_WORD_LENGTH = 4 # Busca palabras con 5 o más letras
@@ -218,11 +210,10 @@ class ComparativaSprintsReport:
                 # Comprueba si alguna palabra larga del equipo está en las palabras del nombre del archivo
                 if not team_long_words.isdisjoint(file_words):
                     logo_path = os.path.join(escudos_dir, original_filename)
-                    print(f"✅ Escudo encontrado por Palabra Larga Común ({team_long_words.intersection(file_words)}): {logo_path}")
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo por palabra larga: {e}")
+                        pass
 
         # --- Nivel 4: BÚSQUEDA POR SIMILITUD (Último Recurso) ---
         best_match_file = None
@@ -237,11 +228,10 @@ class ComparativaSprintsReport:
         
         if best_match_file:
             logo_path = os.path.join(escudos_dir, best_match_file)
-            print(f"✅ Escudo encontrado por Similitud (score: {best_similarity:.2f}): {logo_path}")
             try:
                 return plt.imread(logo_path)
             except Exception as e:
-                print(f"Error al cargar escudo por similitud: {e}")
+                pass
 
         print(f"❌ No se encontró un escudo definitivo para: {equipo} (normalizado como: {equipo_norm})")
         return None
@@ -250,28 +240,28 @@ class ComparativaSprintsReport:
         """Carga la imagen del balón"""
         ball_path = "assets/balon.png"
         if os.path.exists(ball_path):
-            print(f"Balón encontrado: {ball_path}")
+            pass
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el balón: {ball_path}")
+            pass
             return None
     
     def load_background(self):
         """Carga el fondo del informe"""
         bg_path = "assets/fondo_informes.png"
         if os.path.exists(bg_path):
-            print(f"Fondo encontrado: {bg_path}")
+            pass
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         else:
-            print(f"No se encontró el fondo: {bg_path}")
+            pass
             return None
     
     def create_comparative_data(self, filtered_df, jornadas):
@@ -368,7 +358,7 @@ class ComparativaSprintsReport:
         # Filtrar datos
         filtered_df = self.filter_data(equipo_rival, jornadas)
         if filtered_df is None or len(filtered_df) == 0:
-            print("No hay datos para los filtros especificados")
+            pass
             return None
         
         # Crear figura
@@ -385,9 +375,8 @@ class ComparativaSprintsReport:
                 ax_background.set_yticks([])
                 for spine in ax_background.spines.values():
                     spine.set_visible(False)
-                print("Fondo aplicado correctamente")
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid: header + 2 gráficos superiores + 2 gráficos inferiores
         gs = fig.add_gridspec(3, 2, 
@@ -426,7 +415,6 @@ class ComparativaSprintsReport:
                 imagebox = OffsetImage(ball, zoom=0.15)
                 ab = AnnotationBbox(imagebox, (0.05, 0.5), frameon=False)
                 ax_title.add_artist(ab)
-                print("✅ Balón aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar balón: {e}")
         else:
@@ -440,7 +428,6 @@ class ComparativaSprintsReport:
                 imagebox = OffsetImage(logo_villarreal, zoom=0.45)
                 ab = AnnotationBbox(imagebox, (0.90, 0.5), frameon=False, zorder=2)
                 ax_title.add_artist(ab)
-                print("✅ Escudo Villarreal aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar escudo Villarreal: {e}")
         
@@ -451,7 +438,6 @@ class ComparativaSprintsReport:
                 imagebox = OffsetImage(logo_rival, zoom=0.45)
                 ab = AnnotationBbox(imagebox, (0.95, 0.5), frameon=False, zorder=1)
                 ax_title.add_artist(ab)
-                print("✅ Escudo rival aplicado correctamente")
             except Exception as e:
                 print(f"❌ Error al aplicar escudo rival: {e}")
         
@@ -673,12 +659,11 @@ def seleccionar_equipo_jornadas_comparativa():
         equipos = report_generator.get_available_teams()
         
         if len(equipos) == 0:
-            print("No se encontraron equipos en los datos.")
+            pass
             return None, None
         
-        print("\n=== COMPARATIVA SPRINTS: VILLARREAL CF VS ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -689,13 +674,12 @@ def seleccionar_equipo_jornadas_comparativa():
                     equipo_seleccionado = equipos[indice]
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         # Obtener jornadas disponibles
         jornadas_disponibles = report_generator.get_available_jornadas()
-        print(f"\nJornadas disponibles: {jornadas_disponibles}")
         
         # Preguntar cuántas jornadas incluir
         while True:
@@ -707,28 +691,27 @@ def seleccionar_equipo_jornadas_comparativa():
                     jornadas_seleccionadas = sorted(jornadas_disponibles)[-num_jornadas:]
                     break
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(jornadas_disponibles)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
         
         return equipo_seleccionado, jornadas_seleccionadas
         
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None, None
 
 def main_comparativa_sprints():
     try:
-        print("=== GENERADOR DE REPORTES - COMPARATIVA SPRINTS ===")
+        pass
         
         # Selección interactiva
         equipo_rival, jornadas = seleccionar_equipo_jornadas_comparativa()
         
         if equipo_rival is None or jornadas is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando comparativa de sprints: Villarreal CF vs {equipo_rival} - Jornadas: {jornadas}")
         
         # Crear el reporte
         report_generator = ComparativaSprintsReport()
@@ -749,7 +732,6 @@ def main_comparativa_sprints():
                           facecolor='none', edgecolor='none', dpi=300,
                           transparent=True)
             
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -779,7 +761,6 @@ def generar_comparativa_sprints_personalizada(equipo_rival, jornadas, mostrar=Tr
                               facecolor='none', edgecolor='none', dpi=300,
                               transparent=True)
                 
-                print(f"✅ Reporte guardado como: {output_path}")
             
             return fig
         else:
@@ -790,15 +771,12 @@ def generar_comparativa_sprints_personalizada(equipo_rival, jornadas, mostrar=Tr
         return None
 
 # Inicialización
-print("=== INICIALIZANDO GENERADOR DE REPORTES - COMPARATIVA SPRINTS ===")
 try:
     report_generator = ComparativaSprintsReport()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema listo. Equipos rivales disponibles: {len(equipos)}")
     
     if len(equipos) > 0:
-        print("📝 Para generar un reporte ejecuta: main_comparativa_sprints()")
-        print("📝 Para uso directo: generar_comparativa_sprints_personalizada('Real Madrid', [33,34,35])")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

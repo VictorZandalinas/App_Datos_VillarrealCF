@@ -37,75 +37,60 @@ class CornersOfensivosReport:
         """
         Muestra un informe detallado paso a paso para depurar la extracción de métricas.
         """
-        print("\n" + "="*25 + " INICIO DEL MODO DEBUG " + "="*25)
 
         # --- PASO 1: VERIFICACIÓN DE DATOS CRUDOS ---
-        print("\n--- PASO 1: Verificación de Datos Crudos ---")
         if self.df is None:
             print("❌ ERROR: El DataFrame (self.df) no se ha cargado. Revisa la ruta del archivo.")
             return
 
-        print(f"✅ DataFrame cargado con {self.df.shape[0]} filas (filtrado por 'Total Partido').")
         
         # Es CRUCIAL ver los nombres exactos de las métricas disponibles en el archivo
         if 'NOMBRE MÉTRICA' in self.df.columns:
             metricas_disponibles = sorted(self.df['NOMBRE MÉTRICA'].unique())
-            print(f"\n[INFO] Métricas Disponibles en el Archivo ({len(metricas_disponibles)} en total):")
             for metrica in metricas_disponibles:
-                print(f"  - '{metrica}'")
+                pass
         else:
             print("❌ ERROR: No se encuentra la columna 'NOMBRE MÉTRICA' en los datos.")
             return
 
         # --- PASO 2: COINCIDENCIA DE NOMBRES DE MÉTRICAS ---
-        print("\n--- PASO 2: Comprobando coincidencia de nombres de métricas ---")
-        print("Se comparan las métricas definidas en `self.corner_metrics` con las del archivo.")
         
         for metric_key, metric_name in self.corner_metrics.items():
             if metric_name in metricas_disponibles:
-                print(f"  ✅ ENCONTRADA: '{metric_name}' (mapeada a '{metric_key}')")
+                pass
             else:
                 print(f"  ❌ NO ENCONTRADA: '{metric_name}'")
-                print("     -> Causa probable: El nombre en el código no es idéntico al del archivo (revisa espacios, acentos, etc.).")
         
         # --- PASO 3: EXTRACCIÓN DE DATOS PARA EL EQUIPO SELECCIONADO ---
-        print(f"\n--- PASO 3: Extrayendo datos para '{equipo_seleccionado}' ---")
         
         equipo_df = self.df[self.df['EQUIPO'] == equipo_seleccionado]
         if equipo_df.empty:
             print(f"❌ ERROR: No se encontraron datos para el equipo '{equipo_seleccionado}' en la columna 'EQUIPO'.")
             return
             
-        print(f"✅ Se encontraron {len(equipo_df)} filas para '{equipo_seleccionado}'.")
 
         for metric_key, metric_name in self.corner_metrics.items():
-            print(f"\n  Buscando métrica: '{metric_name}'...")
+            pass
             metric_data = equipo_df[equipo_df['NOMBRE MÉTRICA'] == metric_name]
             
             if not metric_data.empty:
-                print(f"    ✅ Se encontraron {len(metric_data)} entradas para esta métrica.")
+                pass
                 valores = metric_data['VALOR']
-                print(f"    Valores originales (columna VALOR): {list(valores)}")
                 
                 # Simular la conversión a numérico y la suma
                 valores_numericos = pd.to_numeric(valores, errors='coerce').fillna(0)
                 suma_total = valores_numericos.sum()
-                print(f"    Valores tras conversión numérica: {list(valores_numericos)}")
-                print(f"    -> SUMA TOTAL para '{metric_key}': {suma_total}")
             else:
                 print(f"    ❌ No se encontraron entradas para esta métrica para '{equipo_seleccionado}'. El valor será 0.")
 
         # --- PASO 4: VERIFICACIÓN DE CÁLCULOS FINALES ---
-        print("\n--- PASO 4: Verificando el DataFrame final de estadísticas ---")
         all_stats, team_stats_final = self.get_team_corner_stats(equipo_seleccionado)
         
         if team_stats_final is not None:
-            print(f"✅ Datos finales calculados para '{equipo_seleccionado}':")
-            print(team_stats_final)
+            pass
         else:
             print(f"❌ No se pudieron generar las estadísticas finales para '{equipo_seleccionado}'.")
             
-        print("\n" + "="*26 + " FIN DEL MODO DEBUG " + "="*27 + "\n")
         
     def find_team_logo_by_similarity(self, equipo):
         """Busca el escudo del equipo por similitud en la carpeta escudos"""
@@ -138,7 +123,6 @@ class CornersOfensivosReport:
         if best_match:
             try:
                 logo_path = f"assets/escudos/{best_match}"
-                print(f"Escudo encontrado para {equipo}: {best_match} (similitud: {best_similarity:.2f})")
                 
                 # CARGAR Y REDIMENSIONAR A TAMAÑO FIJO
                 escudo_original = plt.imread(logo_path)
@@ -146,7 +130,7 @@ class CornersOfensivosReport:
                 
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
 
@@ -184,7 +168,7 @@ class CornersOfensivosReport:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
 
     def convert_to_grayscale(self, image):
@@ -204,7 +188,7 @@ class CornersOfensivosReport:
                 gray = np.dot(image, [0.2989, 0.5870, 0.1140])
                 return np.stack([gray, gray, gray], axis=2)
         except Exception as e:
-            print(f"Error al convertir a escala de grises: {e}")
+            pass
             return image
         
     def load_data(self):
@@ -213,15 +197,12 @@ class CornersOfensivosReport:
             self.df_events = pd.read_parquet(self.data_path)
             self.df_teams = pd.read_parquet(self.team_stats_path)
 
-            print(f"Columnas en team_stats.parquet: {self.df_teams.columns.tolist()}")
 
             
             # Normalizar timestamp para ordenar eventos correctamente
             if 'timeStamp' in self.df_events.columns:
                  self.df_events['timeStamp'] = pd.to_datetime(self.df_events['timeStamp'].str.replace('Z', ''), errors='coerce')
 
-            print(f"✅ Datos de eventos cargados: {self.df_events.shape[0]} filas")
-            print(f"✅ Datos de equipos cargados: {self.df_teams.shape[0]} filas")
         except Exception as e:
             print(f"❌ Error al cargar los datos de Opta: {e}")
 
@@ -235,7 +216,6 @@ class CornersOfensivosReport:
                 print("❌ No hay datos de eventos cargados.")
                 return
 
-            print("🔍 Extrayendo y analizando todas las secuencias de córner...")
             
             df_sorted = self.df_events.sort_values(['Match ID', 'periodId', 'timeStamp']).reset_index(drop=True)
             
@@ -271,7 +251,6 @@ class CornersOfensivosReport:
             
             if lanzamientos_list:
                 self.corner_sequences = pd.DataFrame(lanzamientos_list)
-                print(f"✅ Total de secuencias de córner analizadas: {len(self.corner_sequences)}")
             else:
                 print("❌ No se encontraron lanzamientos de córner.")    
 
@@ -439,7 +418,6 @@ class CornersOfensivosReport:
         if self.df is None:
             return
         
-        print("Preparando métricas de córners ofensivos...")
         
         # Métricas específicas de córners ofensivos
         self.corner_metrics = {
@@ -458,12 +436,10 @@ class CornersOfensivosReport:
             for metric_key, metric_name in self.corner_metrics.items():
                 if metric_name in metricas_disponibles:
                     available_metrics.append(metric_key)
-                    print(f"✅ Métrica encontrada: {metric_name}")
                 else:
                     print(f"❌ Métrica no encontrada: {metric_name}")
         
         self.available_metrics = available_metrics
-        print(f"Métricas disponibles para análisis: {available_metrics}")
     
     def get_team_corner_stats(self, equipo_seleccionado=None):
         """
@@ -479,7 +455,6 @@ class CornersOfensivosReport:
         
         # Filtrar las secuencias para que solo incluyan equipos de esa liga
         df_filtrado = self.corner_sequences[self.corner_sequences['Team Name'].isin(equipos_liga)].copy()
-        print(f"Filtrando secuencias de la liga: {liga_seleccionada}")
 
         # 2. Agrupar por equipo y calcular las métricas base
         stats_agrupadas = df_filtrado.groupby('Team Name').agg(
@@ -550,7 +525,7 @@ class CornersOfensivosReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -561,7 +536,7 @@ class CornersOfensivosReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
     
@@ -571,12 +546,12 @@ class CornersOfensivosReport:
         # Obtener datos de córners
         result = self.get_team_corner_stats(equipo_seleccionado)
         if result is None:
-            print("No se pudieron obtener las estadísticas de córners")
+            pass
             return None
         
         team_stats, equipo_data = result
         if equipo_data is None:
-            print(f"No se encontraron datos para {equipo_seleccionado}")
+            pass
             return None
                 
         # Crear figura
@@ -590,7 +565,7 @@ class CornersOfensivosReport:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid - Layout similar al PNG
         gs = fig.add_gridspec(2, 4, 
@@ -628,7 +603,6 @@ class CornersOfensivosReport:
                 imagebox = OffsetImage(villarreal_logo, zoom=escudo_zoom)
                 ab = AnnotationBbox(imagebox, (0.88, 0.5), frameon=False, zorder=2) 
                 ax_title.add_artist(ab)
-                print(f"✅ Escudo Villarreal: shape={villarreal_logo.shape}, zoom={escudo_zoom}")
             except Exception as e:
                 print(f"❌ Error con escudo Villarreal: {e}")
 
@@ -639,7 +613,6 @@ class CornersOfensivosReport:
                 imagebox = OffsetImage(equipo_logo, zoom=escudo_zoom)  # MISMO ZOOM
                 ab = AnnotationBbox(imagebox, (0.92, 0.5), frameon=False, zorder=1)
                 ax_title.add_artist(ab)
-                print(f"✅ Escudo {equipo_seleccionado}: shape={equipo_logo.shape}, zoom={escudo_zoom}")
             except Exception as e:
                 print(f"❌ Error con escudo {equipo_seleccionado}: {e}")
         else:
@@ -760,30 +733,26 @@ class CornersOfensivosReport:
             is_selected = equipo == equipo_seleccionado
             is_villarreal = 'villarreal' in equipo.lower()
             
-            print(f"Procesando {equipo}: x={x_val}, y={y_val}")
             
             # Buscar escudo por similitud
             escudo = self.find_team_logo_by_similarity(equipo)
             
             if escudo is not None:
-                print(f"✅ Escudo cargado para {equipo}, shape: {escudo.shape}")
+                pass
                 try:
                     # APLICAR FILTRO DE COLOR Y TAMAÑO
                     if is_selected or is_villarreal:
                         # Mantener colores originales Y MÁS GRANDES
                         zoom_size = 0.45  # 33% más grande que 0.24
                         imagebox = OffsetImage(escudo, zoom=zoom_size, alpha=1.0)
-                        print(f"  → Escudo en color y grande para {equipo}")
                     else:
                         # Convertir a blanco y negro Y TAMAÑO NORMAL
                         escudo_bn = self.convert_to_grayscale(escudo)
                         zoom_size = 0.24  # Tamaño normal
                         imagebox = OffsetImage(escudo_bn, zoom=zoom_size, alpha=0.8)
-                        print(f"  → Escudo en B&N y normal para {equipo}")
                     
                     ab = AnnotationBbox(imagebox, (x_val, y_val), frameon=False, pad=0)
                     ax.add_artist(ab)
-                    print(f"  → Escudo añadido al gráfico para {equipo}")
                     continue
                 except Exception as e:
                     print(f"❌ Error al mostrar escudo para {equipo}: {e}")
@@ -815,7 +784,6 @@ class CornersOfensivosReport:
         ax.set_xlim(x_min - x_margin, x_max + x_margin)
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
 
-        print(f"Límites del gráfico: x=[{x_min - x_margin:.1f}, {x_max + x_margin:.1f}], y=[{y_min - y_margin:.1f}, {y_max + y_margin:.1f}]")
 
         ax.grid(True, alpha=0.3)
         ax.spines['top'].set_visible(False)
@@ -827,8 +795,6 @@ def verificar_datos_disponibles(data_path="extraccion_mediacoach/data/estadistic
     try:
         if not os.path.exists(data_path):
             print(f"❌ Error: No se encontró el archivo en la ruta: {data_path}")
-            print("Verifica que la ruta sea correcta y que el archivo exista.")
-            print("\nVerificando rutas alternativas...")
             
             # Verificar rutas alternativas comunes
             alternative_paths = [
@@ -840,37 +806,30 @@ def verificar_datos_disponibles(data_path="extraccion_mediacoach/data/estadistic
             
             for alt_path in alternative_paths:
                 if os.path.exists(alt_path):
-                    print(f"✅ Archivo encontrado en: {alt_path}")
+                    pass
                     data_path = alt_path
                     break
             else:
                 return None
         
         df = pd.read_parquet(data_path)
-        print(f"=== ANÁLISIS DEL DATASET ===")
-        print(f"Archivo: {data_path}")
-        print(f"Filas: {df.shape[0]}, Columnas: {df.shape[1]}")
-        print(f"\nColumnas disponibles:")
         for i, col in enumerate(df.columns, 1):
-            print(f"{i:2d}. {col}")
+            pass
         
-        print(f"\nPrimeras 3 filas:")
-        print(df.head(3))
         
         # Buscar métricas relacionadas con córners
         if 'NOMBRE MÉTRICA' in df.columns:
             corner_metrics = df[df['NOMBRE MÉTRICA'].str.contains('esquina|córner|corner', case=False, na=False)]['NOMBRE MÉTRICA'].unique()
             if len(corner_metrics) > 0:
-                print(f"\nMétricas relacionadas con córners encontradas:")
+                pass
                 for metric in corner_metrics:
-                    print(f"- {metric}")
+                    pass
             else:
                 print(f"\n❌ No se encontraron métricas relacionadas con córners")
                 
             # Mostrar algunas métricas como ejemplo
-            print(f"\nEjemplo de métricas disponibles:")
             for metric in df['NOMBRE MÉTRICA'].unique()[:10]:
-                print(f"- {metric}")
+                pass
         
         return df
     except Exception as e:
@@ -885,14 +844,12 @@ def seleccionar_equipo_interactivo(df_teams):
         # La columna de equipos en los datos de Opta se llama 'Team Name'
         equipos = sorted(df_teams['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1):
             # La columna de competición en los datos de Opta se llama 'Competition Name'
             liga = df_teams[df_teams['Team Name'] == equipo]['Competition Name'].iloc[0]
-            print(f"{i}. {equipo} ({liga})")
         
         while True:
             try:
@@ -901,16 +858,15 @@ def seleccionar_equipo_interactivo(df_teams):
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except (ValueError, IndexError):
-                print("Por favor, ingresa un número válido.")
+                pass
     except Exception as e:
-        print(f"Error en la selección de equipo: {e}")
+        pass
         return None
 
 def main():
     """Función principal para ejecutar el reporte con la nueva lógica de Opta."""
-    print("=== GENERADOR DE REPORTES DE CÓRNERS OFENSIVOS (DATOS OPTA) ===")
     
     # 1. Crear la instancia. Esto automáticamente carga los datos de Opta (eventos y equipos).
     report_generator = CornersOfensivosReport()
@@ -925,7 +881,6 @@ def main():
     if equipo_seleccionado is None:
         return
 
-    print(f"\nGenerando reporte para: {equipo_seleccionado}")
     
     # 3. Crear la visualización (esta parte no cambia)
     fig = report_generator.create_visualization(equipo_seleccionado)
@@ -941,7 +896,6 @@ def main():
         with PdfPages(output_path) as pdf:
             pdf.savefig(fig, bbox_inches='tight', pad_inches=0, dpi=300)
         
-        print(f"✅ Reporte guardado como: {output_path}")
     else:
         print("❌ No se pudo generar la visualización")
 

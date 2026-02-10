@@ -36,7 +36,6 @@ class PasesCampoContrario:
         self.player_stats_df = None
         try:
             self.player_stats_df = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
-            print("✅ Datos de player_stats.parquet cargados.")
         except Exception as e:
             print(f"⚠️ Error al cargar player_stats.parquet: {e}")
         
@@ -681,8 +680,6 @@ class PasesCampoContrario:
         
         jugadores_primarios = [top_players_by_position[i]['primary'] for i in range(11) if i in top_players_by_position]
         
-        print(f"✅ Formación más usada: {formacion_ganadora}")
-        print(f"✅ Once más frecuente: {jugadores_primarios}")
         
         return {
             'formation': formacion_ganadora, 
@@ -716,7 +713,6 @@ class PasesCampoContrario:
             print("❌ No se pudo determinar el once titular")
             return
         titulares_dorsales = set(str(d) for d in titular_info['starters'])
-        print(f"🔍 Filtrando pases solo entre dorsales: {sorted(titulares_dorsales)}")
         team_data = self.df[self.df['Team Name'] == team_filter].copy()
         
         for col in ['x', 'y', 'Pass End X', 'Pass End Y']:
@@ -733,8 +729,6 @@ class PasesCampoContrario:
             (team_data['Pass End X'] > 50)  # 🔥 FIN en campo contrario
         ].copy()
         
-        print(f"✅ Pases EN CAMPO CONTRARIO del once titular: {len(self.passes_data)}")
-        print(f"   (Antes había {len(team_data)} pases totales del equipo)")
     
     def load_data(self, team_filter=None):
         try:
@@ -747,7 +741,6 @@ class PasesCampoContrario:
             if team_filter:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
-            print(f"✅ Datos cargados: {len(self.df)} pases exitosos")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -757,7 +750,6 @@ class PasesCampoContrario:
             self.events_df = pd.read_parquet(events_path)
             if 'Week' in self.events_df.columns:
                 self.events_df['Week'] = self.events_df['Week'].astype(str)
-            print(f"✅ Eventos cargados: {self.events_df.shape[0]} filas")
             return True
         except Exception as e:
             print(f"⚠️ Error al cargar eventos: {e}")
@@ -793,7 +785,6 @@ class PasesCampoContrario:
             formation_name = self.formation_mapping.get(int(formation_number), f"Unknown_{formation_number}")
             return {'formation_number': int(formation_number), 'formation_name': formation_name, 'starters': ordered_starters}
         except Exception as e:
-            print(f"Error procesando formación: {e}")
             return None
     
     def get_player_shirt_number(self, player_id):
@@ -838,7 +829,6 @@ class PasesCampoContrario:
         """
         🔥 NUEVA LÓGICA: Extrae únicamente la pareja Pasador -> Receptor de los pases que terminan en el área.
         """
-        print("🔍 Buscando parejas de Pasador -> Receptor con destino al área...")
         sequences = []
         
         all_team_events = pd.read_parquet(self.data_path)
@@ -857,7 +847,6 @@ class PasesCampoContrario:
             (all_team_events['Pass End Y'] >= 21.1) & (all_team_events['Pass End Y'] <= 78.9)
         ]
         
-        print(f"✅ Encontrados {len(trigger_passes)} pases al área.")
 
         # 2. Para cada pase, crear la secuencia [Pasador, Receptor]
         for idx, trigger_pass in trigger_passes.iterrows():
@@ -891,7 +880,6 @@ class PasesCampoContrario:
                 ]
                 sequences.append(player_sequence)
 
-        print(f"✅ Construidas {len(sequences)} parejas de Pasador->Receptor.")
         return sequences
     
     def get_vertical_passers_ranking(self, top_n=3):
@@ -995,7 +983,6 @@ class PasesCampoContrario:
         if team_data.empty:
             return {}, {}
         
-        print(f"\n📊 Analizando pases EN CAMPO CONTRARIO: {len(team_data)} pases")
         
         pass_counts_by_demarcation = defaultdict(int)
         demarcation_positions = defaultdict(lambda: {'x': [], 'y': [], 'count': 0, 'dorsales': set()})
@@ -1094,11 +1081,8 @@ class PasesCampoContrario:
         
         top_11_demarcations = dict(sorted_demarcations)
         
-        print(f"\n🎯 Top 11 Demarcaciones más usadas en campo contrario (de {len(all_demarcations)} totales):")
         for i, (dem, info) in enumerate(sorted_demarcations, 1):
-            print(f"   {i:2d}. {dem} ({self.demarcation_labels.get(dem, dem)}): "
-                f"{info['count']} pases, {len(info['players'])} jugadores, "
-                f"dorsales: {info['dorsales']}")
+            pass
         
         filtered_passes = {}
         top_11_keys = set(top_11_demarcations.keys())
@@ -1108,7 +1092,6 @@ class PasesCampoContrario:
             if dem1 in top_11_keys and dem2 in top_11_keys:
                 filtered_passes[pass_key] = count
         
-        print(f"   💫 Total conexiones entre top 11: {len(filtered_passes)}")
         
         return filtered_passes, top_11_demarcations
     
@@ -1205,14 +1188,11 @@ class PasesCampoContrario:
                     bbox=dict(boxstyle='round,pad=0.5', facecolor='#e74c3c', alpha=0.8))
             return
         
-        print(f"\n🎯 Secuencias encontradas que acaban en área: {len(sequences)}")
         
         # 🔥 SEPARAR SECUENCIAS POR TIPO DE FINALIZACIÓN
         sequences_shot = [s for s in sequences if s[0].get('finish_type') == 'shot']
         sequences_area = [s for s in sequences if s[0].get('finish_type') == 'area']
         
-        print(f"   - Que acaban en TIRO: {len(sequences_shot)}")
-        print(f"   - Que acaban en ÁREA: {len(sequences_area)}")
         
         # Encontrar patrones para cada tipo
         patterns_shot = self.find_most_similar_sequences(
@@ -1261,7 +1241,6 @@ class PasesCampoContrario:
             all_seqs = pattern_data['all_sequences']
             count = pattern_data['count']
             
-            print(f"   Patrón {idx+1} ({finish_type}): {count} repeticiones")
             
             # Dibujar todas las secuencias del patrón (semitransparentes)
             for sequence in all_seqs:
@@ -1363,7 +1342,6 @@ class PasesCampoContrario:
                     pad=10, bbox=dict(boxstyle='round,pad=0.3', 
                     facecolor='#2c3e50', alpha=0.8))
         
-        print(f"✅ Visualización completada: {len(patterns)} patrones dibujados\n")
 
     def create_pass_flow_map(self, ax, title="MAPA DE CALOR ACCIONES ATAQUE", bins=(6, 4)):
         """Mapa de calor KDE de eventos ofensivos en campo contrario"""
@@ -1411,7 +1389,6 @@ class PasesCampoContrario:
                         transform=ax.transAxes, fontsize=10, color='white')
                 return
             
-            print(f"\n📊 Mapa de calor: {len(df_eventos)} eventos ofensivos en campo contrario")
             
             # 🔥 CREAR MAPA DE CALOR KDE
             kde = pitch.kdeplot(
@@ -1564,9 +1541,6 @@ class PasesCampoContrario:
                     'progression': sequence_max_progression[seq_tuple_2]
                 })
                 
-                print(f"  🎯 Secuencia #{sequence_length+1}:")
-                print(f"     1ª → Frecuencia: {count_1}, Progresión: {sequence_max_progression[seq_tuple_1]:.1f}")
-                print(f"     2ª → Frecuencia: {count_2}, Progresión: {sequence_max_progression[seq_tuple_2]:.1f} ⚡")
         
         return result
     
@@ -2076,7 +2050,6 @@ class PasesCampoContrario:
             zone = get_detailed_zone(first_pass)
             sequences_by_zone[zone].append((idx, seq))
         
-        print(f"\n📍 Secuencias agrupadas por dirección y profundidad:")
         zone_names = {
             'LS': 'Izquierda-Corto', 'LM': 'Izquierda-Medio', 'LL': 'Izquierda-Largo',
             'CS': 'Centro-Corto', 'CM': 'Centro-Medio', 'CL': 'Centro-Largo',
@@ -2084,7 +2057,6 @@ class PasesCampoContrario:
         }
         for zone, seqs in sorted(sequences_by_zone.items()):
             zone_name = zone_names.get(zone, zone)
-            print(f"   {zone_name}: {len(seqs)} secuencias")
         
         # 🔥 3. CLUSTERING DTW
         all_clusters = []
@@ -2151,9 +2123,8 @@ class PasesCampoContrario:
                 'all_sequences': cluster['sequences']  # Completas con punto final
             })
         
-        print(f"\n✅ Encontrados {len(result)} patrones distintos")
         for i, r in enumerate(result, 1):
-            print(f"   Patrón {i}: {r['count']} repeticiones - {r['pattern']}")
+            pass
 
         return result
 
@@ -2269,14 +2240,10 @@ class PasesCampoContrario:
         """Extrae secuencias de 2-3 pases que TERMINAN en área o con ocasión (contando hacia atrás) - CON DEBUG"""
         sequences = []
         
-        print("\n" + "="*80)
-        print("🔍 INICIANDO EXTRACCIÓN DE SECUENCIAS A ÁREA")
-        print("="*80)
         
         # Cargar TODO el dataframe, no solo passes_data
         try:
             df_all = pd.read_parquet(self.data_path)
-            print(f"✅ Dataframe completo cargado: {len(df_all)} eventos totales")
             
             # Convertir coordenadas
             for col in ['x', 'y', 'Pass End X', 'Pass End Y']:
@@ -2304,13 +2271,11 @@ class PasesCampoContrario:
         # Filtrar solo eventos del equipo
         df_team = df_all[df_all['Team Name'] == self.team_filter].copy()
         df_team = df_team.reset_index(drop=True)  # 🔥 RESETEAR ÍNDICE
-        print(f"✅ Eventos del equipo '{self.team_filter}': {len(df_team)}")
         
         # Mostrar tipos de eventos disponibles
         event_counts = df_team['Event Name'].value_counts()
-        print(f"\n📊 Tipos de eventos del equipo:")
         for event, count in event_counts.head(15).items():
-            print(f"   - {event}: {count}")
+            pass
         
         occasion_events = ['Goal', 'Cross', 'Post', 'Attempt Saved']
         
@@ -2319,9 +2284,6 @@ class PasesCampoContrario:
         pass_to_area_count = 0
         valid_sequences_count = 0
         
-        print(f"\n🎯 Buscando eventos que terminen en área o con ocasión...")
-        print(f"   Ocasiones buscadas: {occasion_events}")
-        print(f"   Área definida: x=[83-100], y=[21.1-78.9]")
         
         # Buscar todos los eventos de ocasión o pases que acaben en área
         for idx in range(len(df_team)):
@@ -2331,11 +2293,6 @@ class PasesCampoContrario:
             is_occasion = event['Event Name'] in occasion_events
             if is_occasion:
                 occasion_count += 1
-                if occasion_count <= 3:  # Mostrar solo los primeros 3
-                    print(f"\n   ✓ Ocasión encontrada #{occasion_count}:")
-                    print(f"     - Tipo: {event['Event Name']}")
-                    print(f"     - Minuto: {event.get('timeMin')}:{event.get('timeSec')}")
-                    print(f"     - Índice: {idx}")
             
             # CONDICIÓN 2: Pase que acaba en área
             is_pass_to_area = False
@@ -2346,11 +2303,6 @@ class PasesCampoContrario:
                     if 83 <= end_x <= 100 and 21.1 <= end_y <= 78.9:
                         is_pass_to_area = True
                         pass_to_area_count += 1
-                        if pass_to_area_count <= 3:  # Mostrar solo los primeros 3
-                            print(f"\n   ✓ Pase a área encontrado #{pass_to_area_count}:")
-                            print(f"     - Coordenadas fin: x={end_x:.1f}, y={end_y:.1f}")
-                            print(f"     - Minuto: {event.get('timeMin')}:{event.get('timeSec')}")
-                            print(f"     - Índice: {idx}")
             
             # Si cumple alguna condición, contar hacia atrás
             if is_occasion or is_pass_to_area:
@@ -2426,7 +2378,6 @@ class PasesCampoContrario:
                 if not (83 <= last_element['end_x'] <= 100 and 21.1 <= last_element['end_y'] <= 78.9):
                     if valid_sequences_count < 3:
                         print(f"     ⚠️ Secuencia descartada: punto final fuera de área")
-                        print(f"        end_x={last_element['end_x']:.1f}, end_y={last_element['end_y']:.1f}")
                     continue
                 
                 valid_sequences_count += 1
@@ -2434,31 +2385,17 @@ class PasesCampoContrario:
                 
                 if valid_sequences_count <= 3:
                     last = sequence[-1]
-                    print(f"     ➜ Secuencia válida: {len(sequence)} pases ({finish_type})")
-                    print(f"        Termina en: x={last['end_x']:.1f}, y={last['end_y']:.1f} ✓")
         
-        print(f"\n" + "="*80)
-        print(f"📈 RESUMEN EXTRACCIÓN:")
-        print(f"   - Ocasiones encontradas: {occasion_count}")
-        print(f"   - Pases a área encontrados: {pass_to_area_count}")
-        print(f"   - Total eventos candidatos: {occasion_count + pass_to_area_count}")
-        print(f"   - Secuencias válidas construidas: {valid_sequences_count}")
-        print("="*80 + "\n")
 
         # 🔥 AGREGAR CONTEO POR TIPO
         shot_count = sum(1 for s in sequences if s[0].get('finish_type') == 'shot')
         area_count = sum(1 for s in sequences if s[0].get('finish_type') == 'area')
-        print(f"   - Secuencias con TIRO: {shot_count}")
-        print(f"   - Secuencias con ÁREA: {area_count}")
-        print("="*80 + "\n")
         
         # 🔥 DEBUG: Verificar que las secuencias terminan en área
-        print(f"\n🔍 VERIFICACIÓN COORDENADAS FINALES:")
         for i, seq in enumerate(sequences[:5]):  # Mostrar primeras 5
             last = seq[-1]
             finish = last.get('finish_type', '?')
             in_area = (83 <= last['end_x'] <= 100 and 21.1 <= last['end_y'] <= 78.9)
-            print(f"   Seq {i+1} ({finish}): end_x={last['end_x']:.1f}, end_y={last['end_y']:.1f} - {'✓ EN ÁREA' if in_area else '✗ FUERA'}")
 
         return sequences
     
@@ -2472,11 +2409,6 @@ class PasesCampoContrario:
         match_id = end_event['Match ID']
         end_time = end_event.get('timeStamp')
         
-        if debug:
-            print(f"\n     🔙 Construyendo secuencia hacia atrás:")
-            print(f"        Evento final: {end_event['Event Name']}")
-            print(f"        Match ID: {match_id}")
-            print(f"        Tiempo: {end_time}")
         
         if pd.isna(end_time):
             if debug:
@@ -2492,8 +2424,6 @@ class PasesCampoContrario:
             (df_team['Team Name'] == end_event['Team Name'])
         ].tail(10)  # Últimos 10 pases antes del evento
         
-        if debug:
-            print(f"        Pases previos encontrados en el partido: {len(previous_passes)}")
         
         if previous_passes.empty:
             if debug:
@@ -2506,15 +2436,11 @@ class PasesCampoContrario:
             pass_time = pass_event.get('timeStamp')
             
             if pd.isna(pass_time):
-                if debug and i < 3:
-                    print(f"        - Pase {i+1}: Sin timestamp")
                 continue
             
             # Verificar que esté dentro del límite de tiempo
             time_diff = (end_time - pass_time).total_seconds()
             
-            if debug and i < 3:
-                print(f"        - Pase {i+1}: Diferencia tiempo = {time_diff:.1f}s", end="")
             
             if time_diff < 0 or time_diff > time_limit:
                 if debug and i < 3:
@@ -2529,7 +2455,7 @@ class PasesCampoContrario:
             
             if debug and i < 3:
                 if has_coords:
-                    print(f" ✓ (válido)")
+                    pass
                 else:
                     print(f" ❌ (sin coordenadas)")
             
@@ -2553,10 +2479,8 @@ class PasesCampoContrario:
                     break
         
         if debug:
-            print(f"        ➜ Secuencia construida: {passes_added} pases")
             if len(sequence) >= 1:
                 last = sequence[-1]
-                print(f"        Último pase termina en: x={last['end_x']:.1f}, y={last['end_y']:.1f}")
 
         return sequence if len(sequence) >= 2 else None
 
@@ -2656,7 +2580,6 @@ class PasesCampoContrario:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado: {filename}")
 
     def create_passing_network_visualization(self, figsize=(16.5, 8.27), team_filter=None):
         """🔥 VISUALIZACIÓN REESTRUCTURADA CON RANKINGS MEJORADOS"""
@@ -2723,36 +2646,27 @@ class PasesCampoContrario:
         sequences_to_box = self.extract_pass_to_box_pairs()
         self.draw_sequences_to_box_panel(ax_seq_box, sequences_to_box)
 
-        print("✅ Visualización con nuevo layout de rankings completada")
         
         return fig
 
     def print_summary(self, team_filter=None):
         if self.passes_data.empty:
-            print("No hay datos de pases en campo contrario para mostrar")
             return
         
-        print(f"\n=== RESUMEN PASES EN CAMPO CONTRARIO ===")
-        print(f"Equipo: {team_filter}")
-        print(f"Total pases en campo contrario (once titular): {len(self.passes_data)}")
         
         top_passers = self.passes_data['playerName'].value_counts().head(5)
-        print(f"\nTop 5 pasadores en campo contrario:")
         for i, (player, count) in enumerate(top_passers.items(), 1):
             shirt = self.passes_data[self.passes_data['playerName'] == player]['shirt_number'].iloc[0]
-            print(f"  {i}. #{shirt} {player}: {count} pases")
 
 def seleccionar_equipo_interactivo():
     try:
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         max_intentos = 3
         for intento in range(max_intentos):
@@ -2761,9 +2675,9 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
             except EOFError:
                 # Input automático agotado - usar primer equipo como fallback
                 print("⚠️ Input automático - usando primer equipo disponible")
@@ -2773,17 +2687,13 @@ def seleccionar_equipo_interactivo():
         print("⚠️ Máximo de intentos alcanzado - usando primer equipo")
         return equipos[0] if equipos else None
     except Exception as e: 
-        print(f"Error en la selección: {e}")
         return None
 
 def main():
     try:
-        print("=== ANÁLISIS DE PASES EN CAMPO CONTRARIO ===")
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
             return
         
-        print(f"\nGenerando visualización para {equipo}...")
         analyzer = PasesCampoContrario(team_filter=equipo)
         analyzer.print_summary(team_filter=equipo)
         
@@ -2791,7 +2701,6 @@ def main():
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
             output_path = f"pases_campo_contrario_{equipo_filename}.pdf"
             analyzer.guardar_sin_espacios(fig, output_path)
-            print(f"✅ Visualización guardada como: {output_path}")
             plt.show()
         else:
             print("❌ No se pudo generar la visualización")
@@ -2813,7 +2722,6 @@ def generar_analisis_personalizado(equipo, mostrar=True, guardar=True):
                 equipo_filename = equipo.replace(' ', '_').replace('/', '_')
                 output_path = f"pases_campo_contrario_{equipo_filename}.pdf"
                 analyzer.guardar_sin_espacios(fig, output_path)
-                print(f"✅ Visualización guardada como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")
@@ -2826,14 +2734,11 @@ def generar_analisis_personalizado(equipo, mostrar=True, guardar=True):
         return None
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO ANÁLISIS CAMPO CONTRARIO ===")
     try:
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("🔍 Para generar análisis ejecuta: main()")
-            print("🔍 Para uso directo: generar_analisis_personalizado('Nombre_Equipo')")
+            pass
         main()
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")

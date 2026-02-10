@@ -31,7 +31,6 @@ plt.rcParams.update({
 try:
     from mplsoccer import Pitch
 except ImportError:
-    print("Instalando mplsoccer...")
     import subprocess
     subprocess.check_call(["pip", "install", "mplsoccer"])
     from mplsoccer import Pitch
@@ -309,10 +308,8 @@ class ReporteTactico4CamposHorizontalesMejorado:
         proporcionadas por la lógica de formación de Opta.
         """
         if not jugadores_con_coordenadas:
-            print("   - No hay jugadores con coordenadas para dibujar.")
             return
 
-        print(f"   - Dibujando a {len(jugadores_con_coordenadas)} jugadores en sus posiciones de formación.")
         for jugador in jugadores_con_coordenadas:
             x = jugador.get('Formation_X')
             y = jugador.get('Formation_Y')
@@ -374,9 +371,7 @@ class ReporteTactico4CamposHorizontalesMejorado:
             # Esto soluciona el problema de comparación entre integers y strings (ej: 4 == '4')
             if 'Week' in self.events_df.columns:
                 self.events_df['Week'] = self.events_df['Week'].astype(str)
-                print("✅ Columna 'Week' en events_df convertida a string para asegurar compatibilidad.")
 
-            print(f"✅ Eventos cargados: {self.events_df.shape[0]} filas")
             return True
         except Exception as e:
             print(f"⚠️ Error al cargar eventos: {e}")
@@ -389,10 +384,8 @@ class ReporteTactico4CamposHorizontalesMejorado:
         proporcionadas por la lógica de formación de Opta.
         """
         if not jugadores_con_coordenadas:
-            print("   - No hay jugadores con coordenadas para dibujar.")
             return
 
-        print(f"   - Dibujando a {len(jugadores_con_coordenadas)} jugadores en sus posiciones de formación.")
         for jugador in jugadores_con_coordenadas:
             x = jugador.get('Formation_X')
             y = jugador.get('Formation_Y')
@@ -417,7 +410,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             return None
 
         week_str = str(week)
-        print(f"🔍 Buscando 'Team set up' para '{team_name}' - Week '{week_str}'")
         
         setup_events = self.events_df[
             (self.events_df['Event Name'] == 'Team set up') &
@@ -433,7 +425,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             opta_team = str(row.get('Team Name', ''))
             if self.are_teams_equivalent(team_name, opta_team):
                 team_setup = row
-                print(f"   -> ✅ Match de equipo encontrado: '{team_name}' ≈ '{opta_team}'")
                 break
         
         if team_setup is None:
@@ -447,9 +438,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
         jersey_numbers_str = str(team_setup.get('Jersey Number', ''))
         player_formation_str = str(team_setup.get('Team Player Formation', '')) # <-- LA MÁSCARA
 
-        print("\n   --- Procesando Alineación ---")
-        print(f"   - Jersey Numbers (raw): {jersey_numbers_str[:70]}...")
-        print(f"   - Player Formation (máscara): {player_formation_str[:70]}...")
 
         # 2. Validar y convertir las cadenas a listas de números
         try:
@@ -483,10 +471,8 @@ class ReporteTactico4CamposHorizontalesMejorado:
         if None in ordered_starters:
             num_missing = ordered_starters.count(None)
             print(f"   -> ❌ Error: Faltan {num_missing} jugadores en la alineación titular después de filtrar.")
-            print(f"      Alineación resultante: {ordered_starters}")
             return None
 
-        print(f"   -> ✅ Alineación titular filtrada y ordenada: {ordered_starters}")
 
         # 5. Crear el mapeo final, ahora sí, solo con los 11 titulares
         position_jersey_map = {i + 1: jersey for i, jersey in enumerate(ordered_starters)}
@@ -499,7 +485,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
 
         formation_name = self.formation_mapping.get(formation_number, f"Unknown_{formation_number}")
         
-        print(f"   -> 🎯 ÉXITO: Formación {formation_name} con {len(ordered_starters)} titulares encontrada.")
         
         return {
             'formation_number': formation_number,
@@ -518,7 +503,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
         setup_info = self.get_team_setup_from_events_FIXED(team_name, week)
         
         if not setup_info:
-            print("📋 No hay datos de formación Opta, usando método tradicional")
             return None
         
         formation_number = setup_info['formation_number']
@@ -562,7 +546,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                 jugador_dict['Final_Position'] = f"FORMATION_POS_{found_position}"
                 
                 jugadores_con_coordenadas.append(jugador_dict)
-                print(f"   ✅ #{dorsal_num} {jugador.get('Alias', 'N/A')}: Pos {found_position} -> ({x}, {y})")
             else:
                 print(f"   ❌ #{dorsal_num} {jugador.get('Alias', 'N/A')}: No mapeado")
         
@@ -570,7 +553,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             print("❌ No se pudieron mapear jugadores a la formación")
             return None
         
-        print(f"🎯 Formación {setup_info['formation_name']}: {len(jugadores_con_coordenadas)} jugadores mapeados")
         
         return {
             'jugadores': jugadores_con_coordenadas,
@@ -585,7 +567,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             print("❌ events_df no está cargado")
             return
         
-        print(f"\n🔍 === DIAGNÓSTICO DETALLADO: {team_name} Week {week} ===")
         
         # 1. Verificar eventos 'Team set up'
         setup_events = self.events_df[
@@ -593,24 +574,20 @@ class ReporteTactico4CamposHorizontalesMejorado:
             (self.events_df['Week'] == week)
         ]
         
-        print(f"📊 Eventos 'Team set up' en week {week}: {len(setup_events)}")
         
         if setup_events.empty:
             print("❌ No hay eventos 'Team set up' en esta week")
             return
         
         # 2. Mostrar todos los equipos disponibles
-        print("\n🏆 Equipos disponibles en esta week:")
         for i, (_, row) in enumerate(setup_events.iterrows(), 1):
             team = row.get('Team Name', 'N/A')
             formation = row.get('Team Formation', 'N/A')
             jerseys_raw = str(row.get('Jersey Number', 'N/A'))
             jerseys_preview = jerseys_raw[:50] + "..." if len(jerseys_raw) > 50 else jerseys_raw
             
-            print(f"   {i}. {team} | Formación: {formation} | Dorsales: {jerseys_preview}")
         
         # 3. Buscar coincidencia específica
-        print(f"\n🎯 Buscando coincidencias para '{team_name}':")
         
         matches = []
         for _, row in setup_events.iterrows():
@@ -625,36 +602,26 @@ class ReporteTactico4CamposHorizontalesMejorado:
                 'row': row
             })
             
-            print(f"   '{team_name}' vs '{opta_team}': {similarity:.3f} | Equivalente: {is_equivalent}")
         
         # 4. Mostrar mejor match
         best_match = max(matches, key=lambda x: x['similarity']) if matches else None
         
         if best_match and (best_match['equivalent'] or best_match['similarity'] > 0.7):
-            print(f"\n✅ MEJOR COINCIDENCIA: {best_match['team']}")
             row = best_match['row']
             
             formation_num = row.get('Team Formation')
             jersey_str = str(row.get('Jersey Number', ''))
             
-            print(f"   - Team Formation: {formation_num}")
-            print(f"   - Jersey Numbers: {jersey_str}")
             
             # Procesar dorsales
             if jersey_str and jersey_str.lower() not in ['nan', 'none']:
                 try:
                     jerseys = [int(j.strip()) for j in jersey_str.split(',') if j.strip().isdigit()]
-                    print(f"   - Dorsales procesados: {jerseys}")
-                    print(f"   - Total jugadores: {len(jerseys)}")
                 except:
-                    print(f"   - Error procesando dorsales")
+                    pass
         else:
             print("❌ No se encontró coincidencia válida")
 
-    print("🔧 Métodos corregidos implementados:")
-    print("   • get_team_setup_from_events_FIXED() - Procesa dorsales separados por comas")
-    print("   • get_formation_coordinates_for_match_FIXED() - Mapeo dorsal->posición correcto")
-    print("   • debug_team_setup_data() - Diagnóstico detallado")
     
     def agrupar_jugadores_formacion_opta(self, formation_result):
         """Agrupa jugadores usando coordenadas exactas de formación Opta"""
@@ -682,9 +649,7 @@ class ReporteTactico4CamposHorizontalesMejorado:
             jugador['Coordenada_Y'] = y
             
             jugadores_agrupados[position_key].append(jugador)
-            print(f"   ✅ {jugador['Alias']}: Pos {pos} -> ({x}, {y})")
         
-        print(f"✅ Agrupación por formación Opta completada: {len(jugadores_agrupados)} posiciones")
         return jugadores_agrupados
 
     def get_player_photo_without_dorsal(self, player_name, photos_data, equipo=None):
@@ -855,7 +820,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                         distance = self.levenshtein_distance(p_word, ph_word)  # ← Ahora con self.
                         if distance == 1:  # Solo 1 letra de diferencia
                             matches.append(p_word)
-                            print(f"   ✅ COINCIDENCIA TOLERANTE: '{p_word}' ≈ '{ph_word}' (distancia: {distance})")
             
             if matches:
                 candidates.append({
@@ -900,7 +864,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"✅ Datos cargados: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
         except Exception as e:
             print(f"❌ Error al cargar datos: {e}")
             
@@ -945,7 +908,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             return jornada
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
-        print(f"✅ Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
 
     def are_teams_equivalent(self, team1, team2):
         """
@@ -1230,7 +1192,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                 pass
         
         tipo_display = tipo_partido_filter.upper() if tipo_partido_filter else "TODOS"
-        print(f"🔍 Buscando últimos 4 partidos {tipo_display} para {equipo} hasta jornada {jornada_maxima}")
         
         filtrado = self.df[
             (self.df['Equipo'] == equipo) & 
@@ -1277,7 +1238,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                 # Se filtra para que solo queden los jugadores con MÁS de 70 minutos
                 datos_partido = datos_partido[datos_partido['Minutos jugados'] > 70]
                 jugadores_despues = len(datos_partido)
-                print(f"   -> J{jornada}: Filtrando por >70 min. Jugadores: {jugadores_antes} -> {jugadores_despues}")
 
             
             if len(datos_partido) > 0:
@@ -1292,7 +1252,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                     'datos': datos_partido
                 })
         
-        print(f"🎯 Total partidos {tipo_display} con jugadores relevantes encontrados: {len(resultados)}")
         return resultados
 
     def calcular_dimensiones_tabla(self, jugadores_list, scale=0.9):
@@ -1330,23 +1289,16 @@ class ReporteTactico4CamposHorizontalesMejorado:
         """Método para diagnosticar problemas con las fotos"""
         photos_data = self.load_player_photos()
         
-        print(f"\n🔍 DIAGNÓSTICO DE FOTOS PARA {equipo}")
-        print("="*50)
         
         # 🆕 DIAGNÓSTICO DEL PARQUET
-        print(f"📊 COLUMNAS DISPONIBLES EN EL PARQUET:")
         if self.df is not None:
             columnas = list(self.df.columns)
-            for i, col in enumerate(columnas, 1):
-                print(f"   {i:2d}. '{col}'")
             
             # Mostrar una muestra de datos de un jugador
             sample_player = self.df.head(1).iloc[0]
-            print(f"\n📋 MUESTRA DE DATOS DE JUGADOR:")
             for col in ['Nombre', 'Apellido', 'Alias', 'Equipo']:
                 if col in self.df.columns:
                     valor = sample_player.get(col, 'N/A')
-                    print(f"   {col}: '{valor}'")
         
         # Mostrar jugadores del equipo en el JSON
         team_players_in_json = []
@@ -1355,13 +1307,8 @@ class ReporteTactico4CamposHorizontalesMejorado:
             if photo_team and self.are_teams_equivalent(equipo, photo_team):
                 team_players_in_json.append(photo_entry.get('player_name', 'N/A'))
         
-        print(f"\n📋 Jugadores en el JSON para {equipo}:")
-        for i, name in enumerate(sorted(team_players_in_json), 1):
-            print(f"   {i:2d}. '{name}'")
         
-        print(f"\n🔍 Buscando estos jugadores:")
         for player_name in player_names_to_check:
-            print(f"\n➤ Buscando: '{player_name}'")
             
             # 🆕 MOSTRAR CÓMO SE CONSTRUYE EL NOMBRE COMPLETO
             # Crear un jugador de ejemplo para probar
@@ -1372,26 +1319,20 @@ class ReporteTactico4CamposHorizontalesMejorado:
                 sample_jugador['Apellido'] = 'APELLIDO_EJEMPLO'
                 
             nombre_construido = self.construir_nombre_completo(sample_jugador)
-            print(f"   Nombre construido: '{nombre_construido}'")
             
             # Mostrar versión normalizada
             player_parts = self.extract_names_parts(player_name)
-            print(f"   Normalizado: '{player_parts['full']}'")
-            print(f"   Palabras: {player_parts['all_parts']}")
             
             # Buscar coincidencias
             match = self.match_player_name(player_name, photos_data, equipo)
             if match:
-                print(f"   ✅ ENCONTRADO: '{match.get('player_name')}'")
+                pass
             else:
                 print(f"   ❌ NO ENCONTRADO")
                 
                 # Mostrar similitudes con los nombres del equipo
-                print(f"   🔄 Similitudes con jugadores del equipo:")
                 for json_name in team_players_in_json:
                     similarity = self.similarity(player_parts['full'], self.extract_names_parts(json_name)['full'])
-                    if similarity > 0.5:  # Solo mostrar si hay cierta similitud
-                        print(f"      '{json_name}' -> {similarity:.3f}")
 
     def get_team_colors(self, equipo):
         """Obtiene colores del equipo"""
@@ -1496,7 +1437,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             logo_path = f"assets/escudos/{name}.png"
             if os.path.exists(logo_path):
                 try:
-                    print(f"✅ Escudo encontrado (exacto): {logo_path}")
                     return plt.imread(logo_path)
                 except Exception as e:
                     print(f"⚠️ Error al cargar {logo_path}: {e}")
@@ -1531,16 +1471,11 @@ class ReporteTactico4CamposHorizontalesMejorado:
             # Si encontramos una buena similitud (>60% para ser más estrictos)
             if mejor_match and mejor_similitud > 0.6:
                 try:
-                    print(f"✅ Escudo encontrado por similitud ({mejor_similitud:.2f}): {mejor_match}")
                     return plt.imread(mejor_match)
                 except Exception as e:
                     print(f"⚠️ Error al cargar {mejor_match}: {e}")
             
             # Mostrar archivos disponibles para debug
-            print(f"🔍 Variaciones buscadas: {unique_names[:8]}...")
-            print(f"📁 Algunos archivos disponibles:")
-            for escudo in escudos_disponibles[:5]:
-                print(f"   {os.path.basename(escudo)}")
             
         except Exception as e:
             print(f"⚠️ Error en búsqueda por similitud: {e}")
@@ -1561,7 +1496,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
     
     def crear_campo_sin_espacios(self, ax):
         """🔥 MÉTODO MEJORADO: Crea campo horizontal SIN ESPACIOS como el primer script"""
-        print("🎯 Creando campo horizontal SIN espacios...")
         
         # Crear pitch sin padding
         pitch = Pitch(
@@ -1914,7 +1848,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                         extent=[1, 20, 1, 14],  # ← ESCUDO ORIGINAL
                         aspect='auto', zorder=100)  # ← Adelante
                 
-                print(f"✅ Escudo local CON SOMBRA añadido")
             except Exception as e:
                 print(f"⚠️ Error escudo local: {e}")
 
@@ -1931,7 +1864,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                         extent=[100, 119, 1, 14],  # ← ESCUDO ORIGINAL
                         aspect='auto', zorder=100)  # ← Adelante
                 
-                print(f"✅ Escudo visitante CON SOMBRA añadido")
             except Exception as e:
                 print(f"⚠️ Error escudo visitante: {e}")
 
@@ -1994,7 +1926,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
                 y_test = y_ideal + radio * np.sin(np.radians(angulo))
                 
                 if self.verificar_posicion_libre((x_test, y_test), width, height, posiciones_ocupadas, coordenadas_reservadas):
-                    print(f"   🎯 Posición en grilla encontrada evitando reservadas: ({x_test:.1f}, {y_test:.1f})")
                     return x_test, y_test
         
         print(f"   ⚠️ No se encontró posición libre - usando ideal con riesgo de superposición")
@@ -2064,7 +1995,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             transparent=False,
             orientation='landscape'
         )
-        print(f"✅ Archivo guardado SIN espacios formato 16:9: {filename}")
 
     def crear_4_partidos_campos_horizontales(self, equipo, jornada_maxima, tipo_partido_filter=None, figsize=(11.69, 8.27)):
         """
@@ -2072,7 +2002,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
         táctica extraída de los eventos de Opta para posicionar a los jugadores.
         """
         tipo_display = tipo_partido_filter.upper() if tipo_partido_filter else "TODOS"
-        print(f"\n🔄 Generando visualización 2x2 con FORMACIÓN OPTA para {equipo}")
         
         # 1. OBTENER LOS DATOS DE LOS ÚLTIMOS 4 PARTIDOS
         partidos = self.get_ultimos_4_partidos(equipo, jornada_maxima, tipo_partido_filter)
@@ -2115,7 +2044,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
             if i < len(partidos):
                 # --- Hay un partido para dibujar en este eje ---
                 partido_info = partidos[i]
-                print(f"\n🏟️  Procesando Campo {i+1}: J{partido_info['jornada']} vs {partido_info['rival']}")
                 
                 # Dibujar el terreno de juego
                 self.crear_campo_sin_espacios(ax)
@@ -2161,7 +2089,6 @@ class ReporteTactico4CamposHorizontalesMejorado:
         
         self.crear_leyenda_general(fig)
         
-        print("\n✅ Visualización con Formaciones Opta creada correctamente.")
         return fig
 
 
@@ -2169,14 +2096,10 @@ def main_4_campos_horizontales_coordenadas_fijas():
     """Función principal con coordenadas fijas"""
     try:
         report_gen = ReporteTactico4CamposHorizontalesMejorado()
-        print("¿Events cargado?", hasattr(report_gen, 'events_df'))
         if hasattr(report_gen, 'events_df') and report_gen.events_df is not None:
-            print("Shape:", report_gen.events_df.shape)
-            print("Weeks disponibles:", sorted(report_gen.events_df['Week'].unique()))
-            print("Event Names únicos:", report_gen.events_df['Event Name'].unique()[:5])
-            print("¿Tiene 'Team set up'?", 'Team set up' in report_gen.events_df['Event Name'].values)
+            pass
         else:
-            print("Events_df está vacío o None")
+            pass
 
         equipos = report_gen.get_available_teams()
         
@@ -2184,9 +2107,6 @@ def main_4_campos_horizontales_coordenadas_fijas():
             print("❌ No hay equipos disponibles")
             return
         
-        print("\n🏟️ === REPORTE 4 CAMPOS HORIZONTALES - COORDENADAS FIJAS ===")
-        for i, equipo in enumerate(equipos, 1):
-            print(f"{i:2d}. {equipo}")
         
         while True:
             try:
@@ -2202,7 +2122,6 @@ def main_4_campos_horizontales_coordenadas_fijas():
         
         # Jornada
         jornadas = report_gen.get_available_jornadas()
-        print(f"✅ Sistema CON COORDENADAS FIJAS listo: {len(equipos)} equipos, {len(jornadas)} jornadas")
         
         while True:
             try:
@@ -2220,10 +2139,6 @@ def main_4_campos_horizontales_coordenadas_fijas():
                 print("❌ Formato de jornada inválido")
         
         # Tipo de partido
-        print(f"\n🎯 Selecciona tipo de partidos:")
-        print("1. SOLO LOCALES")
-        print("2. SOLO VISITANTES") 
-        print("3. TODOS")
         
         while True:
             try:
@@ -2283,7 +2198,6 @@ def generar_4_campos_coordenadas_fijas(equipo, jornada_maxima, tipo_partido_filt
 def rapido_horizontal_fijas(equipo, jornada=35, tipo_partido=None):
     """Genera 4 campos horizontales CON COORDENADAS FIJAS rápidamente"""
     tipo_display = tipo_partido.upper() if tipo_partido else "TODOS"
-    print(f"🚀 Generación rápida horizontal COORDENADAS FIJAS: {equipo} hasta jornada {jornada} - Partidos {tipo_display}")
     return generar_4_campos_coordenadas_fijas(equipo, jornada, tipo_partido)
 
 def sevilla_horizontal_fijas(tipo_partido=None):
@@ -2299,25 +2213,10 @@ def sevilla_horizontal_visitante_fijas():
     return sevilla_horizontal_fijas("visitante")
 
 # Inicialización
-print("🏟️ === REPORTE TÁCTICO 4 CAMPOS - COORDENADAS FIJAS ===")
 try:
     report_gen = ReporteTactico4CamposHorizontalesMejorado()
     equipos = report_gen.get_available_teams()
     jornadas = report_gen.get_available_jornadas()
-    print(f"✅ Sistema CON COORDENADAS FIJAS listo: {len(equipos)} equipos, {len(jornadas)} jornadas")
-    print("📝 PARA USAR:")
-    print("   → main_4_campos_horizontales_coordenadas_fijas() - INTERFAZ GUIADA")
-    print("   → sevilla_horizontal_local_fijas() - DIRECTO: Sevilla solo locales")
-    print("   → sevilla_horizontal_visitante_fijas() - DIRECTO: Sevilla solo visitantes")
-    print("   → rapido_horizontal_fijas('Athletic Club', 20, 'local')")
-    print("\n📍 COORDENADAS FIJAS IMPLEMENTADAS:")
-    print("   • Sin detección ni resolución de colisiones")
-    print("   • Tablas posicionadas exactamente en coordenadas definidas")
-    print("   • Mayor control sobre el diseño del campo")
-    print("   • Resultados más predecibles y consistentes")
-    print("="*70)
-    print("💡 TIP: Para Sevilla solo locales FIJAS: sevilla_horizontal_local_fijas()")
-    print("="*70)
 except Exception as e:
     print(f"❌ Error inicialización: {e}")
 

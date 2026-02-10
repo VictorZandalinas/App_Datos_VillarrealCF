@@ -89,7 +89,6 @@ class ReporteCampogramasCorners:
                     how='left'
                 )
                 
-                print(f"✅ Merge dorsales exitoso: {len(self.df[self.df['dorsal_lanzador'].notna()])} eventos con dorsal")
                 
             except Exception as e:
                 print(f"⚠️ Error en merge dorsales: {e}")
@@ -114,7 +113,6 @@ class ReporteCampogramasCorners:
                     how='left'
                 )
                 
-                print(f"✅ Merge xG exitoso: {len(self.df[self.df['xg_value'].notna()])} eventos con xG")
                 
             except Exception as e:
                 print(f"⚠️ Error en merge xG: {e}")
@@ -132,8 +130,6 @@ class ReporteCampogramasCorners:
             
             self.corner_data = corners_df.copy()
             
-            print(f"✅ Datos cargados: {len(self.df)} eventos totales")
-            print(f"✅ Corners únicos del equipo: {len(self.corner_data)}")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -142,7 +138,6 @@ class ReporteCampogramasCorners:
 
     def extract_lanzamientos_izquierda(self, team_filter=None):
         """Extrae lanzamientos del lado izquierdo"""
-        print("🔍 Extrayendo lanzamientos del lado izquierdo...")
         
         df_sorted = self.df.sort_values(['Match ID', 'timeMin', 'timeSec']).reset_index(drop=True)
         lanzamientos_list = []
@@ -195,7 +190,6 @@ class ReporteCampogramasCorners:
                 keep='first'
             )
             
-            print(f"✅ Lanzamientos lado izquierdo: {len(lanzamientos_data)}")
             return lanzamientos_data
         else:
             print("❌ No se encontraron lanzamientos del lado izquierdo")
@@ -203,7 +197,6 @@ class ReporteCampogramasCorners:
 
     def extract_lanzamientos_derecha(self, team_filter=None):
         """Extrae lanzamientos del lado derecho"""
-        print("🔍 Extrayendo lanzamientos del lado derecho...")
         
         df_sorted = self.df.sort_values(['Match ID', 'timeMin', 'timeSec']).reset_index(drop=True)
         lanzamientos_list = []
@@ -256,7 +249,6 @@ class ReporteCampogramasCorners:
                 keep='first'
             )
             
-            print(f"✅ Lanzamientos lado derecho: {len(lanzamientos_data)}")
             return lanzamientos_data
         else:
             print("❌ No se encontraron lanzamientos del lado derecho")
@@ -308,7 +300,7 @@ class ReporteCampogramasCorners:
                     dorsal = player_info['Shirt Number'].iloc[0]
                     return int(dorsal) if pd.notna(dorsal) else None
             except Exception as e:
-                print(f"Error obteniendo dorsal para player_id {player_id}: {e}")
+                pass
             return None
         
         for next_idx in range(lanzamiento_idx + 1, len(match_events)):
@@ -1032,12 +1024,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1045,22 +1036,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE REPORTE CAMPOGRAMAS CÓRNERS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte de campogramas para {equipo}")
         analyzer = ReporteCampogramasCorners(team_filter=equipo)
         
         if (fig := analyzer.create_reporte_campogramas()):
@@ -1070,7 +1060,6 @@ def main():
             # PARÁMETROS DE GUARDADO AJUSTADOS
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0, 
                        facecolor='white', dpi=300, orientation='landscape')
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -1094,7 +1083,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 # PARÁMETROS DE GUARDADO AJUSTADOS
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0, 
                            facecolor='white', dpi=300, orientation='landscape')
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")

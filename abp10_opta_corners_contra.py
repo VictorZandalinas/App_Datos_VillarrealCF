@@ -58,7 +58,6 @@ class CornersDefensivosReport:
         if best_match:
             try:
                 logo_path = f"assets/escudos/{best_match}"
-                print(f"Escudo encontrado para {equipo}: {best_match} (similitud: {best_similarity:.2f})")
                 
                 # CARGAR Y REDIMENSIONAR A TAMAÑO FIJO
                 escudo_original = plt.imread(logo_path)
@@ -66,7 +65,7 @@ class CornersDefensivosReport:
                 
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
 
@@ -104,7 +103,7 @@ class CornersDefensivosReport:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
 
     def convert_to_grayscale(self, image):
@@ -124,7 +123,7 @@ class CornersDefensivosReport:
                 gray = np.dot(image, [0.2989, 0.5870, 0.1140])
                 return np.stack([gray, gray, gray], axis=2)
         except Exception as e:
-            print(f"Error al convertir a escala de grises: {e}")
+            pass
             return image
         
     def load_data(self):
@@ -135,8 +134,6 @@ class CornersDefensivosReport:
             if 'timeStamp' in self.df_events.columns:
                 self.df_events['timeStamp'] = pd.to_datetime(self.df_events['timeStamp'].str.replace('Z', ''), errors='coerce')
             
-            print(f"✅ Datos de eventos cargados: {self.df_events.shape[0]} filas")
-            print(f"✅ Datos de equipos cargados: {self.df_teams.shape[0]} filas")
         except Exception as e:
             print(f"❌ Error al cargar los datos de Opta: {e}")
     
@@ -178,7 +175,6 @@ class CornersDefensivosReport:
         
         if lanzamientos_list:
             self.corner_sequences = pd.DataFrame(lanzamientos_list)
-            print(f"✅ Secuencias defensivas analizadas: {len(self.corner_sequences)}")
     
     def analyze_lanzamiento_sequence(self, match_events, lanzamiento_idx, lanzamiento_pass):
         """
@@ -344,7 +340,6 @@ class CornersDefensivosReport:
         if self.df is None:
             return
         
-        print("Preparando métricas de córners defensivos...")
         
         # MÉTRICAS PARA CÓRNERS DEFENSIVOS
         metrics_to_find = [
@@ -362,7 +357,6 @@ class CornersDefensivosReport:
         for metric in metrics_to_find:
             if metric in self.df.columns:
                 available_metrics.append(metric)
-                print(f"✅ Métrica encontrada: {metric}")
             else:
                 print(f"❌ Métrica no encontrada: {metric}")
         
@@ -371,10 +365,8 @@ class CornersDefensivosReport:
         # Si los datos están en formato long (una columna con nombres de métricas)
         if 'NOMBRE MÉTRICA' in self.df.columns or 'metric_name' in self.df.columns:
             self.data_format = 'long'
-            print("Formato de datos: LONG (una fila por métrica)")
         else:
             self.data_format = 'wide' 
-            print("Formato de datos: WIDE (una columna por métrica)")
     
     def get_team_corner_stats(self, equipo_seleccionado=None):
         """Estadísticas DEFENSIVAS de córners"""
@@ -462,7 +454,7 @@ class CornersDefensivosReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -473,7 +465,7 @@ class CornersDefensivosReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
     
@@ -483,7 +475,7 @@ class CornersDefensivosReport:
         # Obtener datos de córners defensivos
         team_stats, equipo_data = self.get_team_corner_stats(equipo_seleccionado)
         if team_stats is None:
-            print("No se pudieron obtener las estadísticas de córners defensivos")
+            pass
             return None
                 
         # Crear figura
@@ -497,7 +489,7 @@ class CornersDefensivosReport:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid - Layout similar al PNG
         gs = fig.add_gridspec(2, 4, 
@@ -535,7 +527,6 @@ class CornersDefensivosReport:
                 imagebox = OffsetImage(villarreal_logo, zoom=escudo_zoom)
                 ab = AnnotationBbox(imagebox, (0.88, 0.5), frameon=False, zorder=2) 
                 ax_title.add_artist(ab)
-                print(f"✅ Escudo Villarreal: shape={villarreal_logo.shape}, zoom={escudo_zoom}")
             except Exception as e:
                 print(f"❌ Error con escudo Villarreal: {e}")
 
@@ -546,7 +537,6 @@ class CornersDefensivosReport:
                 imagebox = OffsetImage(equipo_logo, zoom=escudo_zoom)  # MISMO ZOOM
                 ab = AnnotationBbox(imagebox, (0.92, 0.5), frameon=False, zorder=1)
                 ax_title.add_artist(ab)
-                print(f"✅ Escudo {equipo_seleccionado}: shape={equipo_logo.shape}, zoom={escudo_zoom}")
             except Exception as e:
                 print(f"❌ Error con escudo {equipo_seleccionado}: {e}")
         else:
@@ -671,7 +661,6 @@ class CornersDefensivosReport:
             if is_selected or is_villarreal:
                 continue
             
-            print(f"Procesando equipo normal: {equipo}: x={x_val}, y={y_val}")
             
             # Buscar escudo por similitud
             escudo = self.find_team_logo_by_similarity(equipo)
@@ -702,7 +691,6 @@ class CornersDefensivosReport:
             if not (is_selected or is_villarreal):
                 continue
             
-            print(f"Procesando equipo destacado: {equipo}: x={x_val}, y={y_val}")
             
             # Buscar escudo por similitud
             escudo = self.find_team_logo_by_similarity(equipo)
@@ -713,7 +701,6 @@ class CornersDefensivosReport:
                     imagebox = OffsetImage(escudo, zoom=0.45, alpha=1.0)
                     ab = AnnotationBbox(imagebox, (x_val, y_val), frameon=False, pad=0, zorder=10)  # Z-order alto
                     ax.add_artist(ab)
-                    print(f"  → Escudo en color y grande para {equipo}")
                     continue
                 except Exception as e:
                     print(f"❌ Error al mostrar escudo para {equipo}: {e}")
@@ -739,7 +726,6 @@ class CornersDefensivosReport:
         ax.set_xlim(x_min - x_margin, x_max + x_margin)
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
 
-        print(f"Límites del gráfico: x=[{x_min - x_margin:.1f}, {x_max + x_margin:.1f}], y=[{y_min - y_margin:.1f}, {y_max + y_margin:.1f}]")
 
         ax.grid(True, alpha=0.3)
         ax.spines['top'].set_visible(False)
@@ -750,8 +736,6 @@ def verificar_datos_disponibles(data_path="./extraccion_opta/datos_opta_parquet/
     try:
         if not os.path.exists(data_path):
             print(f"❌ Error: No se encontró el archivo en la ruta: {data_path}")
-            print("Verifica que la ruta sea correcta y que el archivo exista.")
-            print("\nVerificando rutas alternativas...")
             
             # Verificar rutas alternativas comunes
             alternative_paths = [
@@ -763,29 +747,23 @@ def verificar_datos_disponibles(data_path="./extraccion_opta/datos_opta_parquet/
             
             for alt_path in alternative_paths:
                 if os.path.exists(alt_path):
-                    print(f"✅ Archivo encontrado en: {alt_path}")
+                    pass
                     data_path = alt_path
                     break
             else:
                 return None
         
         df = pd.read_parquet(data_path)
-        print(f"=== ANÁLISIS DEL DATASET ===")
-        print(f"Archivo: {data_path}")
-        print(f"Filas: {df.shape[0]}, Columnas: {df.shape[1]}")
-        print(f"\nColumnas disponibles:")
         for i, col in enumerate(df.columns, 1):
-            print(f"{i:2d}. {col}")
+            pass
         
-        print(f"\nPrimeras 3 filas:")
-        print(df.head(3))
         
         # Buscar columnas relacionadas con córners defensivos
         defensive_related = [col for col in df.columns if 'lost' in col.lower() or 'conceded' in col.lower() or 'corner' in col.lower()]
         if defensive_related:
-            print(f"\nColumnas relacionadas con estadísticas defensivas encontradas:")
+            pass
             for col in defensive_related:
-                print(f"- {col}")
+                pass
         else:
             print(f"\n❌ No se encontraron columnas relacionadas con estadísticas defensivas")
         
@@ -796,9 +774,8 @@ def verificar_datos_disponibles(data_path="./extraccion_opta/datos_opta_parquet/
 
 def seleccionar_equipo_interactivo(df):
     equipos = sorted(df['Team Name'].unique())
-    print("\n=== SELECCIÓN DE EQUIPO ===")
     for i, equipo in enumerate(equipos, 1):
-        print(f"{i}. {equipo}")
+        pass
     
     while True:
         try:
@@ -807,20 +784,18 @@ def seleccionar_equipo_interactivo(df):
             if 0 <= indice < len(equipos):
                 return equipos[indice]
             else:
-                print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                pass
         except ValueError:
-            print("Por favor, ingresa un número válido")
+            pass
 
 def main():
     """Función principal para ejecutar el reporte de córners defensivos"""
-    print("=== GENERADOR DE REPORTES DE CÓRNERS DEFENSIVOS ===")
     
     df = verificar_datos_disponibles()
     if df is None:
         return
     
     equipo_seleccionado = seleccionar_equipo_interactivo(df)
-    print(f"\nGenerando reporte defensivo para: {equipo_seleccionado}")
     
     report_generator = CornersDefensivosReport()
     fig = report_generator.create_visualization(equipo_seleccionado)
@@ -836,7 +811,6 @@ def main():
         with PdfPages(output_path) as pdf:
             pdf.savefig(fig, bbox_inches='tight', pad_inches=0, dpi=300)
         
-        print(f"✅ Reporte defensivo guardado como: {output_path}")
     else:
         print("❌ No se pudo generar la visualización defensiva")
 

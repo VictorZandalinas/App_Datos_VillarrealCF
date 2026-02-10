@@ -33,7 +33,6 @@ plt.rcParams.update({
 try:
     from mplsoccer import Pitch
 except ImportError:
-    print("Instalando mplsoccer...")
     import subprocess
     subprocess.check_call(["pip", "install", "mplsoccer"])
     from mplsoccer import Pitch
@@ -452,7 +451,6 @@ class Posible11Inicial:
             return None
 
         week_str = str(week)
-        print(f"🔍 Buscando 'Team set up' para '{team_name}' - Week '{week_str}'")
         
         setup_events = self.events_df[
             (self.events_df['Event Name'] == 'Team set up') &
@@ -468,7 +466,6 @@ class Posible11Inicial:
             opta_team = str(row.get('Team Name', ''))
             if self.are_teams_equivalent(team_name, opta_team):
                 team_setup = row
-                print(f"   -> ✅ Match de equipo encontrado: '{team_name}' ≈ '{opta_team}'")
                 break
         
         if team_setup is None:
@@ -482,9 +479,6 @@ class Posible11Inicial:
         jersey_numbers_str = str(team_setup.get('Jersey Number', ''))
         player_formation_str = str(team_setup.get('Team Player Formation', '')) # <-- LA MÁSCARA
 
-        print("\n   --- Procesando Alineación ---")
-        print(f"   - Jersey Numbers (raw): {jersey_numbers_str[:70]}...")
-        print(f"   - Player Formation (máscara): {player_formation_str[:70]}...")
 
         # 2. Validar y convertir las cadenas a listas de números
         try:
@@ -518,10 +512,8 @@ class Posible11Inicial:
         if None in ordered_starters:
             num_missing = ordered_starters.count(None)
             print(f"   -> ❌ Error: Faltan {num_missing} jugadores en la alineación titular después de filtrar.")
-            print(f"      Alineación resultante: {ordered_starters}")
             return None
 
-        print(f"   -> ✅ Alineación titular filtrada y ordenada: {ordered_starters}")
 
         # 5. Crear el mapeo final, ahora sí, solo con los 11 titulares
         position_jersey_map = {i + 1: jersey for i, jersey in enumerate(ordered_starters)}
@@ -534,7 +526,6 @@ class Posible11Inicial:
 
         formation_name = self.formation_mapping.get(formation_number, f"Unknown_{formation_number}")
         
-        print(f"   -> 🎯 ÉXITO: Formación {formation_name} con {len(ordered_starters)} titulares encontrada.")
         
         return {
             'formation_number': formation_number,
@@ -834,7 +825,6 @@ class Posible11Inicial:
                         distance = self.levenshtein_distance(p_word, ph_word)  # ← Con self.
                         if distance == 1:  # Solo 1 letra de diferencia
                             matches.append(p_word)
-                            print(f"   ✅ COINCIDENCIA TOLERANTE: '{p_word}' ≈ '{ph_word}' (distancia: {distance})")
             
             if matches:
                 candidates.append({
@@ -872,31 +862,23 @@ class Posible11Inicial:
         """
         photos_data = self.load_player_photos()
         
-        print(f"\n\n=======================================================")
-        print(f"🔍 INICIANDO DIAGNÓSTICO DE FOTOS PARA: {equipo.upper()}")
-        print(f"=======================================================")
         
         # 1. DIAGNÓSTICO DEL PARQUET: ¿Qué datos de nombres tenemos?
-        print("\n--- 1. Análisis de los Datos de Origen (Parquet) ---")
         if self.df is not None:
             columnas = [col for col in ['Nombre', 'Apellido', 'Alias', 'Equipo'] if col in self.df.columns]
-            print(f"✅ Columnas de nombres disponibles en el Parquet: {columnas}")
             
             # Mostrar una muestra de datos de un jugador del equipo
             sample_player_df = self.df[self.df['Equipo'] == equipo]
             if not sample_player_df.empty:
                 sample_player = sample_player_df.head(1).iloc[0].to_dict()
-                print("\n📋 Muestra de datos de un jugador de este equipo:")
                 for col in columnas:
                     valor = sample_player.get(col, 'N/A')
-                    print(f"   - {col}: '{valor}'")
             else:
                 print(f"⚠️ No se encontraron datos para '{equipo}' en el Parquet.")
         else:
             print("❌ El DataFrame principal (self.df) no está cargado.")
         
         # 2. DIAGNÓSTICO DEL JSON: ¿Qué fotos tenemos para este equipo?
-        print("\n\n--- 2. Análisis de la Base de Datos de Fotos (JSON) ---")
         team_players_in_json = []
         for photo_entry in photos_data:
             photo_team = photo_entry.get('team_name')
@@ -904,20 +886,13 @@ class Posible11Inicial:
                 team_players_in_json.append(photo_entry.get('player_name', 'N/A'))
         
         if team_players_in_json:
-            print(f"✅ Encontrados {len(team_players_in_json)} jugadores en el JSON para '{equipo}':")
+            pass
             # Muestra los primeros 10 para no saturar la consola
-            for i, name in enumerate(sorted(team_players_in_json)[:10], 1):
-                print(f"   {i:2d}. '{name}'")
-            if len(team_players_in_json) > 10:
-                print(f"   ... y {len(team_players_in_json) - 10} más.")
         else:
             print(f"❌ ¡ALERTA! No se encontró NINGÚN jugador para '{equipo}' en el archivo JSON. Revisa los nombres de equipo.")
 
         # 3. TRAZA DE BÚSQUEDA: ¿Cómo se busca a cada jugador?
-        print("\n\n--- 3. Traza de Búsqueda Detallada ---")
         for player_name in player_names_to_check:
-            print(f"\n➤ Buscando a: '{player_name}'")
-            print("-" * 30)
             
             # Simular la creación de un diccionario de jugador como lo haría el script
             # Esta simulación es clave para replicar el error
@@ -930,22 +905,18 @@ class Posible11Inicial:
             
             # Paso A: ¿Cómo se construye el nombre completo?
             nombre_buscado = self.construir_nombre_completo(player_dict_simulado)
-            print(f"   A. Nombre construido para la búsqueda: '{nombre_buscado}'")
 
             # Paso B: ¿Cómo se normaliza ese nombre?
             player_parts_norm = self.extract_names_parts(nombre_buscado)
-            print(f"   B. Nombre normalizado: '{player_parts_norm['full']}'")
 
             # Paso C: Ejecutar la búsqueda real
-            print("   C. Ejecutando match_player_name...")
             match = self.match_player_name(nombre_buscado, photos_data, equipo)
             
             # Paso D: Mostrar el resultado y las pistas
             if match:
-                print(f"   D. ✅ ¡ÉXITO! Coincidencia encontrada: '{match.get('player_name')}'")
+                pass
             else:
                 print(f"   D. ❌ FALLO. No se encontró una coincidencia clara.")
-                print(f"      Pistas:")
                 # Calcular similitudes con todos los jugadores del equipo en el JSON
                 best_json_match = None
                 highest_similarity = 0
@@ -958,16 +929,10 @@ class Posible11Inicial:
                         best_json_match = json_name
                 
                 if best_json_match:
-                    print(f"         - La coincidencia más cercana en el JSON fue '{best_json_match}'")
-                    print(f"         - Similitud del nombre completo: {highest_similarity:.2f}")
-                    if highest_similarity < 0.8:
-                         print("           (Esta similitud es probablemente demasiado baja para ser considerada un match)")
+                    pass
                 else:
-                    print("         - No se encontró ninguna coincidencia remotamente similar en el JSON.")
+                    pass
 
-        print(f"\n=======================================================")
-        print(f"🔍 DIAGNÓSTICO FINALIZADO")
-        print(f"=======================================================")
 
     def check_collision(self, x1, y1, width1, height1, x2, y2, width2, height2, margin=2):
         """Verifica si dos rectángulos se solapan con un margen de separación"""
@@ -1043,7 +1008,6 @@ class Posible11Inicial:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"✅ Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
             
@@ -1098,7 +1062,6 @@ class Posible11Inicial:
             return jornada
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
-        print(f"✅ Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
 
     def load_match_events(self):
         """Carga los datos del archivo abp_events.parquet Y ASEGURA QUE 'Week' SEA STRING."""
@@ -1109,9 +1072,7 @@ class Posible11Inicial:
             
             if 'Week' in self.events_df.columns:
                 self.events_df['Week'] = self.events_df['Week'].astype(str)
-                print("✅ Columna 'Week' en events_df convertida a string.")
 
-            print(f"✅ Eventos de partido cargados: {self.events_df.shape[0]} filas")
             return True
         except Exception as e:
             print(f"⚠️ Error al cargar eventos de partido: {e}")
@@ -1253,7 +1214,6 @@ class Posible11Inicial:
             print(f"   ❌ No hay datos Opta cargados")
             return {}
         
-        print(f"🔍 Obteniendo todas las posiciones de {equipo} desde Opta...")
         
         # Buscar registros del equipo en Opta
         registros_equipo = []
@@ -1263,7 +1223,6 @@ class Posible11Inicial:
             if self.are_teams_equivalent(equipo, opta_team):
                 registros_equipo.append(opta_row)
         
-        print(f"   📊 Encontrados {len(registros_equipo)} registros en Opta para {equipo}")
         
         if not registros_equipo:
             return {}
@@ -1307,9 +1266,7 @@ class Posible11Inicial:
                     'frecuencia': frecuencia,
                     'total_registros': len(posiciones)
                 }
-                print(f"   ✅ Dorsal {dorsal}: {posicion_mas_frecuente} ({frecuencia}/{len(posiciones)} veces)")
         
-        print(f"   🎯 Total dorsales con posición válida: {len(posiciones_finales)}")
         return posiciones_finales
 
     def buscar_posicion_jugador_por_dorsal(self, dorsal, equipo, posiciones_opta):
@@ -1420,7 +1377,6 @@ class Posible11Inicial:
             print(f"   ❌ {jugador_alias}: No hay datos Opta cargados")
             return None
         
-        print(f"   🔍 Buscando {jugador_alias} - Dorsal: {dorsal} - Equipo: {equipo}")
         
         posiciones_encontradas = []
         matches_encontrados = 0
@@ -1449,8 +1405,6 @@ class Posible11Inicial:
                 if 'Team Name' in opta_row:
                     opta_team = str(opta_row.get('Team Name', ''))
                     team_match = self.are_teams_equivalent(equipo, opta_team)
-                    if dorsal_match:  # Solo debug si dorsal coincide
-                        print(f"      🏟️ Equipo Opta: '{opta_team}' vs '{equipo}' → Match: {team_match}")
                 
                 # Si coinciden dorsal y equipo
                 if dorsal_match and team_match:
@@ -1458,19 +1412,16 @@ class Posible11Inicial:
                     position = opta_row.get('Position')
                     position_side = opta_row.get('Position Side')
                     
-                    print(f"      ✅ Match #{matches_encontrados}: Position='{position}', Side='{position_side}'")
                     
                     if pd.notna(position) and str(position).strip() not in ["Substitute", "", "Not Used"]:
                         posicion_mapeada = self.mapear_posicion_opta_a_coordenadas(position, position_side)
                         if posicion_mapeada:
                             posiciones_encontradas.append(posicion_mapeada)
-                            print(f"         → Mapeada a: {posicion_mapeada}")
                     else:
-                        print(f"         → Posición descartada: '{position}'")
+                        pass
         else:
             print(f"   ❌ {jugador_alias}: Dorsal faltante o inválido")
         
-        print(f"   📊 Total matches: {matches_encontrados}, Posiciones válidas: {len(posiciones_encontradas)}")
         return posiciones_encontradas
 
     def get_posicion_mas_frecuente_opta(self, jugador_alias, equipo, dorsal):
@@ -1486,7 +1437,6 @@ class Posible11Inicial:
         contador_posiciones = Counter(posiciones)
         posicion_mas_frecuente = contador_posiciones.most_common(1)[0][0]
         
-        print(f"   🎯 {jugador_alias}: {posicion_mas_frecuente} (Opta - {contador_posiciones[posicion_mas_frecuente]} veces)")
         return posicion_mas_frecuente
 
     def get_available_teams(self):
@@ -1533,7 +1483,6 @@ class Posible11Inicial:
 
     def fill_missing_demarcaciones(self, df):
         """Rellena demarcaciones vacías con la más frecuente para cada jugador"""
-        print("🔄 Rellenando demarcaciones vacías...")
         
         # Crear copia para trabajar
         df_work = df.copy()
@@ -1543,7 +1492,6 @@ class Posible11Inicial:
         empty_count = mask_empty.sum()
         
         if empty_count > 0:
-            print(f"📝 Encontrados {empty_count} registros con demarcación vacía")
             
             # Para cada jugador con demarcación vacía, buscar su demarcación más frecuente
             for idx in df_work[mask_empty].index:
@@ -1562,7 +1510,6 @@ class Posible11Inicial:
                     # Usar la demarcación más frecuente
                     demarcacion_mas_frecuente = jugador_demarcaciones.value_counts().index[0]
                     df_work.loc[idx, 'Demarcacion'] = demarcacion_mas_frecuente
-                    print(f"   ✅ {jugador_alias}: {demarcacion_mas_frecuente} (histórico)")
                 else:
                     # Si no hay datos históricos, asignar "Sin Posición"
                     df_work.loc[idx, 'Demarcacion'] = 'Sin Posición'
@@ -1572,12 +1519,8 @@ class Posible11Inicial:
 
     def get_posiciones_mas_utilizadas_equipo(self, equipo, jornadas_analizar):
         """Obtiene las 11 posiciones más utilizadas por el equipo en Opta"""
-        print(f"\nDEBUG get_posiciones_mas_utilizadas_equipo:")
-        print(f"   equipo: {equipo}")
-        print(f"   jornadas_analizar: {jornadas_analizar}")
         
         if self.opta_df is None:
-            print(f"   ERROR: opta_df is None")
             return {}
         
         posiciones_utilizadas = {}
@@ -1587,26 +1530,20 @@ class Posible11Inicial:
         
         for jornada in jornadas_analizar:
             week = self.convert_jornada_to_week(jornada)
-            print(f"   Procesando jornada {jornada} -> week {week}")
             if week is None:
                 continue
                 
             # FIX CRÍTICO: Week se almacena como string en el DataFrame
             match_df = self.opta_df[self.opta_df['Week'] == str(week)]
-            print(f"      Registros para week {week}: {len(match_df)}")
             
             for _, row in match_df.iterrows():
                 registros_totales += 1
                 opta_team = row.get('Team Name', '')
                 
                 # DEBUG: Mostrar nombres de equipos en Opta
-                if registros_totales <= 10:  # Solo mostrar los primeros 10
-                    print(f"      🔍 DEBUG Opta: Team='{opta_team}'")
                 
                 if self.are_teams_equivalent(equipo, opta_team):
                     registros_equipo += 1
-                    if registros_equipo <= 3:  # Solo mostrar los primeros 3
-                        print(f"      MATCH equipo: '{opta_team}' == '{equipo}'")
                     
                     position = row.get('Position')
                     position_side = row.get('Position Side', '')
@@ -1622,26 +1559,16 @@ class Posible11Inicial:
                             posiciones_utilizadas[posicion_key] = 0
                         posiciones_utilizadas[posicion_key] += 1
                         
-                        if registros_validos <= 5:  # Solo mostrar las primeras 5
-                            print(f"         Posición registrada: {posicion_key}")
                     else:
-                        if registros_equipo <= 3:
-                            print(f"         Posición inválida: '{position}'")
+                                pass
                 else:
-                    if registros_totales <= 3:  # Solo mostrar los primeros 3 para no spam
-                        print(f"      NO MATCH equipo: '{opta_team}' != '{equipo}'")
+                                pass
         
-        print(f"   Resumen:")
-        print(f"      - Registros totales procesados: {registros_totales}")
-        print(f"      - Registros del equipo: {registros_equipo}")
-        print(f"      - Registros válidos: {registros_validos}")
-        print(f"      - Posiciones encontradas: {len(posiciones_utilizadas)}")
         
         # Obtener las 11 más utilizadas
         sorted_positions = sorted(posiciones_utilizadas.items(), 
                                 key=lambda x: x[1], reverse=True)[:11]
         
-        print(f"   Top posiciones: {dict(sorted_positions)}")
         return dict(sorted_positions)
     
     def contar_apariciones_en_posicion(self, dorsal, posicion_objetivo):
@@ -1788,7 +1715,6 @@ class Posible11Inicial:
         from collections import Counter
 
         jornadas_analizar = self.get_last_5_jornadas(equipo, jornada)
-        print(f"Analizando las jornadas: {jornadas_analizar}")
 
         if self.events_df is None:
             print("⚠️ No hay datos de eventos de partido disponibles. Usando fallback.")
@@ -1796,7 +1722,6 @@ class Posible11Inicial:
 
         # --- PASO 1 y 2: Obtener formación más usada ---
         partidos_analizados = []
-        print("\n--- Analizando formaciones de partidos recientes ---")
         for j in jornadas_analizar:
             setup = self.get_team_setup_from_events_FIXED(equipo, j)
             if setup:
@@ -1813,7 +1738,6 @@ class Posible11Inicial:
             
         formacion_ganadora_nombre, _ = contador_formaciones.most_common(1)[0]
         formacion_ganadora_num = [k for k, v in self.formation_mapping.items() if v == formacion_ganadora_nombre][0]
-        print(f"\n🏆 Formación más utilizada: {formacion_ganadora_nombre.upper()} ({formacion_ganadora_num})")
 
         # --- PASO 3: Contar apariciones por puesto ---
         partidos_filtrados = [p for p in partidos_analizados if p['formation_name'] == formacion_ganadora_nombre]
@@ -1831,16 +1755,13 @@ class Posible11Inicial:
         
         puestos_ordenados = sorted(range(1, 12), key=calcular_prioridad_puesto)
         
-        print(f"\n📋 Orden de asignación por escasez de candidatos:")
         for puesto in puestos_ordenados:
             num_candidatos = len(apariciones_por_puesto.get(puesto, {}))
-            print(f"   - Puesto {puesto}: {num_candidatos} candidato(s)")
         
         # --- PASO 5: Construir el 11 final con desempate por minutos ---
         posible_11 = {}
         jugadores_ya_elegidos = set()
 
-        print("\n👥 Asignando jugadores al 'Once de Gala' (con desempate por minutos):")
 
         for puesto in puestos_ordenados:
             contador_dorsales = apariciones_por_puesto.get(puesto)
@@ -1883,19 +1804,17 @@ class Posible11Inicial:
                         posible_11[posicion_key] = datos_completos
 
                         nombre_display = datos_completos.get('Alias', 'N/A')
-                        print(f"   - Puesto {puesto}: ✅ {nombre_display} (Dorsal {dorsal_candidato}) - {num_apariciones} vez/veces, {minutos_totales:.0f} min")
                     
                     jugador_asignado = True
                     break
                 else:
-                    print(f"   - Puesto {puesto}: ⏭️  Saltando dorsal {dorsal_candidato} (ya usado)")
+                    pass
 
             if not jugador_asignado:
                 print(f"   - Puesto {puesto}: ❌ No se pudo asignar (todos los candidatos ya usados)")
         
         # --- PASO 6: FALLBACK - Rellenar puestos vacíos con suplentes ---
         if len(posible_11) < 11:
-            print(f"\n🆘 Rellenando {11 - len(posible_11)} puesto(s) vacío(s) con suplentes...")
             
             equipo_df = self.df[
                 (self.df['Equipo'] == equipo) & 
@@ -1917,7 +1836,6 @@ class Posible11Inicial:
                             datos_completos['stats'] = stats_acumuladas
                             
                             posible_11[f"PUESTO_{puesto}"] = datos_completos
-                            print(f"   - Puesto {puesto}: 🔄 {jugador['Alias']} (suplente - Dorsal {dorsal})")
                             break
 
         return posible_11, formacion_ganadora_num
@@ -1956,7 +1874,6 @@ class Posible11Inicial:
         """Lógica estricta que respeta las posiciones naturales de los jugadores"""
         
         jornadas_analizar = self.get_last_5_jornadas(equipo, jornada)
-        print(f"📄 Analizando jornadas (Fallback ESTRICTO): {jornadas_analizar}")
         
         filtered_df = self.df[
             (self.df['Equipo'] == equipo) & 
@@ -1970,7 +1887,6 @@ class Posible11Inicial:
                 # Filtrar solo por la temporada más reciente
                 filtered_df['season_numeric'] = filtered_df[season_column].apply(self.season_to_numeric)
                 filtered_df = filtered_df[filtered_df['season_numeric'] == max_season]
-                print(f"🔍 Filtrando por temporada más reciente: {max_season}")
         
         if filtered_df.empty:
             print(f"❌ No hay datos para {equipo} en las jornadas {jornadas_analizar}")
@@ -2062,11 +1978,8 @@ class Posible11Inicial:
             'BANDA_DERECHA', 'BANDA_IZQUIERDA', 'DELANTERO_CENTRO'
         ]
         
-        print(f"🔍 DEBUG: Jugadores disponibles por posición:")
         for pos, jugadores in jugadores_por_posicion.items():
-            print(f"   {pos}: {len(jugadores)} jugadores")
-            for i, jug in enumerate(jugadores[:3]):  # Mostrar los 3 primeros
-                print(f"      {i+1}. {jug['Alias']} - {jug['minutos_total']} min")
+            pass
         
         # FASE 1: Selección estricta (solo jugadores en su posición natural)
         for puesto in formacion_prioritaria:
@@ -2075,7 +1988,6 @@ class Posible11Inicial:
                     if candidato['Alias'] not in jugadores_ya_elegidos:
                         posible_11[puesto] = candidato
                         jugadores_ya_elegidos.add(candidato['Alias'])
-                        print(f"✅ {puesto}: {candidato['Alias']} ({candidato['minutos_total']} min)")
                         break
             else:
                 print(f"⚠️ No hay jugadores para {puesto}")
@@ -2103,7 +2015,6 @@ class Posible11Inicial:
                                     candidato_copia['Posicion_Original'] = alt_pos
                                     posible_11[puesto] = candidato_copia
                                     jugadores_ya_elegidos.add(candidato['Alias'])
-                                    print(f"🔄 {puesto}: {candidato['Alias']} (reubicado desde {alt_pos})")
                                     break
                         if puesto in posible_11:
                             break
@@ -2127,7 +2038,6 @@ class Posible11Inicial:
                 mejor_candidato['Posicion_Original'] = pos_original
                 posible_11[pos_faltante] = mejor_candidato
                 jugadores_ya_elegidos.add(mejor_candidato['Alias'])
-                print(f"🔄 {pos_faltante}: {mejor_candidato['Alias']} (completando desde {pos_original})")
 
         # Si aún faltan, usar cualquier jugador disponible con minutos > 0
         while len(posible_11) < 11 and jugadores_disponibles:
@@ -2144,10 +2054,8 @@ class Posible11Inicial:
                 candidato_extra['Posicion_Final'] = pos_libre
                 posible_11[pos_libre] = candidato_extra
                 jugadores_ya_elegidos.add(candidato_extra['Alias'])
-                print(f"➕ {pos_libre}: {candidato_extra['Alias']} (relleno)")
         
         # ✅ PASO FINAL: Actualizar dorsales con temporada más reciente
-        print("\n🔄 Actualizando dorsales con temporada más reciente...")
         
         for posicion, player_data in posible_11.items():
             if 'jugador_id' in player_data and player_data['jugador_id']:
@@ -2155,10 +2063,8 @@ class Posible11Inicial:
                     player_data['jugador_id'], equipo
                 )
                 if dorsal_actualizado and str(dorsal_actualizado) != str(player_data['Dorsal']):
-                    print(f"   📝 {player_data['Alias']}: Dorsal {player_data['Dorsal']} → {dorsal_actualizado}")
                     player_data['Dorsal'] = dorsal_actualizado
         
-        print(f"\n📊 Resultado final: {len(posible_11)} jugadores asignados")
         return posible_11
 
     def get_minutos_jugador_jornada(self, dorsal, equipo, jornada):
@@ -2179,7 +2085,6 @@ class Posible11Inicial:
                 return filtered_df['Minutos jugados'].iloc[0]
             return 0
         except Exception as e:
-            print(f"Error buscando minutos para dorsal {dorsal}: {e}")
             return 0
 
     def get_jugador_complete_data(self, dorsal, equipo, jornadas_analizar):
@@ -2224,7 +2129,6 @@ class Posible11Inicial:
             return datos
 
         except Exception as e:
-            print(f"   -> Error obteniendo datos para dorsal {dorsal}: {e}")
             return {'Alias': f'Jugador {dorsal}', 'stats': {metric: 0 for metric in self.metricas_tabla}}
         
 
@@ -2286,7 +2190,6 @@ class Posible11Inicial:
             if name in normalized_escudos_map:
                 logo_path = normalized_escudos_map[name]
                 try:
-                    print(f"✅ Escudo encontrado (coincidencia normalizada exacta): {logo_path}")
                     return plt.imread(logo_path)
                 except Exception as e:
                     print(f"⚠️ Error al cargar {logo_path}: {e}")
@@ -2316,7 +2219,6 @@ class Posible11Inicial:
         
         if mejor_match_path and mejor_similitud > 0.6:
             try:
-                print(f"✅ Escudo encontrado por similitud ({mejor_similitud:.2f}): {mejor_match_path}")
                 return plt.imread(mejor_match_path)
             except Exception as e:
                 print(f"⚠️ Error al cargar {mejor_match_path}: {e}")
@@ -2341,7 +2243,6 @@ class Posible11Inicial:
 
     def create_campo_sin_espacios(self, figsize=(20, 14)):
         """Crea el campo que ocupe TODA la página sin espacios"""
-        print("🎯 Creando campo SIN espacios...")
         
         # Crear pitch sin padding
         pitch = Pitch(
@@ -2663,7 +2564,6 @@ class Posible11Inicial:
         team_colors = self.get_team_colors(equipo)
 
         # 3. Bucle de Dibujado
-        print("\n🎨 Dibujando la alineación en el campo...")
         for posicion_unica, player_data in posible_11.items():
             # Extraer el número del puesto (ej: de "PUESTO_9" obtenemos 9)
             puesto_num = int(posicion_unica.split('_')[1])
@@ -2854,7 +2754,6 @@ class Posible11Inicial:
             transparent=False,
             orientation='landscape' # <-- AÑADE ESTA LÍNEA
         )
-        print(f"✅ Archivo guardado SIN espacios: {filename}")
 
 def seleccionar_equipo_jornada():
     """Permite al usuario seleccionar un equipo y jornada"""
@@ -2866,9 +2765,6 @@ def seleccionar_equipo_jornada():
             print("❌ No se encontraron equipos en los datos.")
             return None, None
         
-        print("\n=== SELECCIÓN DE EQUIPO - POSIBLE 11 INICIAL ===")
-        for i, equipo in enumerate(equipos, 1):
-            print(f"{i:2d}. {equipo}")
         
         while True:
             try:
@@ -2885,7 +2781,6 @@ def seleccionar_equipo_jornada():
         
         # Obtener jornadas disponibles para el equipo
         jornadas_disponibles = report_generator.get_available_jornadas(equipo_seleccionado)
-        print(f"\nJornadas disponibles para {equipo_seleccionado}: {jornadas_disponibles}")
         
         # Seleccionar jornada de referencia
         while True:
@@ -2914,7 +2809,6 @@ def seleccionar_equipo_jornada():
 def main_posible_11():
     """Función principal para generar el posible 11 inicial"""
     try:
-        print("⚽ === GENERADOR POSIBLE 11 INICIAL ===")
         
         # Selección interactiva (sin cambios)
         equipo, jornada = seleccionar_equipo_jornada()
@@ -2923,8 +2817,6 @@ def main_posible_11():
             print("❌ No se pudo completar la selección.")
             return
         
-        print(f"\n🔄 Generando posible 11 inicial para {equipo}")
-        print(f"📅 Jornada de referencia: {jornada}")
         
         # Crear el reporte (ya no necesita el parámetro debug)
         report_generator = Posible11Inicial()
@@ -2971,21 +2863,10 @@ def generar_posible_11_personalizado(equipo, jornada, mostrar=True, guardar=True
         return None
 
 # Inicialización
-print("⚽ === INICIALIZANDO GENERADOR POSIBLE 11 INICIAL ===")
 try:
     report_generator = Posible11Inicial()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema POSIBLE 11 INICIAL listo. Equipos disponibles: {len(equipos)}")
     
-    if len(equipos) > 0:
-        print("📝 Para generar un reporte ejecuta: main_posible_11()")
-        print("📝 Para uso directo: generar_posible_11_personalizado('Equipo', jornada)")
-        print("\n🔥 CARACTERÍSTICAS:")
-        print("   • Selecciona al jugador con más minutos por posición")
-        print("   • Analiza las últimas 5 jornadas")
-        print("   • Métricas físicas completas por jugador")
-        print("   • Formación 4-3-3 visual")
-        print("   • Colores personalizados por equipo")
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

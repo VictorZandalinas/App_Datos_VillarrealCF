@@ -51,7 +51,6 @@ class ReporteOfensivoCornersBilateral:
             df_meta = pd.read_parquet("extraccion_opta/datos_opta_parquet/jugadores_liga24_25.parquet")
             df_meta['player_id'] = df_meta['player_id'].astype(str).str.replace('.0', '', regex=False)
             id_to_height = dict(zip(df_meta['player_id'], df_meta['height']))
-            print(f"✅ Metadatos de altura cargados: {len(id_to_height)} jugadores.")
         except Exception as e:
             print(f"⚠️ No se pudo cargar fichero de alturas (jugadores_liga24_25.parquet): {e}")
 
@@ -60,7 +59,6 @@ class ReporteOfensivoCornersBilateral:
             self.df_xg = pd.read_parquet("extraccion_opta/datos_opta_parquet/xg_events.parquet")
             self.df_xg['timeStamp'] = pd.to_datetime(self.df_xg['timeStamp'].astype(str).str.replace('Z', ''), errors='coerce')
             self.df_xg['Match ID'] = self.df_xg['Match ID'].astype(str)
-            print(f"✅ xG Events cargados: {len(self.df_xg)}")
         except Exception as e:
             print(f"⚠️ No se pudo cargar xg_events.parquet: {e}")
             self.df_xg = pd.DataFrame()
@@ -72,7 +70,6 @@ class ReporteOfensivoCornersBilateral:
                 xg_data = xg_data.rename(columns={'qualifier 321': 'xg_value'})
                 xg_data['xg_value'] = pd.to_numeric(xg_data['xg_value'], errors='coerce')
                 self.df_events = pd.merge(self.df_events, xg_data, on=['timeStamp', 'playerId', 'Match ID'], how='left')
-                print(f"✅ Merge xG exitoso: {self.df_events['xg_value'].notna().sum()} eventos con xG")
             except Exception as e:
                 print(f"⚠️ Error en merge xG: {e}")
                 self.df_events['xg_value'] = None
@@ -114,10 +111,8 @@ class ReporteOfensivoCornersBilateral:
         
         # --- 8. EJECUCIÓN DEL ANÁLISIS ---
         if team_filter:
-            print(f"\n🚀 GENERANDO REPORTE BILATERAL (ABIERTOS) PARA: {team_filter}")
-            print("   ↳ 🔄 Analizando Córners Izquierda...")
+            pass
             self.data_left = self.extract_data(side_req='izquierda', type_req='Abierto')
-            print("   ↳ 🔄 Analizando Córners Derecha...")
             self.data_right = self.extract_data(side_req='derecha', type_req='Abierto')
     
     def get_opta_name(self, team, dorsal, tracking_name):
@@ -216,7 +211,6 @@ class ReporteOfensivoCornersBilateral:
             if target_clean in p_team_clean or p_team_clean in target_clean:
                 filtered.append(photo)
                 
-        print(f"📸 Fotos filtradas para {self.team_filter}: {len(filtered)} encontradas.")
         return filtered
     
     def build_xg_by_player(self):
@@ -241,7 +235,6 @@ class ReporteOfensivoCornersBilateral:
             # Encontrar córners abiertos (Out-swinger = Sí)
             corners = df_team[(df_team['Corner taken'] == 'Sí') & (df_team['Out-swinger'] == 'Sí')]
             
-            print(f"✅ Córners abiertos (Out-swinger) para {self.team_filter}: {len(corners)}")
             
             for _, corner in corners.iterrows():
                 match_id = corner['Match ID']
@@ -270,10 +263,9 @@ class ReporteOfensivoCornersBilateral:
                             xg_por_jugador[jugador] += xg_val
                         break  # Solo el primer remate cuenta
             
-            print(f"✅ xG por jugador construido: {len(xg_por_jugador)} jugadores con xG")
             for jug, xg in xg_por_jugador.items():
                 if xg > 0:
-                    print(f"   • {jug}: {xg:.3f}")
+                    pass
             
         except Exception as e:
             print(f"⚠️ Error construyendo xG por jugador: {e}")
@@ -429,9 +421,8 @@ class ReporteOfensivoCornersBilateral:
     
     def load_tracking_data(self):
         try:
-            print("📂 Cargando datos de tracking...")
+            pass
             self.df_tracking = pd.read_parquet(self.tracking_path)
-            print(f"✅ Datos cargados: {len(self.df_tracking)} frames")
         except Exception as e:
             print(f"❌ Error cargando tracking: {e}")
     
@@ -775,7 +766,7 @@ class ReporteOfensivoCornersBilateral:
                         ball_y_remate = by_best
                         
                 except Exception as e:
-                    print(f"Error procesando Opta: {e}")
+                    pass
 
             trayectorias_jug = self.extract_player_trajectories(df_corner, time_kick, equipo_lanz)
             
@@ -1530,7 +1521,6 @@ class ReporteOfensivoCornersBilateral:
     def guardar(self, fig, filename):
         fig.set_size_inches(14, 9)
         fig.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0.1, facecolor='white')
-        print(f"✅ Guardado: {filename}")
 
 def seleccionar_equipo():
     try:
@@ -1541,7 +1531,6 @@ def seleccionar_equipo():
         else:
             equipos = sorted([str(e) for e in df['NombreEquipoJugador_Tracking'].dropna().unique()])
             
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
         
         # --- CAMBIO AQUÍ ---

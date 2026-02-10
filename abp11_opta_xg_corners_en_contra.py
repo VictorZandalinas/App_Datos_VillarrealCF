@@ -45,7 +45,6 @@ class XGCornersDefensivosReport:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios en formato A4: {filename}")
     
     def load_data(self):
         """Carga todos los datasets necesarios"""
@@ -56,7 +55,6 @@ class XGCornersDefensivosReport:
                 return
             self.match_events_df = pd.read_parquet(self.match_events_path)
             self.match_events_df['timeStamp'] = self.match_events_df['timeStamp'].apply(self.normalize_timestamp) # <-- AÑADIR
-            print(f"✅ Match events cargados: {self.match_events_df.shape[0]} filas")
             
             # Cargar xG events
             if not os.path.exists(self.xg_events_path):
@@ -64,14 +62,12 @@ class XGCornersDefensivosReport:
                 return
             self.xg_events_df = pd.read_parquet(self.xg_events_path)
             self.xg_events_df['timeStamp'] = self.xg_events_df['timeStamp'].apply(self.normalize_timestamp) # <-- AÑADIR
-            print(f"✅ xG events cargados: {self.xg_events_df.shape[0]} filas")
             
             # Cargar team stats
             if not os.path.exists(self.team_stats_path):
                 print(f"❌ Error: No se encontró {self.team_stats_path}")
                 return
             self.team_stats_df = pd.read_parquet(self.team_stats_path)
-            print(f"✅ Team stats cargados: {self.team_stats_df.shape[0]} filas")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -233,13 +229,12 @@ class XGCornersDefensivosReport:
             self.corner_xg_defensivo_data = pd.DataFrame()
             return
 
-        print("📊 Calculando estadísticas de xG de córners en contra (método robusto)...")
         
         all_teams = sorted(self.match_events_df['Team Name'].dropna().unique())
         stats_list = []
 
         for team_name in all_teams:
-            print(f"  -> Analizando defensa de: {team_name}")
+            pass
             
             team_match_ids = self.match_events_df[self.match_events_df['Team Name'] == team_name]['Match ID'].unique()
             
@@ -283,7 +278,6 @@ class XGCornersDefensivosReport:
 
         # Crear el DataFrame final
         self.corner_xg_defensivo_data = pd.DataFrame(stats_list).fillna(0)
-        print(f"✅ Estadísticas defensivas calculadas para {len(self.corner_xg_defensivo_data)} equipos.")
     
     # Métodos de diseño visual (copiados y adaptados)
     def find_team_logo_by_similarity(self, equipo):
@@ -311,12 +305,11 @@ class XGCornersDefensivosReport:
         if best_match:
             try:
                 logo_path = f"assets/escudos/{best_match}"
-                print(f"Escudo encontrado para {equipo}: {best_match} (similitud: {best_similarity:.2f})")
                 escudo_original = plt.imread(logo_path)
                 escudo_redimensionado = self.resize_image_to_fixed_size(escudo_original, target_size=100)
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
     
@@ -347,7 +340,7 @@ class XGCornersDefensivosReport:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
     
     def convert_to_grayscale(self, image):
@@ -365,7 +358,7 @@ class XGCornersDefensivosReport:
                 gray = np.dot(image, [0.2989, 0.5870, 0.1140])
                 return np.stack([gray, gray, gray], axis=2)
         except Exception as e:
-            print(f"Error al convertir a escala de grises: {e}")
+            pass
             return image
     
     def similarity(self, a, b):
@@ -379,7 +372,7 @@ class XGCornersDefensivosReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -390,7 +383,7 @@ class XGCornersDefensivosReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
     
@@ -399,7 +392,7 @@ class XGCornersDefensivosReport:
         
         team_stats = self.corner_xg_defensivo_data
         if team_stats is None or team_stats.empty:
-            print("No hay datos de xG defensivos para visualizar.")
+            pass
             return None
         
         # Crear figura
@@ -413,7 +406,7 @@ class XGCornersDefensivosReport:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid - Layout similar al PNG
         gs = fig.add_gridspec(2, 4, 
@@ -624,7 +617,6 @@ def verificar_datos_xg_defensivos_disponibles():
         'team_stats': "./extraccion_opta/datos_opta_parquet/team_stats.parquet"
     }
     
-    print("=== VERIFICACIÓN DE DATOS PARA XG CÓRNERS DEFENSIVOS ===")
     
     available_data = {}
     for name, path in paths_to_check.items():
@@ -632,16 +624,13 @@ def verificar_datos_xg_defensivos_disponibles():
             try:
                 df = pd.read_parquet(path)
                 available_data[name] = df
-                print(f"✅ {name}: {df.shape[0]} filas, {df.shape[1]} columnas")
                 
                 if name == 'xg_events':
                     if 'qualifier 321' in df.columns:
-                        print(f"   ✅ Columna 'qualifier 321' encontrada")
+                        pass
                         non_null_xg = df['qualifier 321'].notna().sum()
-                        print(f"   📊 Valores xG no nulos: {non_null_xg}")
                     else:
                         print(f"   ❌ Columna 'qualifier 321' NO encontrada")
-                        print(f"   📋 Columnas disponibles: {list(df.columns)}")
                         
             except Exception as e:
                 print(f"❌ Error al cargar {name}: {e}")
@@ -657,12 +646,11 @@ def seleccionar_equipo_interactivo_defensivo():
         equipos = sorted(df['Team Name'].dropna().unique())
         
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO PARA XG CÓRNERS DEFENSIVOS ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -671,17 +659,16 @@ def seleccionar_equipo_interactivo_defensivo():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
                 
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal para ejecutar el reporte de xG córners defensivos"""
-    print("=== GENERADOR DE REPORTES DE XG CÓRNERS DEFENSIVOS ===")
     
     # Verificar datos disponibles
     available_data = verificar_datos_xg_defensivos_disponibles()
@@ -694,7 +681,6 @@ def main():
     if not equipo_seleccionado:
         return
     
-    print(f"\n🔄 Generando reporte de xG córners defensivos para: {equipo_seleccionado}")
     
     # Crear reporte
     try:

@@ -36,7 +36,6 @@ class FaltasOfensivasReport:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
     
     def normalize_timestamp(self, timestamp):
         """Normaliza timestamps quitando la Z final si existe"""
@@ -93,7 +92,6 @@ class FaltasOfensivasReport:
         if best_match:
             try:
                 logo_path = f"assets/escudos/{best_match}"
-                print(f"Escudo encontrado para {equipo}: {best_match} (similitud: {best_similarity:.2f})")
                 
                 # CARGAR Y REDIMENSIONAR A TAMAÑO FIJO
                 escudo_original = plt.imread(logo_path)
@@ -101,7 +99,7 @@ class FaltasOfensivasReport:
                 
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
 
@@ -139,7 +137,7 @@ class FaltasOfensivasReport:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
 
     def convert_to_grayscale(self, image):
@@ -159,7 +157,7 @@ class FaltasOfensivasReport:
                 gray = np.dot(image, [0.2989, 0.5870, 0.1140])
                 return np.stack([gray, gray, gray], axis=2)
         except Exception as e:
-            print(f"Error al convertir a escala de grises: {e}")
+            pass
             return image
         
     def load_opta_data(self):
@@ -171,7 +169,6 @@ class FaltasOfensivasReport:
                 return
             self.match_events_df = pd.read_parquet(self.match_events_path)
             self.match_events_df['timeStamp'] = self.match_events_df['timeStamp'].apply(self.normalize_timestamp)
-            print(f"✅ Match events cargados: {self.match_events_df.shape[0]} filas")
             
             # Cargar xG events
             if not os.path.exists(self.xg_events_path):
@@ -179,27 +176,20 @@ class FaltasOfensivasReport:
                 return
             self.xg_events_df = pd.read_parquet(self.xg_events_path)
             self.xg_events_df['timeStamp'] = self.xg_events_df['timeStamp'].apply(self.normalize_timestamp)
-            print(f"✅ xG events cargados: {self.xg_events_df.shape[0]} filas")
 
             # TEMPORAL - para verificar Zone
             if 'Zone' in self.match_events_df.columns:
-                print(f"✅ Columna 'Zone' encontrada")
-                print(f"Valores únicos: {self.match_events_df['Zone'].value_counts()}")
+                pass
             else:
                 print("❌ Columna 'Zone' NO encontrada")
                 zone_cols = [col for col in self.match_events_df.columns if 'zone' in col.lower()]
-                print(f"Columnas con 'zone': {zone_cols}")
 
             # Añadir al final del método load_data()
-            print("=== DEBUG FALTAS ===")
             if 'Free kick' in self.match_events_df.columns:
-                print(f"Columna 'Free kick' encontrada")
-                print(f"Valores únicos: {self.match_events_df['Free kick'].value_counts()}")
+                pass
             else:
                 print("❌ Columna 'Free kick' NO encontrada")
-                print(f"Columnas disponibles que contienen 'free' o 'kick':")
                 free_cols = [col for col in self.match_events_df.columns if 'free' in col.lower() or 'kick' in col.lower()]
-                print(free_cols)
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -289,7 +279,7 @@ class FaltasOfensivasReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -300,7 +290,7 @@ class FaltasOfensivasReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
     
@@ -409,12 +399,12 @@ class FaltasOfensivasReport:
         # Obtener datos de faltas
         result = self.get_team_fault_stats(equipo_seleccionado)
         if result is None:
-            print("No se pudieron obtener las estadísticas de faltas")
+            pass
             return None
         
         team_stats, equipo_data = result
         if equipo_data is None:
-            print(f"No se encontraron datos para {equipo_seleccionado}")
+            pass
             return None
                 
         # Configurar fuentes y eliminar espacios (copiado de ABP1)
@@ -449,7 +439,7 @@ class FaltasOfensivasReport:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid - Layout similar al PNG
         gs = fig.add_gridspec(2, 4, 
@@ -487,7 +477,6 @@ class FaltasOfensivasReport:
                 imagebox = OffsetImage(villarreal_logo, zoom=escudo_zoom)
                 ab = AnnotationBbox(imagebox, (0.88, 0.5), frameon=False, zorder=2) 
                 ax_title.add_artist(ab)
-                print(f"✅ Escudo Villarreal: shape={villarreal_logo.shape}, zoom={escudo_zoom}")
             except Exception as e:
                 print(f"❌ Error con escudo Villarreal: {e}")
 
@@ -498,7 +487,6 @@ class FaltasOfensivasReport:
                 imagebox = OffsetImage(equipo_logo, zoom=escudo_zoom)  # MISMO ZOOM
                 ab = AnnotationBbox(imagebox, (0.92, 0.5), frameon=False, zorder=1)
                 ax_title.add_artist(ab)
-                print(f"✅ Escudo {equipo_seleccionado}: shape={equipo_logo.shape}, zoom={escudo_zoom}")
             except Exception as e:
                 print(f"❌ Error con escudo {equipo_seleccionado}: {e}")
         else:
@@ -622,7 +610,6 @@ class FaltasOfensivasReport:
             if is_selected or is_villarreal:
                 continue
                 
-            print(f"Procesando equipo normal {equipo}: x={x_val}, y={y_val}")
             
             # Buscar escudo por similitud
             escudo = self.find_team_logo_by_similarity(equipo)
@@ -635,7 +622,6 @@ class FaltasOfensivasReport:
                     imagebox = OffsetImage(escudo_bn, zoom=zoom_size, alpha=0.8)
                     ab = AnnotationBbox(imagebox, (x_val, y_val), frameon=False, pad=0, zorder=1)  # z-order bajo
                     ax.add_artist(ab)
-                    print(f"  → Escudo normal añadido para {equipo}")
                     continue
                 except Exception as e:
                     print(f"❌ Error al mostrar escudo para {equipo}: {e}")
@@ -655,7 +641,6 @@ class FaltasOfensivasReport:
             if not (is_selected or is_villarreal):
                 continue
                 
-            print(f"Procesando equipo destacado {equipo}: x={x_val}, y={y_val}")
             
             # Buscar escudo por similitud
             escudo = self.find_team_logo_by_similarity(equipo)
@@ -667,7 +652,6 @@ class FaltasOfensivasReport:
                     imagebox = OffsetImage(escudo, zoom=zoom_size, alpha=1.0)
                     ab = AnnotationBbox(imagebox, (x_val, y_val), frameon=False, pad=0, zorder=10)  # z-order alto
                     ax.add_artist(ab)
-                    print(f"  → Escudo destacado añadido para {equipo}")
                     continue
                 except Exception as e:
                     print(f"❌ Error al mostrar escudo para {equipo}: {e}")
@@ -694,33 +678,31 @@ class FaltasOfensivasReport:
         ax.set_xlim(x_min - x_margin, x_max + x_margin)
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
 
-        print(f"Límites del gráfico: x=[{x_min - x_margin:.1f}, {x_max + x_margin:.1f}], y=[{y_min - y_margin:.1f}, {y_max + y_margin:.1f}]")
 
         ax.grid(True, alpha=0.3)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
 def main():
-    print("=== GENERADOR DE REPORTES DE FALTAS OFENSIVAS ===")
+    pass
     
     # Verificar que existan los archivos OPTA
     match_events_path = "./extraccion_opta/datos_opta_parquet/abp_events.parquet"
     if not os.path.exists(match_events_path):
-        print(f"Error: No se encuentra {match_events_path}")
+        pass
         return
     
     report_generator = FaltasOfensivasReport()
     
     if report_generator.match_events_df is None:
-        print("No se pudieron cargar los datos")
+        pass
         return
     
     # Seleccionar equipo de la lista de OPTA
     equipos = sorted(report_generator.match_events_df['Team Name'].dropna().unique())
     
-    print("\n=== SELECCIÓN DE EQUIPO ===")
     for i, equipo in enumerate(equipos, 1):
-        print(f"{i}. {equipo}")
+        pass
     
     while True:
         try:
@@ -730,11 +712,10 @@ def main():
                 equipo_seleccionado = equipos[indice]
                 break
             else:
-                print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                pass
         except ValueError:
-            print("Por favor, ingresa un número válido")
+            pass
 
-    print(f"\nGenerando reporte para: {equipo_seleccionado}")
     
     fig = report_generator.create_visualization(equipo_seleccionado)
     
@@ -745,7 +726,6 @@ def main():
         output_path = f"reporte_faltas_ofensivas_{equipo_seleccionado.replace(' ', '_')}.pdf"
         report_generator.guardar_sin_espacios(fig, output_path)
         
-        print(f"✅ Reporte guardado como: {output_path}")
     else:
         print("❌ No se pudo generar la visualización")
 

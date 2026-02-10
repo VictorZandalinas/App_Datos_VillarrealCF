@@ -28,7 +28,7 @@ plt.rcParams.update({
 try:
     from mplsoccer import Pitch
 except ImportError:
-    print("Instalando mplsoccer...")
+    pass
     import subprocess
     subprocess.check_call(["pip", "install", "mplsoccer"])
     from mplsoccer import Pitch
@@ -159,7 +159,6 @@ class CampoFutbolMaximos:
         """Carga los datos del archivo parquet"""
         try:
             self.df = pd.read_parquet(self.data_path)
-            print(f"✅ Datos cargados exitosamente: {self.df.shape[0]} filas, {self.df.shape[1]} columnas")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
             
@@ -214,14 +213,12 @@ class CampoFutbolMaximos:
             return jornada
         
         self.df['Jornada'] = self.df['Jornada'].apply(normalize_jornada)
-        print(f"✅ Limpieza completada. Equipos únicos: {len(self.df['Equipo'].unique())}")
 
     def load_opta_positions(self):
         """Carga las posiciones desde el archivo Opta"""
         try:
             opta_path = "extraccion_opta/datos_opta_parquet/player_stats.parquet"
             self.opta_df = pd.read_parquet(opta_path)
-            print(f"✅ Datos Opta cargados: {self.opta_df.shape[0]} filas")
             
             # Verificar columnas necesarias
             required_columns = ['Match Name', 'Team Name', 'Position', 'Position Side']
@@ -235,7 +232,7 @@ class CampoFutbolMaximos:
             
             available_optional = [col for col in optional_columns if col in self.opta_df.columns]
             if available_optional:
-                print(f"✅ Columnas opcionales disponibles: {available_optional}")
+                pass
             
             # Normalizar nombres de equipos en Opta
             if 'Team Name' in self.opta_df.columns:
@@ -476,7 +473,6 @@ class CampoFutbolMaximos:
     
     def fill_missing_demarcaciones(self, df):
         """Rellena demarcaciones vacías con la más frecuente para cada jugador"""
-        print("🔄 Rellenando demarcaciones vacías...")
         
         # Crear copia para trabajar
         df_work = df.copy()
@@ -486,7 +482,7 @@ class CampoFutbolMaximos:
         empty_count = mask_empty.sum()
         
         if empty_count > 0:
-            print(f"📝 Encontrados {empty_count} registros con demarcación vacía")
+            pass
             
             # Para cada jugador con demarcación vacía, buscar su demarcación más frecuente
             for idx in df_work[mask_empty].index:
@@ -505,7 +501,6 @@ class CampoFutbolMaximos:
                     # Usar la demarcación más frecuente
                     demarcacion_mas_frecuente = jugador_demarcaciones.value_counts().index[0]
                     df_work.loc[idx, 'Demarcacion'] = demarcacion_mas_frecuente
-                    print(f"   ✅ {jugador_alias}: {demarcacion_mas_frecuente} (histórico)")
                 else:
                     # Si no hay datos históricos, asignar "Sin Posición"
                     df_work.loc[idx, 'Demarcacion'] = 'Sin Posición'
@@ -568,7 +563,6 @@ class CampoFutbolMaximos:
             filtered_df.loc[mask_empty_alias, 'Alias'] = filtered_df.loc[mask_empty_alias, 'Nombre']
 
         # PASO 1: Buscar posiciones Opta para cada partido individual
-        print(f"🎯 Buscando posiciones Opta para {equipo}...")
         filtered_df['Opta_Position'] = None
 
         for idx, row in filtered_df.iterrows():
@@ -586,7 +580,6 @@ class CampoFutbolMaximos:
             return None
         
         # 🔥 NUEVA LÓGICA: OBTENER DATOS MÁXIMOS por jugador
-        print(f"🔄 Procesando DATOS MÁXIMOS por jugador para {equipo}...")
         
         maximum_data = []
         
@@ -626,7 +619,6 @@ class CampoFutbolMaximos:
                     'Minutos jugados': jugador_data_filtered['Minutos jugados'].max(),
                 }
 
-                print(f"   ✅ {latest_record['Alias']}: {final_position} ({position_source})")
 
                 # 🔥 CALCULAR MÉTRICAS COMBINADAS CORRECTAMENTE
                 # Para cada métrica, sumar 1P + 2P por jornada, luego tomar el máximo
@@ -722,8 +714,6 @@ class CampoFutbolMaximos:
         # Convertir a DataFrame
         if maximum_data:
             result_df = pd.DataFrame(maximum_data)
-            print(f"✅ {len(result_df)} jugadores con al menos {min_minutes} minutos en una jornada")
-            print(f"📊 DATOS MÁXIMOS para {equipo}: {len(result_df)} jugadores únicos")
             return result_df
         else:
             print(f"❌ No hay jugadores con al menos {min_minutes} minutos en una jornada para {equipo}")
@@ -739,7 +729,7 @@ class CampoFutbolMaximos:
         """
         escudos_dir = "assets/escudos"
         if not os.path.exists(escudos_dir):
-            print(f"Directorio de escudos no encontrado: {escudos_dir}")
+            pass
             return None
 
         # --- Nivel 1: MAPEO MANUAL (Máxima Prioridad) ---
@@ -757,11 +747,11 @@ class CampoFutbolMaximos:
             for ext in ['.png', '.jpg', '.jpeg']:
                 logo_path = os.path.join(escudos_dir, f"{logo_filename}{ext}")
                 if os.path.exists(logo_path):
-                    print(f"✅ Escudo encontrado por Mapeo Manual: {logo_path}")
+                    pass
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo mapeado: {e}")
+                        pass
             print(f"⚠️ Advertencia: El archivo mapeado '{logo_filename}' no fue encontrado.")
 
         # --- Búsqueda Automática ---
@@ -772,11 +762,10 @@ class CampoFutbolMaximos:
             file_base_norm = self.normalize_text(os.path.splitext(filename)[0])
             if file_base_norm == equipo_norm:
                 logo_path = os.path.join(escudos_dir, filename)
-                print(f"✅ Escudo encontrado por Coincidencia Exacta: {logo_path}")
                 try:
                     return plt.imread(logo_path)
                 except Exception as e:
-                    print(f"Error al cargar escudo por coincidencia exacta: {e}")
+                    pass
 
         # --- Nivel 3: COINCIDENCIA DE PALABRA LARGA ---
         MIN_WORD_LENGTH = 4 # Busca palabras con 5 o más letras
@@ -792,11 +781,10 @@ class CampoFutbolMaximos:
                 # Comprueba si alguna palabra larga del equipo está en las palabras del nombre del archivo
                 if not team_long_words.isdisjoint(file_words):
                     logo_path = os.path.join(escudos_dir, original_filename)
-                    print(f"✅ Escudo encontrado por Palabra Larga Común ({team_long_words.intersection(file_words)}): {logo_path}")
                     try:
                         return plt.imread(logo_path)
                     except Exception as e:
-                        print(f"Error al cargar escudo por palabra larga: {e}")
+                        pass
 
         # --- Nivel 4: BÚSQUEDA POR SIMILITUD (Último Recurso) ---
         best_match_file = None
@@ -811,11 +799,10 @@ class CampoFutbolMaximos:
         
         if best_match_file:
             logo_path = os.path.join(escudos_dir, best_match_file)
-            print(f"✅ Escudo encontrado por Similitud (score: {best_similarity:.2f}): {logo_path}")
             try:
                 return plt.imread(logo_path)
             except Exception as e:
-                print(f"Error al cargar escudo por similitud: {e}")
+                pass
 
         print(f"❌ No se encontró un escudo definitivo para: {equipo} (normalizado como: {equipo_norm})")
         return None
@@ -873,7 +860,6 @@ class CampoFutbolMaximos:
         
         
         # 🔥 LÓGICA DE DELANTEROS: Dividir delanteros cuando hay más de 1 columna
-        print("🔄 Dividiendo delanteros en dos tablas...")
         delanteros = grouped_players['DELANTERO_CENTRO']
 
         if len(delanteros) > 1:  # Si hay más de 1 delantero
@@ -889,7 +875,6 @@ class CampoFutbolMaximos:
             grouped_players['DELANTERO_CENTRO'] = primer_grupo
             grouped_players['SEGUNDO_DELANTERO'] = segundo_grupo
             
-            print(f"   ✅ Divididos: {len(primer_grupo)} en Delantero Centro, {len(segundo_grupo)} en Segundo Delantero")
         else:
             # Si solo hay 1 delantero, crear grupo vacío para segundo delantero
             grouped_players['SEGUNDO_DELANTERO'] = []
@@ -905,7 +890,6 @@ class CampoFutbolMaximos:
         if filtered_df is None or 'Final_Position' not in filtered_df.columns:
             return self.group_players_by_specific_position(filtered_df)  # Fallback
             
-        print("🎯 Agrupando jugadores por posiciones finales Opta...")
         
         # Ordenar por minutos jugados (máximos)
         filtered_df_sorted = filtered_df.sort_values('Minutos jugados', ascending=False)
@@ -915,13 +899,11 @@ class CampoFutbolMaximos:
         # Agrupar por la nueva columna 'Final_Position'
         for position, group in filtered_df_sorted.groupby('Final_Position'):
             grouped_players[position] = group.to_dict('records')
-            print(f"   ✅ Grupo '{position}': {len(group)} jugadores")
             
         return grouped_players
 
     def redistribute_and_split_players(self, grouped_players):
         """Balancea centrales y divide delanteros para una distribución visual equitativa."""
-        print("⚖️ Iniciando redistribución y división de jugadores...")
         import math
 
         # PARTE 1: BALANCEO DE CENTRALES (si es necesario)
@@ -931,12 +913,10 @@ class CampoFutbolMaximos:
         if len(centrales_d) > 2 and len(centrales_i) == 0:
             jugador_a_mover = centrales_d.pop()
             grouped_players['CENTRAL_IZQUIERDO'] = [jugador_a_mover]
-            print(f"   ⚖️ Balanceando centrales: Moviendo a {jugador_a_mover['Alias']} a CENTRAL_IZQUIERDO")
         
         if len(centrales_i) > 2 and len(centrales_d) == 0:
             jugador_a_mover = centrales_i.pop()
             grouped_players['CENTRAL_DERECHO'] = [jugador_a_mover]
-            print(f"   ⚖️ Balanceando centrales: Moviendo a {jugador_a_mover['Alias']} a CENTRAL_DERECHO")
 
         # PARTE 2: DIVISIÓN EQUITATIVA DE DELANTEROS
         if 'DELANTERO_CENTRO' in grouped_players:
@@ -954,14 +934,11 @@ class CampoFutbolMaximos:
                 grouped_players['DELANTERO_CENTRO'] = primer_grupo
                 grouped_players['SEGUNDO_DELANTERO'] = segundo_grupo # Crea o sobrescribe la posición
                 
-                print(f"   ✅ Delanteros divididos: {len(primer_grupo)} en DELANTERO_CENTRO, {len(segundo_grupo)} en SEGUNDO_DELANTERO")
 
-        print("✅ Redistribución finalizada.")
         return grouped_players
     
     def create_campo_sin_espacios(self, figsize=(11.69, 8.27)):
         """Crea el campo que ocupe TODA la página sin espacios"""
-        print("🎯 Creando campo SIN espacios...")
         
         # Crear pitch sin padding
         pitch = Pitch(
@@ -1089,7 +1066,6 @@ class CampoFutbolMaximos:
                 
                 ax.add_artist(ab)
                 
-                print(f"✅ Escudo añadido en celda de métricas")
             except Exception as e:
                 print(f"⚠️  Error al añadir escudo en celda: {e}")
 
@@ -1367,7 +1343,6 @@ class CampoFutbolMaximos:
             ax.add_artist(ab)
         
         # Agrupar jugadores por posiciones específicas
-        print("🔄 Aplicando lógica de distribución para DATOS MÁXIMOS...")
         villarreal_grouped = self.group_players_by_final_position(villarreal_data)
         rival_grouped = self.group_players_by_final_position(rival_data)
 
@@ -1427,7 +1402,6 @@ class CampoFutbolMaximos:
             format='pdf' if filename.endswith('.pdf') else 'png',
             transparent=False
         )
-        print(f"✅ Archivo guardado SIN espacios: {filename}")
 
 def seleccionar_equipo_jornadas_maximos():
     """Permite al usuario seleccionar un equipo rival y jornadas para DATOS MÁXIMOS"""
@@ -1442,9 +1416,8 @@ def seleccionar_equipo_jornadas_maximos():
             print("❌ No se encontraron equipos rivales en los datos.")
             return None, None
         
-        print("\n=== SELECCIÓN DE EQUIPO RIVAL - DATOS MÁXIMOS ===")
         for i, equipo in enumerate(equipos_rival, 1):
-            print(f"{i:2d}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1461,7 +1434,6 @@ def seleccionar_equipo_jornadas_maximos():
         
         # Obtener jornadas disponibles
         jornadas_disponibles = report_generator.get_available_jornadas()
-        print(f"\nJornadas disponibles: {jornadas_disponibles}")
         
         # Preguntar cuántas jornadas incluir
         while True:
@@ -1486,7 +1458,7 @@ def seleccionar_equipo_jornadas_maximos():
 def main_campo_futbol_maximos():
     """🔥 FUNCIÓN PRINCIPAL PARA GENERAR EL INFORME CON DATOS MÁXIMOS"""
     try:
-        print("🏟️ === GENERADOR DE INFORMES - DATOS MÁXIMOS ===")
+        pass
         
         # Selección interactiva
         equipo_rival, jornadas = seleccionar_equipo_jornadas_maximos()
@@ -1495,8 +1467,6 @@ def main_campo_futbol_maximos():
             print("❌ No se pudo completar la selección.")
             return
         
-        print(f"\n🔥 Generando reporte con DATOS MÁXIMOS para Villarreal CF vs {equipo_rival}")
-        print(f"📅 Jornadas: {jornadas}")
         
         # Crear el reporte
         report_generator = CampoFutbolMaximos()
@@ -1544,20 +1514,12 @@ def generar_reporte_campo_maximos(equipo_rival, jornadas, mostrar=True, guardar=
         return None
 
 # 🔥 INICIALIZACIÓN PARA DATOS MÁXIMOS
-print("🏟️ === INICIALIZANDO GENERADOR DE DATOS MÁXIMOS ===")
 try:
     report_generator = CampoFutbolMaximos()
     equipos = report_generator.get_available_teams()
-    print(f"\n✅ Sistema de DATOS MÁXIMOS listo. Equipos disponibles: {len(equipos)}")
     
     if len(equipos) > 0:
-        print("📝 Para generar un reporte con DATOS MÁXIMOS ejecuta: main_campo_futbol_maximos()")
-        print("📝 Para uso directo: generar_reporte_campo_maximos('Equipo_Rival', [33,34,35])")
-        print("\n🔥 CARACTERÍSTICAS DE DATOS MÁXIMOS:")
-        print("   • Muestra el valor MÁXIMO de cada métrica por jugador en las jornadas seleccionadas")
-        print("   • Filtra jugadores que jugaron al menos 70 minutos en AL MENOS UNA jornada")
-        print("   • Destaca los valores máximos de cada posición en dorado")
-        print("   • Resúmenes de equipo muestran los valores máximos en rojo brillante")
+        pass
     
 except Exception as e:
     print(f"❌ Error al inicializar: {e}")

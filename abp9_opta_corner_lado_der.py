@@ -140,8 +140,6 @@ class CornersOffensiveReport:
         
         aerial_stats = {}
         
-        print(f"DEBUG: Analizando {len(corners_y1)} córners desde y < 1")
-        print(f"DEBUG: Total duelos aéreos disponibles: {len(aerials_all)}")
         
         for _, corner in corners_y1.iterrows():
             corner_time = corner['timeMin'] * 60 + corner['timeSec']
@@ -153,7 +151,6 @@ class CornersOffensiveReport:
                 (aerials_all['timeMin'] * 60 + aerials_all['timeSec'] <= corner_time + 30)
             ]
             
-            print(f"DEBUG: Córner de {corner['playerName']} en {corner['timeMin']}:{corner['timeSec']} -> {len(matching_aerials)} duelos aéreos encontrados")
             
             for _, aerial in matching_aerials.iterrows():
                 player_name = aerial['playerName']
@@ -165,11 +162,9 @@ class CornersOffensiveReport:
                 
                 if aerial['outcome'] == 1:
                     aerial_stats[player_name]['exitos'] += 1
-                    print(f"DEBUG:   - {player_name}: duelo aéreo GANADO en {aerial['timeMin']}:{aerial['timeSec']}")
                 else:
-                    print(f"DEBUG:   - {player_name}: duelo aéreo perdido en {aerial['timeMin']}:{aerial['timeSec']}")
+                    pass
         
-        print(f"DEBUG: Estadísticas finales de duelos aéreos: {aerial_stats}")
         return aerial_stats
 
     def get_aerial_ranking_scores(self):
@@ -426,7 +421,6 @@ class CornersOffensiveReport:
         if not player_parts['full']:
             return None
 
-        print(f"🔍 Buscando foto para: '{player_name}' (Normalizado: '{player_parts['full']}')")
         
         found_matches = []
         
@@ -444,17 +438,15 @@ class CornersOffensiveReport:
                     "score": score,
                     "reason": reason
                 })
-                print(f"✅ Match potencial: '{photo_name}' (score: {score:.3f}) - Razón: {reason}")
                 
         if len(found_matches) == 1:
             best_match = found_matches[0]
-            print(f"🎯 MATCH ÚNICO Y VÁLIDO ENCONTRADO: '{best_match['entry']['player_name']}' con score {best_match['score']:.3f}")
             return best_match['entry']
         
         elif len(found_matches) > 1:
             print(f"⚠️  ADVERTENCIA: Se encontraron {len(found_matches)} matches de alta calidad para '{player_name}'. Se descarta por ambigüedad.")
             for match in sorted(found_matches, key=lambda x: x['score'], reverse=True):
-                print(f"  - Candidato: '{match['entry']['player_name']}' (Score: {match['score']:.2f}, Razón: {match['reason']})")
+                pass
             return None
             
         else:
@@ -516,7 +508,6 @@ class CornersOffensiveReport:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
             
-            print(f"✅ Datos cargados: {len(self.df)} eventos totales")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -526,13 +517,11 @@ class CornersOffensiveReport:
             print("❌ No hay datos cargados")
             return
         
-        print("🔍 Extrayendo datos de córneres ofensivos...")
         
         team_data = self.df[self.df['Team Name'] == team_filter].copy()
         team_data = team_data.sort_values(['Match ID', 'timeMin', 'timeSec']).reset_index(drop=True)
         
         self.corner_data = team_data
-        print(f"✅ Datos de córneres extraídos: {len(self.corner_data)} eventos")
     
     def get_lanzadores_data(self):
         """Obtiene datos de lanzadores de córner SOLO desde y < 1"""
@@ -1420,12 +1409,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1433,22 +1421,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE REPORTES DE CÓRNERES OFENSIVOS (LADO DERECHO) ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte para {equipo}")
         analyzer = CornersOffensiveReport(team_filter=equipo)
         
         if (fig := analyzer.create_corners_report(team_filter=equipo)):
@@ -1457,7 +1444,6 @@ def main():
             output_path = f"reporte_corners_derecha_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                        facecolor='white', dpi=300)
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -1480,7 +1466,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"reporte_corners_derecha_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300, orientation='landscape')
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")
@@ -1494,7 +1479,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
 
 def verificar_assets():
     """Verifica la disponibilidad de assets necesarios"""
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -1507,20 +1491,18 @@ def verificar_assets():
         print(f"✅ Encontrado: {file_path}" if os.path.exists(file_path) else f"❌ Faltante: {file_path}")
     
     if os.path.exists('assets/escudos') and (escudos := [f for f in os.listdir('assets/escudos') if f.endswith('.png')]):
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+        pass
     else:
         print("⚠️  No hay escudos en el directorio")
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE REPORTES DE CÓRNERES OFENSIVOS (LADO DERECHO) ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("🔍 Para generar un reporte ejecuta: main()")
-            print("🔍 Para uso directo: generar_reporte_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
     

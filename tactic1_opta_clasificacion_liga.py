@@ -22,10 +22,9 @@ class ClasificacionFromParquet:
         """Carga el archivo parquet"""
         try:
             self.df_stats = pd.read_parquet(self.parquet_path)
-            print(f"Datos cargados: {len(self.df_stats)} registros")
             return self.df_stats
         except Exception as e:
-            print(f"Error al cargar {self.parquet_path}: {e}")
+            pass
             return None
     
     def calcular_resultados_partidos(self):
@@ -155,7 +154,7 @@ class ClasificacionFromParquet:
         resultados_df = self.calcular_resultados_partidos()
         
         if resultados_df.empty:
-            print("No se pudieron calcular resultados")
+            pass
             return None
         
         # Extraer número de jornada
@@ -196,14 +195,12 @@ class ClasificacionFromParquet:
         self.clasificaciones = self.clasificaciones.rename(columns={'EQUIPO': 'Equipo'})
         self.equipos = sorted(self.clasificaciones['Equipo'].unique())
         
-        print(f"Clasificacion construida: {len(self.clasificaciones)} registros, {len(self.equipos)} equipos")
         return self.clasificaciones
     
     def guardar_datos(self, filename='clasificaciones_laliga.csv'):
         """Guarda los datos en CSV"""
         if self.clasificaciones is not None and not self.clasificaciones.empty:
             self.clasificaciones.to_csv(filename, index=False, encoding='utf-8')
-            print(f"Datos guardados en: {filename}")
 
 
 class VisualizadorEvolucionClasificacion:
@@ -294,11 +291,11 @@ class VisualizadorEvolucionClasificacion:
         equipo_data = self.df[self.df['Equipo'] == equipo_comparar].sort_values('Jornada')
         
         if villarreal_data.empty:
-            print(f"No se encontraron datos de {villarreal_nombre}")
+            pass
             return None
         
         if equipo_data.empty:
-            print(f"No se encontraron datos de {equipo_comparar}")
+            pass
             return None
         
         # Crear figura
@@ -738,26 +735,22 @@ class VisualizadorEvolucionClasificacion:
         
         fig.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0.1,
                    facecolor='white', format='pdf')
-        print(f"Reporte guardado: {filename}")
         return filename
 
 
 def main():
     """Funcion principal"""
-    print("=== ANALISIS EVOLUCION CLASIFICACION LALIGA ===\n")
     
     # Cargar datos primero para obtener lista de equipos
-    print("Cargando datos desde parquet...")
     clasificador = ClasificacionFromParquet()
     
     if clasificador.cargar_datos() is None:
         return
     
-    print("\nConstruyendo clasificacion por jornadas...")
     df = clasificador.construir_clasificacion_por_jornada()
     
     if df is None or df.empty:
-        print("No se pudo construir la clasificacion")
+        pass
         return
     
     # Obtener lista de equipos
@@ -772,18 +765,15 @@ def main():
             break
     
     if not villarreal_nombre:
-        print("\nNo se encontro Villarreal en los datos")
-        print(f"Equipos disponibles: {equipos}")
+        pass
         return
     
-    print(f"\nVillarreal encontrado como: '{villarreal_nombre}'")
     
     # Mostrar equipos disponibles (excepto Villarreal)
     equipos_comparar = [eq for eq in equipos if eq != villarreal_nombre]
     
-    print(f"\n=== EQUIPOS DISPONIBLES ({len(equipos_comparar)}) ===")
     for i, equipo in enumerate(equipos_comparar, 1):
-        print(f"{i}. {equipo}")
+        pass
     
     # Seleccionar equipo
     equipo_encontrado = None
@@ -794,12 +784,12 @@ def main():
                 equipo_encontrado = equipos_comparar[seleccion - 1]
                 break
             else:
-                print(f"Numero fuera de rango. Ingresa entre 1 y {len(equipos_comparar)}")
+                pass
         except EOFError:
             equipo_encontrado = equipos_comparar[0] if equipos_comparar else None
             break
         except ValueError:
-            print("Ingresa un numero valido")
+            pass
     if equipo_encontrado is None and equipos_comparar:
         equipo_encontrado = equipos_comparar[0]
     
@@ -807,14 +797,13 @@ def main():
     clasificador.guardar_datos()
     
     # Generar reporte (usando el nombre exacto encontrado)
-    print(f"\nGenerando reporte: {villarreal_nombre} vs {equipo_encontrado}")
     fig = visualizador.crear_reporte_evolucion(equipo_encontrado, villarreal_nombre)
     
     if fig:
         plt.show()
         visualizador.guardar_reporte(fig, equipo_encontrado)
     else:
-        print("No se pudo generar el reporte")
+        pass
 
 
 if __name__ == "__main__":

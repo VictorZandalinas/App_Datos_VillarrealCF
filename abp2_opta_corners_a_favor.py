@@ -47,7 +47,6 @@ class CornersSequenceAnalysis:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
 
     def load_data(self, team_filter=None):
         """Carga solo los datos necesarios desde el inicio"""
@@ -72,7 +71,6 @@ class CornersSequenceAnalysis:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
             
-            print(f"✅ Datos filtrados cargados: {len(self.df)} eventos")
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
 
@@ -102,7 +100,6 @@ class CornersSequenceAnalysis:
             print("❌ No hay datos cargados")
             return
 
-        print("🔍 Extrayendo secuencias de córners...")
 
         df_sorted = self.df.sort_values(['Match ID', 'periodId', 'timeStamp']).reset_index(drop=True)
 
@@ -177,10 +174,7 @@ class CornersSequenceAnalysis:
                 subset=['Match ID', 'timeMin', 'timeSec', 'player_name'],
                 keep='first', inplace=True
             )
-            print(f"✅ Total de córners extraídos: {len(self.corner_sequences)}")
 
-            print("\n📊 Resumen por tipo de resultado:")
-            print(self.corner_sequences['result_type'].value_counts())
         else:
             print("❌ No se encontraron córners")
     
@@ -194,11 +188,6 @@ class CornersSequenceAnalysis:
         corner_period_id = corner_pass['periodId']
         
         # --- INICIO: DEBUG DE SECUENCIA ---
-        print("\n" + "="*80)
-        print(f"--- Córner a analizar ---")
-        print(f"Match ID: {corner_pass['Match ID']}, Equipo: {corner_pass['Team Name']}, Jugador: {corner_pass.get('playerName', 'N/A')}, "
-            f"Min: {start_time_min}:{start_time_sec:02d}")
-        print("--- Secuencia de eventos ---")
         # --- FIN: DEBUG DE SECUENCIA ---
 
         events_found = {
@@ -224,24 +213,22 @@ class CornersSequenceAnalysis:
             event_name = next_event['Event Name']
             
             # --- DEBUG DE EVENTO INDIVIDUAL ---
-            print(f"  -> Evento: {next_event['Event Name']:<15} | Equipo: {next_event['Team Name']:<15} | "
-                f"Min: {next_event['timeMin']}:{next_event['timeSec']:02d} | Jugador: {next_event.get('playerName', 'N/A')}")
             # --- FIN DEBUG DE EVENTO INDIVIDUAL ---
 
             # Condición de parada: cambio de período
             if next_event['periodId'] != corner_period_id:
-                print("  [STOP] Cambio de periodo.")
+                pass
                 break
 
             # Condición de parada: evento retrocede demasiado
             event_x_coord = float(next_event.get('x', 0))
             if event_name == 'Pass' and event_x_coord <= 60:
-                print(f"  [STOP] Evento retrocede (x={event_x_coord}).")
+                pass
                 break
             
             # Condición de parada: eventos que terminan la jugada
             if event_name in ['Corner Awarded', 'Foul', 'Offside', 'End Period', 'Out']:
-                print(f"  [STOP] Evento de corte: {event_name}")
+                pass
                 break
             
             # LÓGICA CORREGIDA: Tiempo entre eventos consecutivos
@@ -249,7 +236,7 @@ class CornersSequenceAnalysis:
             time_diff = (next_timestamp - prev_event_timestamp).total_seconds()
 
             if time_diff > 5:
-                print(f"  [STOP] Más de 5 segundos entre eventos consecutivos: {time_diff}s")
+                pass
                 break
 
             event_team_id = next_event['Team ID']
@@ -276,7 +263,7 @@ class CornersSequenceAnalysis:
                         
                         # Si hay 2 o más pases con x < 70, cortar la secuencia
                         if passes_back_field >= 2:
-                            print(f"  [STOP] Más de 5 pases con 2+ pases en campo defensivo (x<70)")
+                            pass
                             break
             
             # Buscar eventos de finalización (solo del equipo que lanza el córner)
@@ -324,15 +311,11 @@ class CornersSequenceAnalysis:
             # Si SÍ hay eventos previos con x > 55, SÍ es segunda jugada
             if previous_event_with_x_55 is None:
                 is_second_play = False
-                print(f"  [NO ES SEGUNDA JUGADA - Sin eventos intermedios con x > 55]")
             else:
                 is_second_play = True
                 previous_event_coords = (float(previous_event_with_x_55.get('x', 0)), float(previous_event_with_x_55.get('y', 0)))
                 
                 # DEBUG DE SEGUNDA JUGADA
-                print(f"  [SEGUNDA JUGADA DETECTADA]")
-                print(f"    Córner: x={corner_pass['x']}, y={corner_pass['y']}, Event={corner_pass['Event Name']}, TimeStamp={corner_pass['timeStamp']}")
-                print(f"    Evento previo: x={previous_event_with_x_55.get('x')}, y={previous_event_with_x_55.get('y')}, Event={previous_event_with_x_55['Event Name']}, TimeStamp={previous_event_with_x_55['timeStamp']}")
                 
                 # Buscar el evento de remate para completar la secuencia
                 remate_event = None
@@ -342,8 +325,7 @@ class CornersSequenceAnalysis:
                         break
                 
                 if remate_event is not None:
-                    print(f"    Remate: x={remate_event.get('x')}, y={remate_event.get('y')}, Event={remate_event['Event Name']}, TimeStamp={remate_event['timeStamp']}")
-                print(f"  [FIN DEBUG SEGUNDA JUGADA]")
+                    pass
 
         # Determinar el resultado final
         result_type, goal_player, event_x, event_y, result_time, result_event = (
@@ -385,8 +367,6 @@ class CornersSequenceAnalysis:
             result_time = f"{event.get('timeMin', 0)}:{event.get('timeSec', 0):02d}"
 
         # --- DEBUG DE RESULTADO ---
-        print(f"--- Resultado final: {result_type} ---")
-        print("="*80 + "\n")
 
         return {
             'corner_x': event_x, 'corner_y': event_y, 'result_type': result_type,
@@ -529,11 +509,10 @@ class CornersSequenceAnalysis:
             }
             corner_data[key][rival_pos].append(point_data)
         
-        print("\n📊 Resumen de córners preparados:")
         for key, data in corner_data.items():
             home_count, away_count = len(data['home']), len(data['away'])
             if home_count + away_count > 0:
-                print(f"  {key}: home={home_count}, away={away_count}")
+                pass
         
         return corner_data
     
@@ -559,7 +538,6 @@ class CornersSequenceAnalysis:
                                           'timeSec', 'result_type', 'corner_x', 
                                           'corner_y', 'debug_info']]
         debug_df.to_csv(filename, index=False)
-        print(f"✅ Debug info exportada a: {filename}")
     
     def load_team_logo(self, equipo, target_size=(80, 80)):
         """Carga logo con protección para evitar confusión Atletico/Madrid"""
@@ -814,7 +792,6 @@ class CornersSequenceAnalysis:
                     if point.get('goal_player'):
                         goal_player_id = point.get('goal_player_id')
                         shirt_number = self.get_player_shirt_number(goal_player_id)
-                        print(f"[DEBUG-DORSAL] Jugador: {point.get('goal_player')}, PlayerID: {goal_player_id}, Dorsal encontrado: {shirt_number}")
                         
                         if shirt_number:
                             ax.text(point['y'], point['x'] + 1.2, f"{shirt_number}", 
@@ -877,7 +854,6 @@ class CornersSequenceAnalysis:
     def print_summary(self, team_filter=None):
         if self.corner_sequences.empty: print("No hay datos de córners para mostrar"); return
         
-        print(f"\n=== RESUMEN DE CÓRNERS ===\nTotal de córners: {len(self.corner_sequences)}")
         
         if team_filter:
             team_corners = self.corner_sequences[self.corner_sequences['Team Name'] == team_filter]
@@ -886,12 +862,9 @@ class CornersSequenceAnalysis:
                     self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 )) & (self.corner_sequences['Team Name'] != team_filter)
             ]
-            print(f"\nCórners de {team_filter}: {len(team_corners)}\nCórners de rivales: {len(rival_corners)}")
             if not team_corners.empty:
-                print(f"\nResultados de córners de {team_filter}:")
-                print(team_corners['result_type'].value_counts())
+                pass
         
-        print("\nDistribución por lado:\n", self.corner_sequences['corner_side'].value_counts())
 
 def seleccionar_equipo_interactivo():
     try:
@@ -899,7 +872,6 @@ def seleccionar_equipo_interactivo():
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: print("No se encontraron equipos."); return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): print(f"{i}. {equipo}")
         
         while True:
@@ -912,11 +884,10 @@ def seleccionar_equipo_interactivo():
 
 def main():
     try:
-        print("=== GENERADOR DE REPORTES DE ANÁLISIS DE SECUENCIAS DE CÓRNERS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección."); return
+            pass
         
-        print(f"\nGenerando reporte para {equipo}")
         analyzer = CornersSequenceAnalysis(team_filter=equipo)
         analyzer.print_summary(team_filter=equipo)
         
@@ -925,7 +896,6 @@ def main():
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
             output_path = f"reporte_secuencias_corners_{equipo_filename}.pdf"
             analyzer.guardar_sin_espacios(fig, output_path)
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -946,7 +916,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 equipo_filename = equipo.replace(' ', '_').replace('/', '_')
                 output_path = f"reporte_secuencias_corners_{equipo_filename}.pdf"
                 analyzer.guardar_sin_espacios(fig, output_path)
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización"); return None
@@ -955,7 +924,7 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
         print(f"❌ Error: {e}"); import traceback; traceback.print_exc(); return None
 
 def verificar_assets():
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
+    pass
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -965,20 +934,18 @@ def verificar_assets():
     for file_path in files_to_check:
         print(f"✅ Encontrado: {file_path}" if os.path.exists(file_path) else f"❌ Faltante: {file_path}")
     if os.path.exists('assets/escudos') and (escudos := [f for f in os.listdir('assets/escudos') if f.endswith('.png')]):
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+        pass
     else:
         print("⚠️  No hay escudos en el directorio")
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE REPORTES DE SECUENCIAS DE CÓRNERS ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("📝 Para generar un reporte ejecuta: main()")
-            print("📝 Para uso directo: generar_reporte_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
     

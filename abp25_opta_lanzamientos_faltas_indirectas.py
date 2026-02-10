@@ -66,7 +66,6 @@ class ReporteCampogramasFaltas:
         # Si se especificó un filtro de jornadas, validarlo
         if self.jornadas_filter:
             self.jornadas_filter = [j for j in self.jornadas_filter if j in self.jornadas_disponibles]
-            print(f"✅ Filtro de jornadas aplicado: {self.jornadas_filter}")
     
     def create_team_report(self, team_name, jornadas_filter=None, figsize=(11.69, 8.27)):
         """Método wrapper para generador maestro"""
@@ -74,7 +73,6 @@ class ReporteCampogramasFaltas:
         if hasattr(self, 'df_eventos') and not self.df_eventos.empty:
             original_count = len(self.df_eventos)
             self.df_eventos = self.df_eventos[self.df_eventos['Team Name'] == team_name]
-            print(f"Datos filtrados para {team_name}: {len(self.df_eventos)}/{original_count}")
         
         # Llamar al método existente
         return self.create_reporte_campogramas(figsize=figsize, jornadas_filter=jornadas_filter)
@@ -103,10 +101,6 @@ class ReporteCampogramasFaltas:
             print("⚠️ No hay jornadas disponibles")
             return []
         
-        print("\n=== SELECCIÓN DE JORNADA FINAL ===")
-        print(f"Jornadas disponibles: {self.jornadas_disponibles}")
-        print("Se mostrarán 5 jornadas acumuladas (la seleccionada + 4 anteriores)")
-        print("\nSelecciona la jornada FINAL del análisis:")
         
         # Mostrar opciones válidas (solo desde jornada 5 en adelante para tener 5 acumuladas)
         min_jornada_valida = 5
@@ -119,7 +113,6 @@ class ReporteCampogramasFaltas:
         
         for i, jornada in enumerate(jornadas_validas, 1):
             jornada_inicio = max(1, jornada - 4)
-            print(f"{i}. Jornada {jornada} (mostrará J{jornada_inicio} a J{jornada})")
         
         while True:
             try:
@@ -135,13 +128,11 @@ class ReporteCampogramasFaltas:
                     # Asegurar que sean exactamente 5 o menos si no hay suficientes
                     jornadas_seleccionadas = jornadas_seleccionadas[-5:]
                     
-                    print(f"✅ Seleccionadas jornadas {jornadas_seleccionadas[0]} a {jornadas_seleccionadas[-1]}")
-                    print(f"   Total: {len(jornadas_seleccionadas)} jornadas acumuladas")
                     return jornadas_seleccionadas
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(jornadas_validas)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
 
     def point_in_zone(self, x, y, zone_coords):
         """Determina si un punto estÃ¡ dentro de una zona rectangular"""
@@ -227,7 +218,6 @@ class ReporteCampogramasFaltas:
                     how='left'
                 )
                 
-                print(f"✅ Merge dorsales exitoso: {len(self.df[self.df['dorsal_lanzador'].notna()])} eventos con dorsal")
                 
             except Exception as e:
                 print(f"⚠️ Error en merge dorsales: {e}")
@@ -240,12 +230,10 @@ class ReporteCampogramasFaltas:
                     on=['Match ID', 'Team Name'],
                     how='left'
                 )
-                print(f"✅ Merge local/visitante exitoso.")
             except Exception as e:
                 print(f"⚠️ Error en merge local/visitante: {e}")
                 self.df['Is Home'] = False  # Añadir columna por defecto si falla
             
-            print(f"✅ Datos cargados: {len(self.df)} eventos totales")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -254,32 +242,26 @@ class ReporteCampogramasFaltas:
     
     def debug_data_loading(self):
         """Debug para verificar qué datos se están cargando"""
-        print("\n=== DEBUG CARGA DE DATOS ===")
-        print(f"Total eventos cargados: {len(self.df)}")
-        print(f"Equipos únicos: {self.df['Team Name'].nunique()}")
-        print(f"Eventos únicos: {self.df['Event Name'].value_counts().to_dict()}")
         
         if 'Free kick taken' in self.df.columns:
-            print(f"Free kick taken - Sí: {len(self.df[self.df['Free kick taken'] == 'Sí'])}")
-            print(f"Free kick taken - No: {len(self.df[self.df['Free kick taken'] == 'No'])}")
+            pass
         else:
             print("❌ Columna 'Free kick taken' no encontrada")
         
         if 'Zone' in self.df.columns:
-            print(f"Zones disponibles: {self.df['Zone'].value_counts().to_dict()}")
+            pass
         else:
             print("❌ Columna 'Zone' no encontrada")
         
         if 'Week' in self.df.columns:
-            print(f"Jornadas disponibles: {sorted(self.df['Week'].dropna().unique())}")
+            pass
         else:
             print("❌ Columna 'Week' no encontrada")
         
         if self.team_filter:
             team_data = self.df[self.df['Team Name'] == self.team_filter]
-            print(f"\nDatos del equipo '{self.team_filter}': {len(team_data)} eventos")
             if len(team_data) > 0:
-                print(f"Jornadas del equipo: {sorted(team_data['Week'].dropna().unique())}")
+                pass
     
     def seleccionar_jornada_inicial(self):
         """Selección interactiva de jornada inicial"""
@@ -289,11 +271,8 @@ class ReporteCampogramasFaltas:
         
         max_jornada = max(jornadas_disponibles)
         
-        print(f"\n=== SELECCIÓN DE JORNADA INICIAL ===")
-        print(f"Se mostrarán hasta 5 jornadas consecutivas (disponibles hasta J{max_jornada})")
         for i, jornada in enumerate(jornadas_disponibles, 1):
             posibles_jornadas = min(5, max_jornada - jornada + 1)
-            print(f"{i}. Jornada {jornada} (mostraría {posibles_jornadas} jornadas: {jornada}-{min(jornada + 4, max_jornada)})")
         
         while True:
             try:
@@ -301,7 +280,7 @@ class ReporteCampogramasFaltas:
                 if 0 <= indice < len(jornadas_disponibles):
                     return jornadas_disponibles[indice]
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
 
     def get_freekick_indirect_sequences(self, match_ids=None, jornadas_filter=None):
         """
@@ -323,27 +302,21 @@ class ReporteCampogramasFaltas:
         if jornadas_filter is not None:
             # Usar el filtro proporcionado como parámetro
             df = df[df['Week'].isin([str(j) for j in jornadas_filter])]
-            print(f"🔍 Filtrando por jornadas (parámetro): {jornadas_filter}")
         elif hasattr(self, 'jornadas_filter') and self.jornadas_filter:
             # Usar el filtro guardado en el objeto
             df = df[df['Week'].isin([str(j) for j in self.jornadas_filter])]
-            print(f"🔍 Filtrando por jornadas (objeto): {self.jornadas_filter}")
         else:
-            print(f"🔍 Usando todas las jornadas disponibles: {self.jornadas_disponibles}")
+            pass
         
         # Aplicar filtro de partidos si se proporciona
         if match_ids is not None:
             df = df[df['Match ID'].isin(match_ids)]
-            print(f"🔍 Filtrando por {len(match_ids)} partidos específicos")
         
         if self.team_filter:
             df = df[df['Team Name'] == self.team_filter]
-            print(f"🎯 Filtrando eventos para mostrar únicamente a: {self.team_filter}")
 
-        print(f"📊 Eventos después de filtros: {len(df)}")
         
         # Calcular zona de inicio para cada evento
-        print("🎯 Calculando zona de inicio para los eventos...")
         df['start_zone'] = df.apply(
             lambda row: self.get_zone_for_coordinates(row['x'], row['y']),
             axis=1
@@ -361,14 +334,12 @@ class ReporteCampogramasFaltas:
             # Eliminar los 3 filtros de Pass End X/Y
         ].copy()
         
-        print(f"✅ Total de lanzamientos de falta extraídos: {len(lanzamientos_faltas)}")
         
         # Desglose por zona
         if not lanzamientos_faltas.empty:
             zonas_count = lanzamientos_faltas['start_zone'].value_counts().sort_index()
-            print("\n📍 Lanzamientos por zona:")
             for zona, count in zonas_count.items():
-                print(f"   Zona {zona}: {count} lanzamientos")
+                pass
         
         # Convertir a lista de diccionarios (formato esperado por el resto del código)
         sequences = [{'freekick_event': row.to_dict()} for index, row in lanzamientos_faltas.iterrows()]
@@ -376,7 +347,6 @@ class ReporteCampogramasFaltas:
         # Si hay filtro de jornadas, añadir info al resultado
         if jornadas_filter or self.jornadas_filter:
             jornadas_usadas = jornadas_filter if jornadas_filter else self.jornadas_filter
-            print(f"\n📅 Jornadas incluidas en el análisis: {sorted(jornadas_usadas)}")
         
         return sequences
 
@@ -474,24 +444,15 @@ class ReporteCampogramasFaltas:
 
     def debug_sequences(self):
         """Debug para verificar las secuencias de faltas"""
-        print("\n=== DEBUG SECUENCIAS DE FALTAS ===")
         sequences = self.get_freekick_indirect_sequences()
-        print(f"Total secuencias encontradas: {len(sequences)}")
         
         if sequences:
             for i, seq in enumerate(sequences[:3]):  # Solo mostrar las primeras 3
                 fk = seq['freekick_event']
-                print(f"\nSecuencia {i+1}:")
-                print(f"  Equipo: {fk.get('Team Name')}")
-                print(f"  Jornada: {fk.get('Week')}")
-                print(f"  Coordenadas: x={fk.get('x')}, y={fk.get('y')}")
-                print(f"  Zone: {fk.get('Zone')}")
-                print(f"  Pass End: x={fk.get('Pass End X')}, y={fk.get('Pass End Y')}")
         
         categorized = self.categorizar_faltas(sequences)
-        print(f"\nCategorización:")
         for cat, seq_list in categorized.items():
-            print(f"  {cat}: {len(seq_list)} faltas")
+            pass
 
     def categorizar_faltas(self, sequences):
         """Categoriza las faltas ya filtradas segÃºn su zona de inicio ('start_zone')."""
@@ -816,12 +777,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -829,19 +789,19 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE CAMPOGRAMAS FALTAS INDIRECTAS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
         analyzer = ReporteCampogramasFaltas(team_filter=equipo)
@@ -860,8 +820,6 @@ def main():
         # Crear título descriptivo
         jornadas_texto = f"J{min(jornadas_filtro)}-{max(jornadas_filtro)}"
         
-        print(f"\nGenerando campogramas para {equipo} - Jornadas: {jornadas_texto}")
-        print(f"Total jornadas acumuladas: {len(jornadas_filtro)}")
         
         # Pasar jornadas_filtro como parámetro
         if (fig := analyzer.create_reporte_campogramas(jornadas_filter=jornadas_filtro)):
@@ -870,7 +828,6 @@ def main():
             output_path = f"reporte_campogramas_faltas_{equipo_filename}_{jornadas_texto}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0, 
                        facecolor='white', dpi=300, orientation='landscape')
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -893,7 +850,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"reporte_campogramas_faltas_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0, 
                            facecolor='white', dpi=300, orientation='landscape')
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
         else:
             print("❌ No se pudo generar la visualización")

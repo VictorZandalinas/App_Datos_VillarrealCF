@@ -30,7 +30,7 @@ class AnalizadorContraataques:
 
     def load_data(self, team_filter=None):
         try:
-            print("📂 Cargando archivo parquet...")
+            pass
             self.df = pd.read_parquet(self.data_path)
             self.df['timeStamp'] = pd.to_datetime(self.df['timeStamp'], format='ISO8601')
             for col in ['x', 'y', 'Pass End X', 'Pass End Y']:
@@ -41,7 +41,6 @@ class AnalizadorContraataques:
             self.team_filter = team_filter
 
             # --- EXTRACCIÓN MASIVA EN UN SOLO PASO ---
-            print("📊 Analizando todos los partidos de la liga (esto será rápido)...")
             self.all_league_sequences = self.extract_all_league_sequences()
             
             # --- CÁLCULO DE RANKING ---
@@ -52,7 +51,6 @@ class AnalizadorContraataques:
             origin_counts = Counter([s['origin'] for s in self.all_league_sequences])
             self.league_averages = {k: (v / total_seqs) * 100 for k, v in origin_counts.items()}
             
-            print(f"✅ Análisis completado. Se han detectado {total_seqs} contraataques en total.")
             return True
         except Exception as e:
             print(f"❌ Error cargando datos: {e}")
@@ -548,11 +546,8 @@ class AnalizadorContraataques:
 def seleccionar_equipo():
     df_temp = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
     equipos = sorted(df_temp['Team Name'].dropna().unique())
-    print("\n" + "="*45)
-    print("  ANÁLISIS DE CONTRAATAQUES - OPTA")
-    print("="*45)
     for i, eq in enumerate(equipos, 1):
-        print(f"{i:2d}. {eq}")
+        pass
     idx = int(input(f"\nSelecciona equipo (1-{len(equipos)}): ")) - 1
     return equipos[idx]
 
@@ -567,14 +562,13 @@ def main():
         sequences = analyzer.get_sequences_for_team(equipo)
         
         if not sequences:
-            print(f"No se han detectado contraataques para {equipo}.")
+            pass
             return
             
         fig = analyzer.create_visualization(equipo, sequences)
         if fig:
             filename = f"contraataques_{equipo.replace(' ', '_')}.pdf"
             fig.savefig(filename, bbox_inches='tight', dpi=300)
-            print(f"✅ Informe generado: {filename}")
             plt.show()
 
 if __name__ == "__main__":

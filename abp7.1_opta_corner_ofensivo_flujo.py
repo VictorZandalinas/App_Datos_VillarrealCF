@@ -434,8 +434,6 @@ class ReporteFlujoCorners:
             
             self.corner_data = corners_df.copy()
             
-            print(f"✅ Datos cargados: {len(self.df)} eventos totales")
-            print(f"✅ Corners únicos del equipo: {len(self.corner_data)}")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -718,9 +716,6 @@ class ReporteFlujoCorners:
                     zona_rematador_links[zona] = {}
                 zona_rematador_links[zona][rematador] = zona_rematador_links[zona].get(rematador, 0) + 1
         # DEPURACIÓN: Verificar datos antes de dibujar
-        print("=== DEPURACIÓN DATOS ===")
-        print(f"Corners combinados shape: {corners_combinados.shape}")
-        print(f"Columnas disponibles: {corners_combinados.columns.tolist()}")
 
         # Verificar que tenemos playerIds
         if 'playerId' not in corners_combinados.columns:
@@ -728,13 +723,10 @@ class ReporteFlujoCorners:
             return
 
         # Mostrar algunos ejemplos
-        print("\n--- LANZADORES ENCONTRADOS ---")
         lanzadores_test = corners_combinados[['playerName', 'playerId']].drop_duplicates()
         for idx, row in lanzadores_test.head().iterrows():
             dorsal = self.get_player_dorsal(row['playerId'])
-            print(f"Jugador: {row['playerName']}, ID: {row['playerId']}, Dorsal: {dorsal}")
 
-        print("=== FIN DEPURACIÓN ===\n")
 
         # Dibujo de nodos CON SISTEMA DINÁMICO
         x_pos = [0.1, 0.35, 0.6, 0.85]
@@ -987,12 +979,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -1000,22 +991,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE REPORTE FLUJO CÓRNERS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando reporte de flujo para {equipo}")
         analyzer = ReporteFlujoCorners(team_filter=equipo)
         
         if (fig := analyzer.create_reporte_flujo()):
@@ -1024,7 +1014,6 @@ def main():
             output_path = f"reporte_flujo_corners_{equipo_filename}.pdf"
             fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                        facecolor='white', dpi=300, orientation='landscape')
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             
@@ -1048,7 +1037,6 @@ def generar_reporte_personalizado(equipo, mostrar=True, guardar=True):
                 # ← CAMBIO: Parámetros de guardado para A4 horizontal
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300, orientation='landscape')  # ← AGREGAR orientation
-                print(f"✅ Reporte guardado como: {output_path}")
             return fig
 
         else:

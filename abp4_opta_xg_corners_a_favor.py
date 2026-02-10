@@ -190,7 +190,6 @@ class XGCornersOfensivosReport:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
 
     def load_data(self):
         """Carga todos los datasets necesarios"""
@@ -201,7 +200,6 @@ class XGCornersOfensivosReport:
                 return
             self.match_events_df = pd.read_parquet(self.match_events_path)
             self.match_events_df['timeStamp'] = self.match_events_df['timeStamp'].apply(self.normalize_timestamp) 
-            print(f"✅ Match events cargados: {self.match_events_df.shape[0]} filas")
             
             # Cargar xG events
             if not os.path.exists(self.xg_events_path):
@@ -209,14 +207,12 @@ class XGCornersOfensivosReport:
                 return
             self.xg_events_df = pd.read_parquet(self.xg_events_path)
             self.xg_events_df['timeStamp'] = self.xg_events_df['timeStamp'].apply(self.normalize_timestamp) 
-            print(f"✅ xG events cargados: {self.xg_events_df.shape[0]} filas")
             
             # Cargar team stats
             if not os.path.exists(self.team_stats_path):
                 print(f"❌ Error: No se encontró {self.team_stats_path}")
                 return
             self.team_stats_df = pd.read_parquet(self.team_stats_path)
-            print(f"✅ Team stats cargados: {self.team_stats_df.shape[0]} filas")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -227,7 +223,6 @@ class XGCornersOfensivosReport:
             print("❌ No hay datos para procesar")
             return None, None
         
-        print("📊 Calculando estadísticas de xG de córners...")
         
         # Obtener la competición del equipo seleccionado para filtrar
         equipo_competition = None
@@ -244,14 +239,13 @@ class XGCornersOfensivosReport:
                 self.match_events_df['Competition Name'] == equipo_competition
             ]['Team Name'].unique()
             teams = equipos_misma_liga
-            print(f"🏆 Filtrando por competición: {equipo_competition}")
         else:
             teams = self.match_events_df['Team Name'].dropna().unique()
         
         stats_list = []
         
         for team in teams:
-            print(f"Procesando {team}...")
+            pass
             
             # Obtener partidos del equipo
             team_matches = self.match_events_df[
@@ -343,19 +337,12 @@ class XGCornersOfensivosReport:
         team_stats['ranking_xg_total'] = team_stats['xg_corners_total'].rank(ascending=False, method='min').astype(int)
         team_stats['ranking_xg_por_corner'] = team_stats['xg_por_corner'].rank(ascending=False, method='min').astype(int)
         
-        print(f"✅ Estadísticas calculadas para {len(team_stats)} equipos")
-        print(f"📈 xG total promedio: {team_stats['xg_corners_total'].mean():.3f}")
-        print(f"⚽ xG por córner promedio: {team_stats['xg_por_corner'].mean():.3f}")
         
         # Devolver datos del equipo seleccionado si se especificó
         if equipo_seleccionado:
             equipo_data = team_stats[team_stats['Team Name'] == equipo_seleccionado]
             if not equipo_data.empty:
                 equipo_stats = equipo_data.iloc[0]
-                print(f"\n🎯 Datos de {equipo_seleccionado}:")
-                print(f"   xG total córners: {equipo_stats['xg_corners_total']:.3f}")
-                print(f"   xG por córner: {equipo_stats['xg_por_corner']:.3f}")
-                print(f"   Ranking xG total: {equipo_stats['ranking_xg_total']}º/{len(team_stats)}")
                 return team_stats, equipo_stats
             else:
                 print(f"❌ No se encontraron datos para {equipo_seleccionado}")
@@ -390,12 +377,11 @@ class XGCornersOfensivosReport:
         if best_match:
             try:
                 logo_path = f"assets/escudos/{best_match}"
-                print(f"Escudo encontrado para {equipo}: {best_match} (similitud: {best_similarity:.2f})")
                 escudo_original = plt.imread(logo_path)
                 escudo_redimensionado = self.resize_image_to_fixed_size(escudo_original, target_size=100)
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
     
@@ -426,7 +412,7 @@ class XGCornersOfensivosReport:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
     
     def convert_to_grayscale(self, image):
@@ -444,7 +430,7 @@ class XGCornersOfensivosReport:
                 gray = np.dot(image, [0.2989, 0.5870, 0.1140])
                 return np.stack([gray, gray, gray], axis=2)
         except Exception as e:
-            print(f"Error al convertir a escala de grises: {e}")
+            pass
             return image
     
     def similarity(self, a, b):
@@ -458,7 +444,7 @@ class XGCornersOfensivosReport:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -469,7 +455,7 @@ class XGCornersOfensivosReport:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
     
@@ -479,7 +465,7 @@ class XGCornersOfensivosReport:
         # Obtener datos de xG
         team_stats, equipo_data = self.get_team_xg_corner_stats(equipo_seleccionado)
         if team_stats is None:
-            print("No se pudieron obtener las estadísticas de xG de córners")
+            pass
             return None
         
         # Crear figura
@@ -493,7 +479,7 @@ class XGCornersOfensivosReport:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.25, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar grid - Layout similar al PNG
         gs = fig.add_gridspec(2, 4, 
@@ -725,7 +711,6 @@ def verificar_datos_xg_disponibles():
         'team_stats': "./extraccion_opta/datos_opta_parquet/team_stats.parquet"
     }
     
-    print("=== VERIFICACIÓN DE DATOS PARA XG CÓRNERS ===")
     
     available_data = {}
     for name, path in paths_to_check.items():
@@ -733,16 +718,13 @@ def verificar_datos_xg_disponibles():
             try:
                 df = pd.read_parquet(path)
                 available_data[name] = df
-                print(f"✅ {name}: {df.shape[0]} filas, {df.shape[1]} columnas")
                 
                 if name == 'xg_events':
                     if 'qualifier 321' in df.columns:
-                        print(f"   ✅ Columna 'qualifier 321' encontrada")
+                        pass
                         non_null_xg = df['qualifier 321'].notna().sum()
-                        print(f"   📊 Valores xG no nulos: {non_null_xg}")
                     else:
                         print(f"   ❌ Columna 'qualifier 321' NO encontrada")
-                        print(f"   📋 Columnas disponibles: {list(df.columns)}")
                         
             except Exception as e:
                 print(f"❌ Error al cargar {name}: {e}")
@@ -758,12 +740,11 @@ def seleccionar_equipo_interactivo_xg():
         equipos = sorted(df['Team Name'].dropna().unique())
         
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO PARA XG CÓRNERS ===")
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -772,17 +753,16 @@ def seleccionar_equipo_interactivo_xg():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
                 
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal para ejecutar el reporte de xG córners"""
-    print("=== GENERADOR DE REPORTES DE XG CÓRNERS OFENSIVOS ===")
     
     # Verificar datos disponibles
     available_data = verificar_datos_xg_disponibles()
@@ -795,7 +775,6 @@ def main():
     if not equipo_seleccionado:
         return
     
-    print(f"\n🔄 Generando reporte de xG córners para: {equipo_seleccionado}")
     
     # Crear reporte
     try:
@@ -812,7 +791,6 @@ def main():
             report_generator.guardar_sin_espacios(fig, output_path)
 
             
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             

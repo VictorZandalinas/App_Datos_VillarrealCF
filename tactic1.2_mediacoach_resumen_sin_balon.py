@@ -214,7 +214,7 @@ class KPIConBalonMediaCoach:
                             img.thumbnail(target_size, Image.Resampling.LANCZOS)
                             return np.array(img)
                     except Exception as e:
-                        print(f"Error al cargar {logo_path}: {e}")
+                        pass
                         continue
         
         print(f"⚠️  No se encontró logo para {equipo} con búsqueda directa. Intentando por similitud...")
@@ -231,10 +231,9 @@ class KPIConBalonMediaCoach:
             # LIMPIAR ESPACIOS EN NOMBRES DE MÉTRICAS
             self.df_stats['NOMBRE MÉTRICA'] = self.df_stats['NOMBRE MÉTRICA'].str.strip()
             
-            print(f"Datos cargados: {len(self.df_stats)} registros")
             return self.df_stats
         except Exception as e:
-            print(f"Error al cargar {self.parquet_path}: {e}")
+            pass
             return None
 
     def obtener_equipos_disponibles(self):
@@ -395,15 +394,11 @@ class VisualizadorKPIConBalon:
 
     def debug_metricas(self, metricas1, metricas2, equipo1, equipo2):
         """Imprime información detallada de todas las métricas para debug."""
-        print("\n" + "="*80)
-        print(f"DEBUG: Análisis de Métricas - {equipo1} vs {equipo2}")
-        print("="*80)
         
         estadisticas_liga = self.analyzer.calcular_estadisticas_liga()
         
         for grupo, lista_metricas in self.analyzer.metricas_agrupadas.items():
-            print(f"\n📊 {grupo}")
-            print("-" * 80)
+            pass
             
             for metrica in lista_metricas:
                 # Nombre corto si existe
@@ -429,11 +424,6 @@ class VisualizadorKPIConBalon:
                     val2_norm = val2
                     max_norm = 100
                 
-                print(f"\n  📍 {nombre_corto}")
-                print(f"     {equipo1}: {val1:.4f} → normalizado: {val1_norm:.2f}")
-                print(f"     {equipo2}: {val2:.4f} → normalizado: {val2_norm:.2f}")
-                print(f"     Media Liga: {media_liga:.4f}")
-                print(f"     Máximo Liga: {maximo_liga:.4f} ({equipo_max}) → normalizado: {max_norm:.2f}")
                 
                 # Alertas
                 if val1 == 0 and val2 == 0:
@@ -443,7 +433,6 @@ class VisualizadorKPIConBalon:
                 if val1_norm > 150 or val2_norm > 150:
                     print(f"     ⚠️  ALERTA: Valores normalizados muy grandes (> 150)")
         
-        print("\n" + "="*80 + "\n")
     
     def _formatear_label(self, metrica):
         """Formatea las etiquetas de las métricas para mejor legibilidad."""
@@ -732,7 +721,7 @@ class VisualizadorKPIConBalon:
         """Crea reporte comparativo A4 con layout de 8 columnas y barras horizontales/verticales."""
         metricas1, metricas2 = self.analyzer.obtener_metricas_comparativas(equipo1, equipo2, jornada)
         if not metricas1 or not metricas2:
-            print("No se pudieron obtener métricas para comparar.")
+            pass
             return None
         # DEBUG: Imprimir análisis de métricas
         self.debug_metricas(metricas1, metricas2, equipo1, equipo2)
@@ -1068,16 +1057,14 @@ class VisualizadorKPIConBalon:
         else:
             filename = f"analisis_sin_balon_{equipo1_fn}_vs_{equipo2_fn}_promedio_{timestamp}.pdf"
         fig.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0.2, format='pdf', orientation='landscape')
-        print(f"Reporte guardado: {filename}")
 
 
 def main():
     """Función principal interactiva para generar el informe."""
-    print("--- Generador de Análisis Comparativo 'Sin Balón' ---")
     
     analyzer = KPIConBalonMediaCoach()
     if analyzer.cargar_datos() is None:
-        print("Error: No se pudieron cargar los datos. Finalizando.")
+        pass
         return
         
     equipos_disponibles = analyzer.obtener_equipos_disponibles()
@@ -1085,15 +1072,13 @@ def main():
     villarreal_nombre = next((eq for eq in equipos_disponibles if 'villarreal' in eq.lower()), None)
             
     if not villarreal_nombre:
-        print("\nNo se encontró al Villarreal CF en los datos.")
+        pass
         return
 
-    print(f"\nEquipo de referencia: {villarreal_nombre}")
     
     equipos_comparar = [eq for eq in equipos_disponibles if eq != villarreal_nombre]
-    print(f"\n--- Elige un equipo para comparar contra {villarreal_nombre} ---")
     for i, equipo in enumerate(equipos_comparar, 1):
-        print(f"{i}. {equipo}")
+        pass
     
     equipo_oponente = None
     for _ in range(3):
@@ -1103,32 +1088,29 @@ def main():
                 equipo_oponente = equipos_comparar[seleccion - 1]
                 break
             else:
-                print(f"Número fuera de rango.")
+                pass
         except EOFError:
             equipo_oponente = equipos_comparar[0] if equipos_comparar else None
             break
         except ValueError:
-            print("Entrada no válida. Ingresa un número.")
+            pass
     if equipo_oponente is None and equipos_comparar:
         equipo_oponente = equipos_comparar[0]
 
     # Análisis siempre basado en el promedio de toda la temporada
     jornada_seleccionada = None
     
-    print(f"\nGenerando reporte: {equipo_oponente} vs {villarreal_nombre}")
-    print("Análisis basado en el promedio de la temporada")
         
     visualizador = VisualizadorKPIConBalon(analyzer)
     
     fig = visualizador.crear_reporte_comparativo(equipo_oponente, villarreal_nombre, jornada_seleccionada)
     
     if fig:
-        print("\nVisualización generada. Mostrando vista previa...")
+        pass
         plt.show()
         visualizador.guardar_reporte(fig, equipo_oponente, villarreal_nombre, jornada_seleccionada)
-        print("\nProceso completado exitosamente.")
     else:
-        print("\nError: No se pudo generar el reporte.")
+        pass
 
 
 if __name__ == "__main__":

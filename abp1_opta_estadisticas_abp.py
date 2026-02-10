@@ -33,9 +33,6 @@ class BalonParadoReportCustom:
             # Convertir Week a numérico para ordenamiento correcto
             self.combined_stats['Week'] = pd.to_numeric(self.combined_stats['Week'], errors='coerce')
             
-            print(f"✅ Estadísticas cargadas: {len(self.combined_stats)} filas")
-            print(f"📊 Equipos disponibles: {sorted(self.combined_stats['Team Name'].unique())}")
-            print(f"🗓️ Jornadas disponibles: {sorted(self.combined_stats['Week'].unique())}")
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
@@ -113,15 +110,11 @@ class BalonParadoReportCustom:
                 )
             }
             
-            print("✅ Medias de la liga calculadas correctamente")
-            print(f"   📊 xG BP Ataque (media): {medias['xg_bp_total_a_favor']:.3f}")
-            print(f"   🔰 xG BP Defensa (media): {medias['xg_bp_total_en_contra']:.3f}")
             
             return medias
             
         except KeyError as e:
             print(f"⚠️ Error: Columna no encontrada en los datos: {e}")
-            print(f"   Columnas disponibles: {self.combined_stats.columns.tolist()}")
             return {}
         except Exception as e:
             print(f"❌ Error al calcular medias: {e}")
@@ -585,7 +578,7 @@ class BalonParadoReportCustom:
                 escudo_redimensionado = self.resize_image_to_fixed_size(escudo_original, target_size=100)
                 return escudo_redimensionado
             except Exception as e:
-                print(f"Error al cargar {best_match}: {e}")
+                pass
         
         return None
     
@@ -616,7 +609,7 @@ class BalonParadoReportCustom:
             return np.array(square_image) / 255.0
             
         except Exception as e:
-            print(f"Error al redimensionar imagen: {e}")
+            pass
             return image
     
     def draw_leader_badge(self, ax, x, y, escudo, team_name, position='right'):
@@ -655,7 +648,7 @@ class BalonParadoReportCustom:
                 family='sans-serif', zorder=8)
             
         except Exception as e:
-            print(f"Error al dibujar badge de líder {team_name}: {e}")
+            pass
     
     def similarity(self, a, b):
         """Calcula la similitud entre dos strings"""
@@ -668,7 +661,7 @@ class BalonParadoReportCustom:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
 
@@ -679,7 +672,7 @@ class BalonParadoReportCustom:
             try:
                 return plt.imread(ball_path)
             except Exception as e:
-                print(f"Error al cargar balón: {e}")
+                pass
                 return None
         return None
     
@@ -690,7 +683,7 @@ class BalonParadoReportCustom:
             try:
                 return plt.imread(bg_path)
             except Exception as e:
-                print(f"Error al cargar fondo: {e}")
+                pass
                 return None
         return None
 
@@ -737,13 +730,12 @@ class BalonParadoReportCustom:
             transparent=False,
             orientation='landscape'
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
     
     def create_balon_parado_visualization(self, equipo_rival="Sevilla", figsize=(11.69, 8.27)):
         """Crea la visualización completa del informe de balón parado"""
         
         if self.combined_stats is None or self.combined_stats.empty:
-            print("No se pudieron obtener las estadísticas")
+            pass
             return None
         
         # Configurar fuentes modernas
@@ -775,10 +767,10 @@ class BalonParadoReportCustom:
         equipo2_data = self.combined_stats[self.combined_stats['Team Name'] == equipo2]
         
         if equipo1_data.empty:
-            print(f"No se encontraron datos para {equipo1}")
+            pass
             return None
         if equipo2_data.empty:
-            print(f"No se encontraron datos para {equipo2}")
+            pass
             return None
 
         # ✅ GUARDAR el número de partidos jugados (número de jornadas)
@@ -791,15 +783,12 @@ class BalonParadoReportCustom:
         equipo2_stats = equipo2_data[numeric_cols].mean().to_dict()
 
         # ========== CALCULAR PUNTUACIONES Y RESÚMENES ==========
-        print("\n📊 Calculando puntuaciones...")
         punt_equipo1 = self.calcular_puntuaciones(equipo1)
         punt_equipo2 = self.calcular_puntuaciones(equipo2)
 
         resumen_equipo1 = self.generar_resumen_bp(punt_equipo1)
         resumen_equipo2 = self.generar_resumen_bp(punt_equipo2)
 
-        print(f"✅ {equipo1}: {resumen_equipo1['clasificacion']} - {resumen_equipo1['puntuacion_total']}")
-        print(f"✅ {equipo2}: {resumen_equipo2['clasificacion']} - {resumen_equipo2['puntuacion_total']}")
 
         # Añadir Team Name y partidos jugados para compatibilidad
         equipo1_stats['Team Name'] = equipo1
@@ -847,7 +836,6 @@ class BalonParadoReportCustom:
         escudo_lider_faltas = self.find_team_logo_by_similarity(lider_faltas)
         escudo_lider_faltas_ind = self.find_team_logo_by_similarity(lider_faltas_ind)
 
-        print(f"🥇 Líderes: Corners={lider_corners}, F.Directas={lider_faltas}, F.Indirectas={lider_faltas_ind}")
 
         # Crear figura que ocupe toda la hoja
         fig = plt.figure(figsize=figsize, facecolor='white', constrained_layout=False)
@@ -861,7 +849,7 @@ class BalonParadoReportCustom:
                 ax_background.imshow(background, extent=[0, 1, 0, 1], aspect='auto', alpha=0.15, zorder=-1)
                 ax_background.axis('off')
             except Exception as e:
-                print(f"Error al aplicar fondo: {e}")
+                pass
         
         # Configurar el área principal que ocupe casi toda la hoja
         ax = fig.add_subplot(111)
@@ -897,7 +885,7 @@ class BalonParadoReportCustom:
                 ab = AnnotationBbox(imagebox, (27.0, 10.9), frameon=False)  # Más a la derecha
                 ax.add_artist(ab)
             except Exception as e:
-                print(f"Error con escudo {equipo2}: {e}")
+                pass
 
         villarreal_logo = self.find_team_logo_by_similarity(equipo1)
         if villarreal_logo is not None:
@@ -906,7 +894,7 @@ class BalonParadoReportCustom:
                 ab = AnnotationBbox(imagebox, (25.5, 10.9), frameon=False)  # Más a la derecha
                 ax.add_artist(ab)
             except Exception as e:
-                print(f"Error con escudo {equipo1}: {e}")
+                pass
         
         # ========== PANEL VILLARREAL (IZQUIERDA) - REDISEÑADO CON 2 COLUMNAS ==========
         panel_vil_x = 0.5
@@ -1648,15 +1636,12 @@ def seleccionar_equipo_rival():
         equipos = [eq for eq in equipos if eq != "Villarreal"]
         
         if not equipos:
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DEL EQUIPO RIVAL PARA VILLARREAL ===")
-        print("🟡 Equipo 1: Villarreal (fijo)")
-        print("\n🔴 Selecciona el equipo rival:")
         
         for i, equipo in enumerate(equipos, 1):
-            print(f"{i}. {equipo}")
+            pass
         
         # Seleccionar equipo rival
         while True:
@@ -1666,18 +1651,16 @@ def seleccionar_equipo_rival():
                 if 0 <= indice < len(equipos):
                     return equipos[indice]
                 else:
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError:
-                print("Por favor, ingresa un número válido")
+                pass
                 
     except Exception as e:
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal para ejecutar el reporte de balón parado"""
-    print("=== GENERADOR DE REPORTES DE BALÓN PARADO ===")
-    print("🟡 Villarreal vs 🔴 Equipo Rival")
     
     # Seleccionar equipo rival
     equipo_rival = seleccionar_equipo_rival()
@@ -1685,7 +1668,6 @@ def main():
         print("❌ No se pudo seleccionar el equipo rival")
         return
     
-    print(f"\n📄 Generando reporte: 🟡 Villarreal vs 🔴 {equipo_rival}")
     
     # Crear reporte
     try:
@@ -1705,7 +1687,6 @@ def main():
             output_path = f"reporte_balon_parado_Villarreal_vs_{rival_filename}.pdf"
             report_generator.guardar_sin_espacios(fig, output_path)
             
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("❌ No se pudo generar la visualización")
             

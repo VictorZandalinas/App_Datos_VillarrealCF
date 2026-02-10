@@ -50,13 +50,10 @@ class AnalizadorContraataquesOpta:
     
     def debug_analisis(self, match_id_test=None):
         if self.df is None: return
-        print("\n" + "!"*20 + " MODO DEBUG ACTIVADO " + "!"*20)
         m_id = match_id_test if match_id_test else self.df['Match ID'].iloc[0]
         test_df = self.df[self.df['Match ID'] == m_id]
         rec_ids = [7, 8, 44, 49, 52, 54, 59, 74]
-        print(f"Analizando Partido ID: {m_id} | Total eventos: {len(test_df)}")
         recuperaciones = test_df[test_df['typeId'].astype(int).isin(rec_ids)]
-        print(f"Recuperaciones encontradas: {len(recuperaciones)}")
 
     def find_team_logo_by_similarity(self, equipo, grayscale=False):
         """Busca el escudo por similitud y lo redimensiona (estilo ABP3)"""
@@ -78,14 +75,14 @@ class AnalizadorContraataquesOpta:
         return None
 
     def load_data(self):
-        print("📂 Cargando datos de Opta...")
+        pass
         self.df = pd.read_parquet(self.events_path)
         self.df['timeStamp'] = pd.to_datetime(self.df['timeStamp'], format='ISO8601')
         self.df = self.df.sort_values(['Match ID', 'timeStamp']).reset_index()
         self._analizar_liga()
 
     def _analizar_liga(self):
-        print("📊 Analizando secuencias de contraataque...")
+        pass
         self.df = self.df.sort_values(['Match ID', 'periodId', 'timeStamp']).reset_index(drop=True)
         self.df['index'] = self.df.index
         rec_ids = [7, 8, 44, 49, 52, 54, 59, 74]
@@ -256,15 +253,13 @@ def main():
     report = AnalizadorContraataquesOpta()
     report.load_data()
     equipos = sorted(report.team_stats['Equipo'].unique())
-    print("\n=== SELECCIONA EQUIPO ===")
     for i, eq in enumerate(equipos, 1):
-        print(f"{i}. {eq}")
+        pass
     idx = int(input(f"\nNúmero (1-{len(equipos)}): ")) - 1
     equipo_sel = equipos[idx]
     fig = report.create_report(equipo_sel)
     output = f"informe_contras_{equipo_sel.replace(' ', '_')}.pdf"
     fig.savefig(output, bbox_inches='tight', dpi=300)
-    print(f"✅ Informe generado: {output}")
     plt.show()
 
 if __name__ == "__main__":

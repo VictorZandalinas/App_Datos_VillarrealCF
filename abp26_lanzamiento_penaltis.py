@@ -32,11 +32,11 @@ class AnalizadorPenaltis:
         
         # Cargar archivos auxiliares
         try:
-            print("📂 Cargando estadísticas de equipo y jugadores...")
+            pass
             self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
             self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
         except Exception as e:
-            print(f"⚠ Advertencia: No se pudieron cargar stats auxiliares: {e}")
+            pass
             self.team_stats = pd.DataFrame()
             self.player_stats = pd.DataFrame()
 
@@ -48,7 +48,7 @@ class AnalizadorPenaltis:
         if hasattr(self, 'debug_profundo_penaltis'):
             self.debug_profundo_penaltis()
         else:
-            print("⚠ El método 'debug_profundo_penaltis' no está definido en la clase.")
+            pass
 
         # Extraer penaltis si hay filtro de equipo y datos cargados
         if team_filter and self.df is not None and not self.df.empty:
@@ -70,7 +70,6 @@ class AnalizadorPenaltis:
             transparent=False,
             orientation='landscape' # Asegura la orientación horizontal
         )
-        print(f"Archivo guardado SIN espacios formato A4: {filename}")
     
     def create_team_penalties_report(self, team_name, figsize=(11.69, 8.27)):
         """
@@ -95,30 +94,22 @@ class AnalizadorPenaltis:
         Ejecuta este método para ver exactamente qué hay en el DataFrame
         y por qué fallan los filtros.
         """
-        print("\n" + "="*50)
-        print("🕵️‍♂️ INICIO DE DEBUG PROFUNDO DE PENALTIS")
-        print("="*50)
 
         if self.df is None or self.df.empty:
             print("❌ ERROR CRÍTICO: El DataFrame está vacío o es None.")
             return
 
-        print(f"📁 Total de filas en el DataFrame: {len(self.df)}")
         
         # 1. BUSCAR COLUMNAS SOSPECHOSAS
         # Buscamos cualquier columna que tenga "pen" o "qual" en el nombre
         cols_penalti = [c for c in self.df.columns if 'pen' in c.lower()]
         cols_qualifiers = [c for c in self.df.columns if 'qual' in c.lower()]
         
-        print(f"\n1️⃣ Columnas detectadas que podrían ser de penalti:")
-        print(f"   -> {cols_penalti}")
         
         # 2. ANALIZAR VALORES EN ESAS COLUMNAS
         # Si existe la columna 'Penalty', ¿qué valores tiene? ¿'Sí', 'True', '1'?
         if 'Penalty' in self.df.columns:
             unique_vals = self.df['Penalty'].unique()
-            print(f"\n2️⃣ Valores únicos en la columna exacta 'Penalty':")
-            print(f"   -> {unique_vals}")
             print(f"   ⚠️ Tu código busca: 'Sí'. Si ves 'True', 1, o 'Yes', ahí está el fallo.")
         else:
             print(f"\n2️⃣ ❌ NO existe la columna 'Penalty'.")
@@ -128,7 +119,6 @@ class AnalizadorPenaltis:
         eventos_tiro = ['Goal', 'Attempt Saved', 'Miss', 'Post', 'Missed']
         tiros = self.df[self.df['Event Name'].isin(eventos_tiro)]
         
-        print(f"\n3️⃣ Eventos de tiro encontrados (Goal, Miss, Saved): {len(tiros)}")
         
         if not tiros.empty:
             # Cogemos 5 tiros al azar y mostramos sus datos de penalti
@@ -137,23 +127,16 @@ class AnalizadorPenaltis:
             # Filtramos solo columnas que existen
             cols_interes = [c for c in cols_interes if c in self.df.columns]
             
-            print("\n   🔎 Muestra de 5 eventos de tiro y sus columnas de penalti:")
-            print(sample[cols_interes].to_string())
         else:
             print("   ⚠️ No se encontraron eventos de tiro. ¿Estás leyendo el archivo correcto?")
-            print("   (Suele ser match_events.parquet, no abp_events.parquet)")
 
         # 4. BÚSQUEDA DE TEXTO BRUTA
         # A veces el penalti está escondido en qualifiers numéricos (ej: qualifier_id 9)
         # Vamos a buscar la palabra "Penalty" dentro de los nombres de evento
         eventos_con_nombre_penalty = self.df[self.df['Event Name'].str.contains('enalty', case=False, na=False)]
-        print(f"\n4️⃣ Filas donde el 'Event Name' contiene la palabra 'penalty': {len(eventos_con_nombre_penalty)}")
         if not eventos_con_nombre_penalty.empty:
-            print(f"   Ejemplos: {eventos_con_nombre_penalty['Event Name'].unique()}")
+            pass
 
-        print("\n" + "="*50)
-        print("FIN DEL DEBUG")
-        print("="*50 + "\n")
 
     def load_data(self, team_filter=None):
         """Carga los datos necesarios desde los parquets"""
@@ -179,9 +162,8 @@ class AnalizadorPenaltis:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
             
-            print(f"✅ Datos filtrados cargados: {len(self.df)} eventos")
         except Exception as e:
-            print(f"⚠ Error al cargar los datos: {e}")
+            pass
 
     def normalize_timestamp(self, timestamp):
         """Normaliza timestamps quitando la Z final si existe"""
@@ -202,10 +184,9 @@ class AnalizadorPenaltis:
     def extract_penalties(self, team_filter=None):
         """Extrae todos los penaltis del equipo seleccionado"""
         if self.df is None:
-            print("⚠ No hay datos cargados")
+            pass
             return
         
-        print("🔍 Extrayendo penaltis...")
         
         # Filtrar penaltis - buscar en eventos que contengan 'Penalty' o en columnas de qualifiers
         penalty_events = self.df[
@@ -227,12 +208,6 @@ class AnalizadorPenaltis:
             goal_coords = self.get_goal_coordinates(penalty)
 
             # DEBUG: Imprimir coordenadas para cada penalti
-            print(f"DEBUG - Penalti: {penalty['playerName']}")
-            print(f"  goal_y (horizontal): {goal_coords['y']}")
-            print(f"  goal_z (vertical): {goal_coords['z']}")
-            print(f"  zona: {goal_coords['zone']}")
-            print(f"  resultado: {result_type}")
-            print("---")
             
             # Obtener características del lanzamiento
             penalty_characteristics = self.get_penalty_characteristics(penalty)
@@ -265,47 +240,28 @@ class AnalizadorPenaltis:
                 keep='first'
             )
             
-            print(f"✅ Total de penaltis extraídos: {len(self.penalties_data)}")
             
             if team_filter:
                 team_penalties = self.penalties_data[self.penalties_data['Team Name'] == team_filter]
-                print(f"📊 Penaltis de {team_filter}: {len(team_penalties)}")
-                print("\n📊 Resumen por tipo de resultado:")
-                print(team_penalties['result_type'].value_counts())
         else:
-            print("⚠ No se encontraron penaltis")
+            pass
     
     def debug_penalty_coordinates(self, team_filter=None):
         """Debug específico para analizar coordenadas de penaltis"""
         if self.penalties_data.empty:
-            print("No hay datos de penaltis para debuggear")
+            pass
             return
         
         team_data = self.penalties_data[
             self.penalties_data['Team Name'] == team_filter
         ] if team_filter else self.penalties_data
         
-        print(f"\n=== DEBUG COORDENADAS PENALTIS ===")
-        print(f"Total penaltis: {len(team_data)}")
         
-        print(f"\nRango goal_y (horizontal 0-100):")
-        print(f"  Mínimo: {team_data['goal_y'].min()}")
-        print(f"  Máximo: {team_data['goal_y'].max()}")
-        print(f"  Promedio: {team_data['goal_y'].mean():.2f}")
         
-        print(f"\nRango goal_z (vertical 0-100):")
-        print(f"  Mínimo: {team_data['goal_z'].min()}")
-        print(f"  Máximo: {team_data['goal_z'].max()}")
-        print(f"  Promedio: {team_data['goal_z'].mean():.2f}")
         
-        print(f"\nDistribución por zonas:")
-        print(team_data['goal_zone'].value_counts())
         
-        print(f"\nPenaltis individuales:")
         for _, penalty in team_data.iterrows():
-            print(f"  {penalty['playerName']}: "
-                f"Y={penalty['goal_y']:.1f}, Z={penalty['goal_z']:.1f}, "
-                f"Zona={penalty['goal_zone']}, Resultado={penalty['result_type']}")
+            pass
 
     def determine_penalty_result(self, penalty_row):
         """Determina el resultado del penalti basado en el Event Name y qualifiers"""
@@ -451,7 +407,7 @@ class AnalizadorPenaltis:
                     final_img.paste(img, (paste_x, paste_y), img)
                     return np.array(final_img) / 255.0
             except Exception as e:
-                print(f"⚠ Error procesando {logo_path}: {e}")
+                pass
                 return self._load_team_logo_original(equipo)
         
         return None
@@ -492,7 +448,7 @@ class AnalizadorPenaltis:
             with open('assets/jugadores_optimizados.json', 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("⚠ No se encontró el archivo jugadores_optimizados.json")
+            pass
             return []
 
     def get_player_photo_without_dorsal(self, player_name, photos_data):
@@ -558,7 +514,7 @@ class AnalizadorPenaltis:
             return data.astype(np.float32) / 255.0
         
         except Exception as e:
-            print(f"⚠ Error procesando foto de {player_name}: {e}")
+            pass
             return None
 
     def match_player_name(self, player_name, photos_data, team_filter=None):
@@ -806,7 +762,7 @@ class AnalizadorPenaltis:
         """Crea la visualización principal de penaltis"""
         
         if self.penalties_data.empty:
-            print("⚠ No hay datos de penaltis para visualizar")
+            pass
             return None
         
         # Filtrar datos del equipo
@@ -815,7 +771,7 @@ class AnalizadorPenaltis:
         ] if team_filter else self.penalties_data
         
         if team_data.empty:
-            print(f"⚠ No hay datos de penaltis para {team_filter}")
+            pass
             return None
         
         # Obtener top 3 lanzadores de penaltis
@@ -942,21 +898,15 @@ class AnalizadorPenaltis:
     def print_summary(self, team_filter=None):
         """Imprime resumen de los datos de penaltis"""
         if self.penalties_data.empty:
-            print("No hay datos de penaltis para mostrar")
+            pass
             return
         
-        print(f"\n=== RESUMEN DE PENALTIS ===")
-        print(f"Total de penaltis: {len(self.penalties_data)}")
         
         if team_filter:
             team_data = self.penalties_data[self.penalties_data['Team Name'] == team_filter]
-            print(f"\nPenaltis de {team_filter}: {len(team_data)}")
             if not team_data.empty:
-                print(f"\nDistribución por tipo de resultado:")
-                print(team_data['result_type'].value_counts())
+                pass
 
-                print(f"\nTop 5 lanzadores de penaltis:")
-                print(team_data['playerName'].value_counts().head())
 
 def seleccionar_equipo_interactivo():
     """Función para seleccionar equipo interactivamente"""
@@ -964,12 +914,11 @@ def seleccionar_equipo_interactivo():
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
-            print("No se encontraron equipos.")
+            pass
             return None
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, equipo in enumerate(equipos, 1): 
-            print(f"{i}. {equipo}")
+            pass
         
         while True:
             try:
@@ -977,22 +926,21 @@ def seleccionar_equipo_interactivo():
                 if 0 <= indice < len(equipos): 
                     return equipos[indice]
                 else: 
-                    print(f"Por favor, ingresa un número entre 1 y {len(equipos)}")
+                    pass
             except ValueError: 
-                print("Por favor, ingresa un número válido")
+                pass
     except Exception as e: 
-        print(f"Error en la selección: {e}")
+        pass
         return None
 
 def main():
     """Función principal"""
     try:
-        print("=== GENERADOR DE CAMPOGRAMAS DE PENALTIS ===")
+        pass
         if (equipo := seleccionar_equipo_interactivo()) is None:
-            print("No se pudo completar la selección.")
+            pass
             return
         
-        print(f"\nGenerando campogramas para {equipo}")
         analyzer = AnalizadorPenaltis(team_filter=equipo)
         
         # DEBUG: Agregar esta línea
@@ -1008,7 +956,6 @@ def main():
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
             output_path = f"campogramas_penaltis_{equipo_filename}.pdf"
             analyzer.guardar_sin_espacios(fig, output_path) 
-            print(f"✅ Reporte guardado como: {output_path}")
         else:
             print("⚠️  Error crítico al generar la figura")
             
@@ -1031,21 +978,19 @@ def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
                 output_path = f"campogramas_penaltis_{equipo_filename}.pdf"
                 fig.savefig(output_path, bbox_inches='tight', pad_inches=0.1, 
                            facecolor='white', dpi=300)
-                print(f"✅ Campogramas guardados como: {output_path}")
             return fig
         else:
-            print("⚠ No se pudo generar la visualización")
+            pass
             return None
             
     except Exception as e:
-        print(f"⚠ Error: {e}")
+        pass
         import traceback
         traceback.print_exc()
         return None
 
 def verificar_assets():
     """Verifica que todos los assets necesarios estén disponibles"""
-    print("\n=== VERIFICACIÓN DE ASSETS ===")
     os.makedirs('assets/escudos', exist_ok=True)
     files_to_check = [
         'extraccion_opta/datos_opta_parquet/abp_events.parquet',
@@ -1055,24 +1000,22 @@ def verificar_assets():
         'assets/balon.png'
     ]
     for file_path in files_to_check:
-        print(f"✅ Encontrado: {file_path}" if os.path.exists(file_path) else f"⚠ Faltante: {file_path}")
+        pass
     
     if os.path.exists('assets/escudos') and (escudos := [f for f in os.listdir('assets/escudos') if f.endswith('.png')]):
-        print(f"✅ Escudos disponibles ({len(escudos)}): {escudos[:5]}...")
+        pass
     else:
-        print("⚠ No hay escudos en el directorio")
+        pass
 
 if __name__ == "__main__":
-    print("=== INICIALIZANDO GENERADOR DE CAMPOGRAMAS DE PENALTIS ===")
+    pass
     try:
         verificar_assets()
         df = pd.read_parquet("extraccion_opta/datos_opta_parquet/abp_events.parquet")
         equipos = sorted(df['Team Name'].dropna().unique())
-        print(f"\n✅ Sistema listo. Equipos disponibles: {len(equipos)}")
         if equipos:
-            print("🔍 Para generar campogramas ejecuta: main()")
-            print("🔍 Para uso directo: generar_campogramas_personalizado('Nombre_Equipo')")
+            pass
     except Exception as e:
-        print(f"⚠ Error al inicializar: {e}")
+        pass
     
     main()

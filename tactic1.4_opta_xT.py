@@ -45,7 +45,6 @@ class XTFlowReport:
             print(f"❌ Error: No se encuentra {self.path}")
             return
             
-        print("🔄 Cargando eventos...")
         cols = ['Match ID', 'Team Name', 'Event Name', 'typeId', 'outcome', 
                 'timeMin', 'timeSec', 'periodId', 'timeStamp', 'x', 'y', 
                 'Pass End X', 'Pass End Y', 'playerName', 'Week'] 
@@ -68,7 +67,6 @@ class XTFlowReport:
         if os.path.exists(self.player_stats_path):
             try:
                 self.player_stats = pd.read_parquet(self.player_stats_path)
-                print("✅ Player Stats cargado.")
             except:
                 print("⚠️ Error cargando player_stats.parquet")
         
@@ -78,11 +76,9 @@ class XTFlowReport:
             try:
                 with open(json_path, 'r', encoding='utf-8') as f:
                     self.photos_data = json.load(f)
-                print(f"✅ Fotos cargadas: {len(self.photos_data)} jugadores.")
             except:
                 print("⚠️ Error cargando JSON de fotos.")
         
-        print("📊 Calculando xT...")
         self.calculate_xt()
 
     def calculate_xt(self):
@@ -560,7 +556,6 @@ class XTFlowReport:
 def seleccionar_equipo_interactivo(df):
     if df is None or df.empty: return None
     equipos = sorted(df['Team Name'].dropna().unique())
-    print(f"\nSELECCIÓN DE EQUIPO ({len(equipos)} encontrados)")
     for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
     for _ in range(3):
         try:
@@ -576,10 +571,9 @@ if __name__ == "__main__":
     if rep.df is not None:
         eq = seleccionar_equipo_interactivo(rep.df)
         if eq:
-            print(f"\n📊 Generando Reporte Completo para {eq}...")
+            pass
             fig = rep.create_report(eq)
             if fig:
                 name = f"reporte_xt_final_{eq.replace(' ', '_')}.pdf"
                 fig.savefig(name, dpi=300, bbox_inches='tight', orientation='landscape')
-                print(f"✅ Guardado: {name}")
                 plt.show()

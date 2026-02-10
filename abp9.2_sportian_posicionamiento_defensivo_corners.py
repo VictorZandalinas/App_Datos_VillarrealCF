@@ -50,21 +50,16 @@ class ReporteDefensivoCorners:
         Analiza una muestra de córners para ver qué equipos detecta el sistema
         y por qué podría estar fallando la lógica de 'Defensor = No Atacante'.
         """
-        print("\n🕵️‍♂️ --- DIAGNÓSTICO DE EQUIPOS Y ROLES ---")
         if self.df_tracking is None:
             print("❌ No hay datos cargados.")
             return
 
         # Obtenemos una lista de IDs únicos de córner
         ids_unicos = self.df_tracking['ID_Evento_Corner'].unique()
-        print(f"📦 Total de córners únicos en el fichero: {len(ids_unicos)}")
         
         # Analizamos solo los primeros 10 para no saturar, o una muestra aleatoria
         muestra = ids_unicos[:15] 
 
-        print(f"\n🔍 Analizando muestra de {len(muestra)} córners...")
-        print(f"{'ID EVENTO':<12} | {'LANZADOR (Columna)':<20} | {'EQUIPOS EN TRACKING (Columna)'}")
-        print("-" * 100)
 
         conteo_problemas = {
             'ok': 0,
@@ -117,18 +112,12 @@ class ReporteDefensivoCorners:
 
             # Imprimir resultado fila
             equipos_str = ", ".join(equipos_tracking)
-            print(f"{id_evento:<12} | {lanzador_teorico:<20} | {equipos_str:<40} -> {status}")
             if status == "✅ OK":
-                print(f"             -> Deduced: ATQ={atacante_detectado} | DEF={defensor_detectado}")
+                pass
 
-        print("\n📊 RESUMEN DE LA MUESTRA:")
-        print(f"   Correctos (2 equipos, nombres coinciden): {conteo_problemas['ok']}")
-        print(f"   Solo 1 equipo visible (Tracking incompleto): {conteo_problemas['solo_uno']}")
-        print(f"   Error de nombres (Atacante no encontrado en Tracking): {conteo_problemas['nombre_mismatch']}")
         
         if self.team_filter:
-            print(f"\n🎯 TU FILTRO ES: '{self.team_filter}'")
-            print("   Asegúrate de que este nombre salga EXACTAMENTE igual en la columna de 'Deduced DEF'.")
+            pass
     
     def analizar_tipo_marcaje(self, df_evento, equipo_defensor, equipo_atacante):
         """
@@ -217,9 +206,8 @@ class ReporteDefensivoCorners:
 
     def load_tracking_data(self):
         try:
-            print("📂 Cargando datos de tracking...")
+            pass
             self.df_tracking = pd.read_parquet(self.tracking_path)
-            print(f"✅ Datos cargados: {len(self.df_tracking)} frames")
         except Exception as e:
             print(f"❌ Error cargando tracking: {e}")
 
@@ -254,7 +242,7 @@ class ReporteDefensivoCorners:
             return atacante, defensor
 
         except Exception as e:
-            print(f"Error en roles: {e}")
+            pass
             return None, None
 
     def determinar_lado_corner(self, y_balon):
@@ -278,9 +266,6 @@ class ReporteDefensivoCorners:
         zonas_asignadas = []
         es_izq = (lado == 'izquierda') 
 
-        print(f"\n   📊 DIAGNÓSTICO ATAQUE ({equipo_atacante}) - Saque: {lado.upper()}")
-        print(f"   {'JUGADOR':<20} | {'X':<5} | {'Y':<5} | {'ZONA DETALLADA'}")
-        print("   " + "-"*65)
 
         for _, row in atacantes.iterrows():
             x = row.get('X_Jugador', 0.0)
@@ -350,7 +335,6 @@ class ReporteDefensivoCorners:
                         else: zona = "RECHACE"
                 n_rechace += 1
             
-            print(f"   {nombre[:18]:<20} | {x:<5.1f} | {y:<5.1f} | {zona}")
             zonas_asignadas.append(zona)
 
         atacantes['Zona_Detallada'] = zonas_asignadas
@@ -362,7 +346,6 @@ class ReporteDefensivoCorners:
         """
         Aprende qué suele hacer cada jugador en cada lado.
         """
-        print("🧠 Aprendiendo perfiles de lanzadores...")
         try:
             # Optimizamos: Solo miramos una fila por córner
             eventos_unicos = self.df_tracking.drop_duplicates(subset=['ID_Evento_Corner'])
@@ -403,7 +386,6 @@ class ReporteDefensivoCorners:
     def extract_posicionamiento_defensivo(self):
         if self.df_tracking is None: return
 
-        print(f"\n🕵️‍♂️ --- MODO DEBUG: Buscando defensas para '{self.team_filter}' ---")
         
         # Contadores para saber qué falla
         stats = {
@@ -483,7 +465,7 @@ class ReporteDefensivoCorners:
             if len(df_defensores) < 8: 
                 stats['Pocos_Defensas'] += 1
                 if debug_prints < 15:
-                    print(f"📉 [ID {id_evento}] Calidad baja: Solo {len(df_defensores)} defensores detectados.")
+                    pass
                     debug_prints += 1
                 continue
 
@@ -903,7 +885,7 @@ class ReporteDefensivoCorners:
                             ax_ley.text(x, yc, str(val), ha='center', va='center', fontsize=F_ROW-1, color='white' if a>0.6 else 'black', fontweight='bold', zorder=2)
                         else: ax_ley.text(x, yc, "-", ha='center', va='center', fontsize=F_ROW-1, color='#ccc')
         except Exception as e:
-            print(f"Error tabla moderna: {e}")
+            pass
 
         return fig
 
@@ -993,11 +975,10 @@ class ReporteDefensivoCorners:
     def guardar_sin_espacios(self, fig, filename):
         fig.set_size_inches(11.69, 8.27)
         fig.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0, facecolor='white', transparent=False, orientation='landscape')
-        print(f"✅ Guardado: {filename}")
 
 def seleccionar_equipo_interactivo():
     try:
-        print("📂 Leyendo archivo para listar equipos...")
+        pass
         df = pd.read_parquet("extraccion_sportian/corners_tracking.parquet")
         col = 'NombreEquipoJugador_Tracking'
         
@@ -1008,7 +989,6 @@ def seleccionar_equipo_interactivo():
         # Aseguramos que sean strings y ordenamos
         equipos = sorted([str(e) for e in df[col].dropna().unique()])
         
-        print("\n=== SELECCIÓN DE EQUIPO ===")
         for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
             
         while True:
@@ -1034,7 +1014,7 @@ def seleccionar_equipo_interactivo():
     except Exception as e: print(f"❌ Error: {e}"); return None
 
 def main():
-    print("=== REPORTE DEFENSIVO CONTEXTUAL (2x3 GRID) ===")
+    pass
     equipo = seleccionar_equipo_interactivo()
     if not equipo: return
     
@@ -1049,7 +1029,6 @@ def main():
     if fig:
         filename = f"reporte_defensivo_contextual_{equipo.replace(' ', '_')}.pdf"
         analyzer.guardar_sin_espacios(fig, filename)
-        print("📊 Abriendo visualización...")
         plt.show()
     else:
         print("❌ No se pudo generar el gráfico.")
