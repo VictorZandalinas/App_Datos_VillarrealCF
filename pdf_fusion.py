@@ -50,13 +50,16 @@ def fusionar_pdfs_incremental(pdfs_list, output_path, temp_dir):
     current_level = [Path(p) for p in pdfs_list]
     level = 0
 
+    import sys
     print(f"🔄 Fusionando {len(current_level)} PDFs incrementalmente...")
+    sys.stdout.flush()
 
     while len(current_level) > 1:
         next_level = []
         pairs_in_level = (len(current_level) + 1) // 2
 
         print(f"   Nivel {level}: {len(current_level)} PDFs → {pairs_in_level} fusiones")
+        sys.stdout.flush()
 
         for i in range(0, len(current_level), 2):
             if i + 1 < len(current_level):
@@ -111,21 +114,27 @@ def _merge_two_pdfs(pdf1_path, pdf2_path, output_path):
         pdf2_path (Path): Ruta al segundo PDF
         output_path (Path): Ruta de salida
     """
+    import sys
     writer = PdfWriter()
 
     # Abrir y leer primer PDF
     with open(pdf1_path, 'rb') as f1:
         reader1 = PdfReader(f1)
+        num_pages1 = len(reader1.pages)
         for page in reader1.pages:
             writer.add_page(page)
 
     # Abrir y leer segundo PDF
     with open(pdf2_path, 'rb') as f2:
         reader2 = PdfReader(f2)
+        num_pages2 = len(reader2.pages)
         for page in reader2.pages:
             writer.add_page(page)
 
     # Escribir resultado
+    print(f"   Fusionando {pdf1_path.name} ({num_pages1}p) + {pdf2_path.name} ({num_pages2}p) → {output_path.name}")
+    sys.stdout.flush()  # Forzar output inmediato
+
     with open(output_path, 'wb') as out:
         writer.write(out)
 

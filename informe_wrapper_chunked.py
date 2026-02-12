@@ -273,10 +273,25 @@ class InformeGeneratorChunked:
             # Fusión incremental final
             print(f"\n{'='*70}")
             print("🔄 FASE FINAL: Fusionando PDFs...")
+            print(f"   Total de PDFs a fusionar: {len(pdfs_generados)}")
             print(f"{'='*70}")
 
+            if len(pdfs_generados) == 0:
+                print("❌ No se generaron PDFs para fusionar")
+                return None
+
             output_path = self._generar_nombre_output(equipo, j_inicio, j_fin)
+            print(f"📄 Nombre del archivo final: {output_path}")
+            print(f"📂 Directorio de trabajo: {os.getcwd()}")
+
             resultado = fusionar_pdfs_incremental(pdfs_generados, output_path, self.temp_dir)
+
+            if resultado and resultado.exists():
+                print(f"✅ PDF final generado: {resultado}")
+                print(f"   Tamaño: {resultado.stat().st_size / 1024 / 1024:.2f} MB")
+                print(f"   Ruta absoluta: {resultado.absolute()}")
+            else:
+                print(f"❌ Error: No se pudo generar el PDF final")
 
             return resultado
 
@@ -366,8 +381,6 @@ class InformeGeneratorChunked:
         pdfs_antes = set(Path('.').glob("*.pdf"))
 
         # Preparar inputs automáticos
-        # Nota: Esta es una versión simplificada - en producción debe usar
-        # los mismos mappings y lógica que abp_informe_todo.py
         respuestas = self._preparar_inputs(script, equipo, j_fin)
 
         # Configurar variables de entorno para filtrado de jornadas
@@ -397,6 +410,10 @@ class InformeGeneratorChunked:
             # Ejecutar script
             exec(codigo, scope, scope)
 
+        except Exception as e:
+            print(f"   ❌ Error ejecutando {script}: {e}")
+            # No hacer raise para que continue con otros scripts
+
         finally:
             # Restaurar stdin y limpiar
             sys.stdin = stdin_original
@@ -414,9 +431,16 @@ class InformeGeneratorChunked:
             # Mover a temp_dir con índice
             idx = self.scripts.index(script)
             dest = self.temp_dir / f"{idx:02d}_{pdf_path.name}"
-            pdf_path.rename(dest)
 
-            return dest
+            try:
+                pdf_path.rename(dest)
+                return dest
+            except Exception as e:
+                print(f"   ⚠️ Error moviendo PDF {pdf_path} a {dest}: {e}")
+                return None
+        else:
+            print(f"   ⚠️ Script {script} no generó PDF")
+            return None
 
         return None
 

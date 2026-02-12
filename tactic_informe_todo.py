@@ -323,9 +323,20 @@ def main():
                 equipos_opta=EQUIPOS_OPTA,
                 equipos_mediacoach=EQUIPOS_MEDIACOACH
             )
+
+            print(f"🎯 Ejecutando wrapper para {equipo_canonico}, J{jornada_inicio}-J{jornada_fin}")
             output_name = wrapper.ejecutar(equipo_canonico, jornada_inicio, jornada_fin)
+
             if output_name:
                 print(f"\n✅ GENERADO: {output_name}")
+                print(f"📂 Ubicación: {os.path.abspath(output_name) if os.path.exists(str(output_name)) else 'NO ENCONTRADO'}")
+
+                # Limpiar directorio temporal
+                if os.path.exists("reportes_temporales"):
+                    print("🧹 Limpiando directorio temporal...")
+                    shutil.rmtree("reportes_temporales")
+
+                print("🏁 Proceso completado exitosamente")
                 sys.exit(0)
             else:
                 print(f"\n❌ Error en generación chunked")
