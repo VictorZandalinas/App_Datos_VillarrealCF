@@ -350,7 +350,7 @@ class InformeGeneratorChunked:
 
         if self.tipo == 'ABP':
             return f"Informe_ABP_{equipo_clean}_J{j_inicio}_J{j_fin}.pdf"
-        elif self.tipo == 'TACTICO':
+        elif self.tipo == 'TACTIC' or self.tipo == 'TACTICO':
             return f"Informe_Situaciones_Juego_{equipo_clean}_J{j_inicio}_J{j_fin}.pdf"
         else:
             return f"Informe_{self.tipo}_{equipo_clean}_J{j_inicio}_J{j_fin}.pdf"

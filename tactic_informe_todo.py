@@ -316,7 +316,7 @@ def main():
         print("🚀 Modo CHUNKED activado (optimizado para servidor)")
         try:
             from informe_wrapper_chunked import InformeGeneratorChunked
-            wrapper = InformeGeneratorChunked(tipo_informe='TACTICO', chunk_size=4)
+            wrapper = InformeGeneratorChunked(tipo_informe='TACTIC', chunk_size=4)
             output_name = wrapper.ejecutar(equipo_canonico, jornada_inicio, jornada_fin)
             if output_name:
                 print(f"\n✅ GENERADO: {output_name}")
