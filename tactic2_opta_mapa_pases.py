@@ -23,6 +23,7 @@ class RedPasesEquipo:
     _open_play_cache = None
     _team_stats_cache = None
     _player_stats_cache = None
+    _match_events_cache = None  # 🔥 NUEVO CACHÉ
 
     @classmethod
     def _get_open_play_data(cls, columns=None):
@@ -33,6 +34,14 @@ class RedPasesEquipo:
         if columns:
             return cls._open_play_cache[columns].copy()
         return cls._open_play_cache.copy()
+
+    @classmethod
+    def _get_match_events_data(cls):
+        """Carga match_events.parquet una sola vez y lo cachea."""
+        if cls._match_events_cache is None:
+            print("📥 [CACHÉ] Cargando match_events.parquet por primera vez...")
+            cls._match_events_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+        return cls._match_events_cache.copy()
 
     def __init__(self, data_path="extraccion_opta/datos_opta_parquet/open_play_events.parquet", team_filter=None):
         self.data_path = data_path
@@ -257,8 +266,8 @@ class RedPasesEquipo:
     
     def load_match_events(self):
         try:
-            events_path = "extraccion_opta/datos_opta_parquet/match_events.parquet"
-            self.events_df = pd.read_parquet(events_path)
+            # 🔥 Usar caché en lugar de leer desde disco
+            self.events_df = self._get_match_events_data()
             if 'Week' in self.events_df.columns:
                 self.events_df['Week'] = self.events_df['Week'].astype(str)
             return True
@@ -1859,8 +1868,8 @@ class RedPasesEquipo:
 def seleccionar_equipo_interactivo():
     """Función para seleccionar equipo interactivamente"""
     try:
-        # 🔥 Usar caché para evitar cargar el parquet dos veces
-        df = RedPasesEquipo._get_open_play_data()
+        # 🔥 Usar caché con solo la columna necesaria
+        df = RedPasesEquipo._get_open_play_data(columns=['Team Name'])
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
             pass
