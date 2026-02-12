@@ -309,7 +309,7 @@ def main():
 
     # === SISTEMA DE CHUNKS ===
     # Optimizado para servidores con RAM limitada (4GB)
-    # Divide ejecución en grupos de 4 scripts con limpieza agresiva entre chunks
+    # Divide ejecución en grupos de 2 scripts con limpieza agresiva entre chunks
     USE_CHUNKED = os.environ.get('INFORME_USE_CHUNKS', '1') == '1'
 
     if USE_CHUNKED:
@@ -318,7 +318,7 @@ def main():
             from informe_wrapper_chunked import InformeGeneratorChunked
             wrapper = InformeGeneratorChunked(
                 tipo_informe='TACTIC',
-                chunk_size=4,
+                chunk_size=2,  # Reducido de 4 a 2 para evitar OOM en scripts de mapa de pases
                 team_mappings=TEAM_NAME_MAPPING,
                 equipos_opta=EQUIPOS_OPTA,
                 equipos_mediacoach=EQUIPOS_MEDIACOACH

@@ -342,14 +342,14 @@ def main():
 
     # === SISTEMA DE CHUNKS ===
     # Optimizado para servidores con RAM limitada (4GB)
-    # Divide ejecución en grupos de 6 scripts con limpieza agresiva entre chunks
+    # Divide ejecución en grupos de 3 scripts con limpieza agresiva entre chunks
     USE_CHUNKED = os.environ.get('INFORME_USE_CHUNKS', '1') == '1'
 
     if USE_CHUNKED:
         print("🚀 Modo CHUNKED activado (optimizado para servidor)")
         try:
             from informe_wrapper_chunked import InformeGeneratorChunked
-            wrapper = InformeGeneratorChunked(tipo_informe='ABP', chunk_size=6)
+            wrapper = InformeGeneratorChunked(tipo_informe='ABP', chunk_size=3)  # Reducido de 6 a 3 para evitar OOM
             output_name = wrapper.ejecutar(equipo_canonico, jornada_inicio, jornada_fin)
             if output_name:
                 print(f"\n✅ GENERADO: {output_name}")
