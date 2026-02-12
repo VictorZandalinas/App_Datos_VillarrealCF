@@ -27,7 +27,7 @@ INFORMES_DIR = BASE_DIR / "informes_generados"
 
 # Timeouts
 TIMEOUT_GLOBAL = 3600  # 1 hora max por informe (ABP requiere ~35 scripts)
-TIMEOUT_INACTIVIDAD = 600  # 10 minutos (scripts tácticos pueden tardar sin output)
+TIMEOUT_INACTIVIDAD = 1800  # 30 minutos (scripts tácticos y físicos pueden tardar sin output)
 
 # Crear directorios si no existen
 for d in [PENDING_DIR, PROCESSING_DIR, COMPLETED_DIR, FAILED_DIR, INFORMES_DIR]:
