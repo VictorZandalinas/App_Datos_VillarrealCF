@@ -22,22 +22,40 @@ from sklearn.cluster import DBSCAN
 warnings.filterwarnings('ignore')
 
 class PasesCampoContrario:
+    # 🔥 CACHÉ DE DATOS: Compartido entre todas las instancias para evitar cargas repetidas
+    _open_play_cache = None
+    _team_stats_cache = None
+    _player_stats_cache = None
+
+    @classmethod
+    def _get_open_play_data(cls, columns=None):
+        """Carga open_play_events.parquet una sola vez y lo cachea."""
+        if cls._open_play_cache is None:
+            print("📥 [CACHÉ] Cargando open_play_events.parquet por primera vez...")
+            cls._open_play_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
+        if columns:
+            return cls._open_play_cache[columns].copy()
+        return cls._open_play_cache.copy()
+
     def __init__(self, data_path="extraccion_opta/datos_opta_parquet/open_play_events.parquet", team_filter=None):
         self.data_path = data_path
         self.team_filter = team_filter
         self.df = None
         self.passes_data = pd.DataFrame()
-        self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
-        self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+
+        # Usar caché para team_stats y player_stats
+        if PasesCampoContrario._team_stats_cache is None:
+            PasesCampoContrario._team_stats_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
+        if PasesCampoContrario._player_stats_cache is None:
+            PasesCampoContrario._player_stats_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+
+        self.team_stats = PasesCampoContrario._team_stats_cache
+        self.player_stats = PasesCampoContrario._player_stats_cache
+        self.player_stats_df = PasesCampoContrario._player_stats_cache
+
         self.load_data(team_filter)
         self.events_df = None
         self.load_match_events()
-
-        self.player_stats_df = None
-        try:
-            self.player_stats_df = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
-        except Exception as e:
-            print(f"⚠️ Error al cargar player_stats.parquet: {e}")
         
         self.photos_data = None
         
@@ -732,11 +750,12 @@ class PasesCampoContrario:
     
     def load_data(self, team_filter=None):
         try:
-            columns_needed = ['Match ID', 'Team ID', 'Team Name', 'Event Name', 'outcome', 
+            columns_needed = ['Match ID', 'Team ID', 'Team Name', 'Event Name', 'outcome',
                   'x', 'y', 'Pass End X', 'Pass End Y', 'playerName', 'playerId',
                   'timeMin', 'timeSec', 'Cross', 'Right footed', 'Left footed',
                   'Assist', 'Through ball']
-            self.df = pd.read_parquet(self.data_path, columns=columns_needed)
+            # 🔥 Usar caché en lugar de cargar desde disco
+            self.df = self._get_open_play_data(columns=columns_needed)
             self.df = self.df[(self.df['Event Name'] == 'Pass') & (self.df['outcome'] == 1)]
             if team_filter:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
@@ -830,8 +849,9 @@ class PasesCampoContrario:
         🔥 NUEVA LÓGICA: Extrae únicamente la pareja Pasador -> Receptor de los pases que terminan en el área.
         """
         sequences = []
-        
-        all_team_events = pd.read_parquet(self.data_path)
+
+        # 🔥 Usar caché en lugar de cargar desde disco
+        all_team_events = self._get_open_play_data()
         all_team_events = all_team_events[all_team_events['Team Name'] == self.team_filter]
 
         for col in ['x', 'y', 'Pass End X', 'Pass End Y', 'timeMin', 'timeSec']:
@@ -927,9 +947,9 @@ class PasesCampoContrario:
         Encuentra secuencias Centrador (Cross='Sí') -> Rematador (Miss/Post/Goal/Attempt Saved)
         """
         sequences = []
-        
-        # Cargar dataframe completo (no solo passes_data)
-        df_all = pd.read_parquet(self.data_path)
+
+        # 🔥 Usar caché en lugar de cargar desde disco
+        df_all = self._get_open_play_data()
         df_team = df_all[df_all['Team Name'] == self.team_filter]
         
         for idx in range(len(df_team) - 1):
@@ -1358,9 +1378,9 @@ class PasesCampoContrario:
             half=True)
         pitch.draw(ax=ax)
         
-        # 🔥 CARGAR TODOS LOS EVENTOS (no solo passes_data)
+        # 🔥 CARGAR TODOS LOS EVENTOS (no solo passes_data) - USANDO CACHÉ
         try:
-            df_all = pd.read_parquet(self.data_path)
+            df_all = self._get_open_play_data()
             
             # Convertir coordenadas
             for col in ['x', 'y']:
@@ -2241,9 +2261,9 @@ class PasesCampoContrario:
         sequences = []
         
         
-        # Cargar TODO el dataframe, no solo passes_data
+        # Cargar TODO el dataframe, no solo passes_data - USANDO CACHÉ
         try:
-            df_all = pd.read_parquet(self.data_path)
+            df_all = self._get_open_play_data()
             
             # Convertir coordenadas
             for col in ['x', 'y', 'Pass End X', 'Pass End Y']:
@@ -2735,10 +2755,19 @@ def generar_analisis_personalizado(equipo, mostrar=True, guardar=True):
 
 if __name__ == "__main__":
     try:
-        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/open_play_events.parquet")
+        # 🔥 Usar caché para evitar cargar el parquet dos veces
+        df = PasesCampoContrario._get_open_play_data()
         equipos = sorted(df['Team Name'].dropna().unique())
         if equipos:
             pass
         main()
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
+    finally:
+        # 🧹 Liberar memoria al finalizar
+        import gc
+        PasesCampoContrario._open_play_cache = None
+        PasesCampoContrario._team_stats_cache = None
+        PasesCampoContrario._player_stats_cache = None
+        gc.collect()
+        print("🧹 Memoria liberada al finalizar el script")
