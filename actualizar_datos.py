@@ -266,8 +266,9 @@ def git_auto_sync(source_name):
             print("ℹ️ No hay cambios nuevos para sincronizar")
             return True
 
-        # Git commit
-        commit_message = f"Actualización automática de datos {source_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        # Git commit (con [skip ci] para evitar loops infinitos)
+        timestamp = datetime.now().strftime('%a %d %b %Y %H:%M:%S %Z')
+        commit_message = f"Actualización automática {timestamp}\n\nDatos actualizados: {source_name}\n\n[skip ci]"
         result_commit = subprocess.run(
             ['git', 'commit', '-m', commit_message],
             cwd=script_dir,
@@ -2460,6 +2461,11 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
             progress_callback(progreso_actual, clean_line, messages[-50:])
 
     process.wait()
+
+    # Auto-commit y push a GitHub
+    print("📤 Subiendo cambios de MediaCoach a GitHub...")
+    git_auto_sync("MediaCoach")
+
     if progress_callback:
         progress_callback(100, "✅ Proceso MediaCoach finalizado con éxito.", messages)
 
@@ -2675,7 +2681,11 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
     
     add_message("🎉 ¡Actualización completada!", "success")
     update_progress(100, "¡Actualización completada!")
-    
+
+    # Auto-commit y push a GitHub
+    add_message("📤 Subiendo cambios a GitHub...")
+    git_auto_sync("Opta")
+
     return messages
 
 def process_xg_player_stats(match_id, season):
@@ -3344,7 +3354,7 @@ def update_mediacoach_data():
 
     # TODO: Implement MediaCoach data update logic
     # Cuando se implemente, añadir al final:
-    # git_auto_sync("MediaCoach")
+    git_auto_sync("MediaCoach")
 
 # ====================================
 # MAIN INTERFACE
