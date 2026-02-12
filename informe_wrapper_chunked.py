@@ -18,6 +18,102 @@ from memory_utils import clean_memory_agresivo, get_memory_info, check_memory_th
 from pdf_fusion import fusionar_pdfs_incremental
 from memory_monitor import MemoryMonitor
 
+# Funciones auxiliares para portadas
+def generar_portada(tipo_informe, equipo, jornada, output_path):
+    """
+    Genera la portada del informe según el tipo.
+
+    Args:
+        tipo_informe (str): 'ABP', 'TACTIC', etc.
+        equipo (str): Nombre del equipo
+        jornada (int): Número de jornada
+        output_path (Path): Ruta donde guardar la portada
+
+    Returns:
+        bool: True si se generó correctamente, False si hubo error
+    """
+    try:
+        from matplotlib import patheffects
+        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        from difflib import SequenceMatcher
+
+        fig = plt.figure(figsize=(11.69, 8.27))
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.axis('off')
+
+        efecto_relieve = [
+            patheffects.withStroke(linewidth=4, foreground='white', alpha=0.9),
+            patheffects.Normal()
+        ]
+
+        # Determinar imagen de fondo según tipo
+        if tipo_informe in ['TACTIC', 'TACTICO']:
+            ruta_portada = "assets/portada_tactico_informe.png"
+            titulo = 'INFORME SITUACIONES DE JUEGO'
+        elif tipo_informe == 'ABP':
+            ruta_portada = "assets/portada_abp_informe.png"
+            titulo = 'INFORME BALÓN PARADO'
+        else:
+            ruta_portada = None
+            titulo = f'INFORME {tipo_informe}'
+
+        # Fondo
+        if ruta_portada and os.path.exists(ruta_portada):
+            try:
+                img_fondo = plt.imread(ruta_portada)
+                ax.imshow(img_fondo, aspect='auto', extent=[0, 1, 0, 1])
+            except:
+                ax.set_facecolor('#1e3d59')
+        else:
+            ax.set_facecolor('#1e3d59')
+
+        # Título
+        ax.text(0.5, 0.92, titulo, ha='center', va='center',
+                fontsize=42, fontweight='bold', color='#1e3d59',
+                family='serif', path_effects=efecto_relieve)
+
+        # Nombre del equipo
+        ax.text(0.20, 0.76, equipo.upper(), ha='center', va='center',
+                fontsize=32, fontweight='bold', color='#e74c3c',
+                family='serif', path_effects=efecto_relieve)
+
+        # Escudo del equipo
+        if os.path.exists('assets/escudos'):
+            equipo_clean = equipo.lower().replace(' ', '').replace('cf', '').replace('fc', '')
+            best_match, best_sim = None, 0
+
+            for f in os.listdir('assets/escudos'):
+                if not f.endswith('.png'):
+                    continue
+                name = f.replace('.png', '').lower().replace('_', '').replace('cf', '').replace('fc', '')
+                sim = SequenceMatcher(None, equipo_clean, name).ratio()
+                if sim > best_sim and sim > 0.4:
+                    best_sim = sim
+                    best_match = f
+
+            if best_match:
+                try:
+                    logo_img = plt.imread(f"assets/escudos/{best_match}")
+                    imagebox = OffsetImage(logo_img, zoom=0.6)
+                    ab = AnnotationBbox(imagebox, (0.20, 0.58), frameon=False)
+                    ax.add_artist(ab)
+                except:
+                    pass
+
+        # Jornada
+        ax.text(0.5, 0.18, f'Jornada: {jornada}', ha='center', va='center',
+                fontsize=16, color='#34495e', family='serif',
+                path_effects=efecto_relieve)
+
+        # Guardar
+        fig.savefig(str(output_path), format='pdf', bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+        return True
+
+    except Exception as e:
+        print(f"❌ Error generando portada: {e}")
+        return False
+
 
 class InformeGeneratorChunked:
     """
@@ -27,16 +123,22 @@ class InformeGeneratorChunked:
     memoria agresivamente entre chunks para evitar OOM en servidores limitados.
     """
 
-    def __init__(self, tipo_informe, chunk_size=6):
+    def __init__(self, tipo_informe, chunk_size=6, team_mappings=None, equipos_opta=None, equipos_mediacoach=None):
         """
         Inicializa el generador de informes.
 
         Args:
-            tipo_informe (str): 'ABP' o 'TACTICO'
+            tipo_informe (str): 'ABP' o 'TACTIC'
             chunk_size (int): Número de scripts por chunk (6-8 recomendado para 4GB RAM)
+            team_mappings (dict): Mapeo de nombres de equipos entre fuentes
+            equipos_opta (list): Lista de equipos en orden de Opta
+            equipos_mediacoach (list): Lista de equipos en orden de MediaCoach
         """
         self.tipo = tipo_informe.upper()
         self.chunk_size = chunk_size
+        self.team_mappings = team_mappings or {}
+        self.equipos_opta = equipos_opta or []
+        self.equipos_mediacoach = equipos_mediacoach or []
         self.scripts = self._discover_scripts()
         self.chunks = self._create_chunks()
         self.temp_dir = Path("reportes_temporales")
@@ -127,6 +229,18 @@ class InformeGeneratorChunked:
         monitor.start()
 
         try:
+            # Generar portada primero
+            print(f"\n{'='*70}")
+            print("🎨 Generando portada...")
+            print(f"{'='*70}")
+
+            portada_path = self.temp_dir / "00_portada.pdf"
+            if generar_portada(self.tipo, equipo, j_fin, portada_path):
+                pdfs_generados.append(portada_path)
+                print("✅ Portada generada")
+            else:
+                print("⚠️ No se pudo generar portada, continuando sin ella...")
+
             # Ejecutar cada chunk
             for chunk_id, chunk_scripts in enumerate(self.chunks, 1):
                 print(f"\n{'='*70}")
@@ -310,27 +424,45 @@ class InformeGeneratorChunked:
         """
         Prepara inputs automáticos para el script.
 
-        IMPORTANTE: Versión simplificada para demostración.
-        En producción, debe usar los mismos TEAM_NAME_MAPPING y EQUIPOS_* que abp_informe_todo.py
-
         Args:
             script (str): Nombre del script
-            equipo (str): Nombre del equipo
+            equipo (str): Nombre canónico del equipo (ej: 'Villarreal', 'Barcelona')
             jornada (int): Jornada final
 
         Returns:
             str: String con inputs simulados (separados por \n)
         """
-        # Por defecto, asumir scripts de Opta que esperan: índice equipo, jornada
-        respuestas = f"1\n{jornada}\n"
-
-        # Ajustar para scripts específicos si es necesario
+        # Ajustar para scripts específicos
         if 'mediacoach' in script.lower():
-            # MediaCoach suele pedir: índice, jornada, jornada
-            respuestas = f"19\n{jornada}\n{jornada}\n"  # 19 = Villarreal por defecto
+            # MediaCoach: necesita índice del equipo en lista mediacoach
+            if self.team_mappings and equipo in self.team_mappings:
+                nombre_mc = self.team_mappings[equipo].get('mediacoach', equipo)
+                try:
+                    idx_mc = self.equipos_mediacoach.index(nombre_mc)
+                    respuestas = f"{idx_mc + 1}\n{jornada}\n{jornada}\n"
+                except (ValueError, AttributeError):
+                    # Fallback: Villarreal por defecto
+                    respuestas = f"19\n{jornada}\n{jornada}\n"
+            else:
+                # Sin mappings, asumir Villarreal
+                respuestas = f"19\n{jornada}\n{jornada}\n"
+
         elif 'sportian' in script.lower():
             # Sportian espera nombre directo
             respuestas = f"{equipo}\n"
+
+        else:
+            # Opta: necesita índice del equipo en lista opta
+            if self.equipos_opta and equipo in self.equipos_opta:
+                try:
+                    idx_opta = self.equipos_opta.index(equipo)
+                    respuestas = f"{idx_opta + 1}\n{jornada}\n"
+                except ValueError:
+                    # Fallback
+                    respuestas = f"1\n{jornada}\n"
+            else:
+                # Sin lista, usar índice 1 por defecto
+                respuestas = f"1\n{jornada}\n"
 
         return respuestas
 

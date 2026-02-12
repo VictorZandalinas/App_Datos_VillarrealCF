@@ -316,7 +316,13 @@ def main():
         print("🚀 Modo CHUNKED activado (optimizado para servidor)")
         try:
             from informe_wrapper_chunked import InformeGeneratorChunked
-            wrapper = InformeGeneratorChunked(tipo_informe='TACTIC', chunk_size=4)
+            wrapper = InformeGeneratorChunked(
+                tipo_informe='TACTIC',
+                chunk_size=4,
+                team_mappings=TEAM_NAME_MAPPING,
+                equipos_opta=EQUIPOS_OPTA,
+                equipos_mediacoach=EQUIPOS_MEDIACOACH
+            )
             output_name = wrapper.ejecutar(equipo_canonico, jornada_inicio, jornada_fin)
             if output_name:
                 print(f"\n✅ GENERADO: {output_name}")
@@ -327,6 +333,8 @@ def main():
         except Exception as e:
             print(f"❌ Error en modo chunked: {e}")
             print("⚠️ Cayendo a modo legacy...")
+            import traceback
+            traceback.print_exc()
             # Si falla chunked, continuar con modo original
 
     # === MODO LEGACY (código original) ===
