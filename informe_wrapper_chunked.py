@@ -14,7 +14,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from memory_utils import clean_memory_agresivo, get_memory_info, check_memory_threshold
+from memory_utils import clean_memory_agresivo, get_memory_info, check_memory_threshold, clear_all_script_caches
 from pdf_fusion import fusionar_pdfs_incremental
 from memory_monitor import MemoryMonitor
 
@@ -261,6 +261,10 @@ class InformeGeneratorChunked:
                 # Limpieza agresiva entre chunks
                 mem_antes = get_memory_info()
                 print(f"\n🧹 Liberando memoria post-chunk...")
+
+                # Limpiar cachés de clase de scripts de análisis
+                clear_all_script_caches()
+
                 check_memory_threshold(threshold_mb=2500, auto_clean=True)
                 clean_memory_agresivo()
 

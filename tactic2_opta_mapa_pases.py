@@ -43,6 +43,15 @@ class RedPasesEquipo:
             cls._match_events_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
         return cls._match_events_cache.copy()
 
+    @classmethod
+    def clear_cache(cls):
+        """Limpia todos los cachés de clase para liberar memoria."""
+        print("🧹 [CACHÉ] Limpiando cachés de RedPasesEquipo...")
+        cls._open_play_cache = None
+        cls._team_stats_cache = None
+        cls._player_stats_cache = None
+        cls._match_events_cache = None
+
     def __init__(self, data_path="extraccion_opta/datos_opta_parquet/open_play_events.parquet", team_filter=None):
         self.data_path = data_path
         self.team_filter = team_filter

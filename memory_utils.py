@@ -30,6 +30,34 @@ def clean_memory_agresivo():
     gc.collect()
 
 
+def clear_all_script_caches():
+    """
+    Limpia cachés de clase de todos los scripts de análisis conocidos.
+    Esto es CRÍTICO para liberar memoria entre chunks en el wrapper.
+    """
+    try:
+        # Importar y limpiar cachés de scripts de pases
+        try:
+            from tactic2_opta_mapa_pases import RedPasesEquipo
+            RedPasesEquipo.clear_cache()
+        except (ImportError, AttributeError):
+            pass
+
+        try:
+            # Usar nombre completo con punto para importar correctamente
+            import importlib
+            script = importlib.import_module('tactic2.1_opta_mapa_pases_campo_contrario')
+            if hasattr(script, 'PasesCampoContrario'):
+                script.PasesCampoContrario.clear_cache()
+        except (ImportError, AttributeError):
+            pass
+
+        # Aquí se pueden agregar más scripts con cachés en el futuro
+
+    except Exception as e:
+        print(f"⚠️ Error limpiando cachés de scripts: {e}")
+
+
 def get_memory_info():
     """
     Retorna información del uso de memoria del proceso actual.
