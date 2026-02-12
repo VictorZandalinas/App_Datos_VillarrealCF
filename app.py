@@ -551,6 +551,15 @@ def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_
                     if len(last_error_lines) > 5:
                         last_error_lines.pop(0)
 
+                # Parsear logs de memoria del sistema de chunks
+                if '📊 [MEMORIA]' in status_msg:
+                    mem_match = re.search(r'(\d+)MB', status_msg)
+                    if mem_match:
+                        mem_mb = int(mem_match.group(1))
+                        report_progress['memory_mb'] = mem_mb
+                        if mem_mb > 3000:
+                            print(f"⚠️ Memoria crítica detectada: {mem_mb}MB")
+
                 match = re.search(r"\[(\d+)/(\d+)\] Ejecutando: (.*) ---", status_msg)
 
                 if match:

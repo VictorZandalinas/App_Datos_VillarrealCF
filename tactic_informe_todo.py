@@ -307,6 +307,31 @@ def main():
         jornada = input("➤ Jornada: ").strip()
         jornada_inicio, jornada_fin = 1, int(jornada)
 
+    # === SISTEMA DE CHUNKS ===
+    # Optimizado para servidores con RAM limitada (4GB)
+    # Divide ejecución en grupos de 4 scripts con limpieza agresiva entre chunks
+    USE_CHUNKED = os.environ.get('INFORME_USE_CHUNKS', '1') == '1'
+
+    if USE_CHUNKED:
+        print("🚀 Modo CHUNKED activado (optimizado para servidor)")
+        try:
+            from informe_wrapper_chunked import InformeGeneratorChunked
+            wrapper = InformeGeneratorChunked(tipo_informe='TACTICO', chunk_size=4)
+            output_name = wrapper.ejecutar(equipo_canonico, jornada_inicio, jornada_fin)
+            if output_name:
+                print(f"\n✅ GENERADO: {output_name}")
+                sys.exit(0)
+            else:
+                print(f"\n❌ Error en generación chunked")
+                sys.exit(1)
+        except Exception as e:
+            print(f"❌ Error en modo chunked: {e}")
+            print("⚠️ Cayendo a modo legacy...")
+            # Si falla chunked, continuar con modo original
+
+    # === MODO LEGACY (código original) ===
+    print("⚠️ Modo LEGACY activado (alto uso de memoria)")
+
     # CONFIGURAR VARIABLES DE ENTORNO PARA EL PARCHE PANDAS
     # Así los scripts hijos sabrán qué filtrar al leer parquets
     os.environ['TACTIC_J_INI'] = str(jornada_inicio)
