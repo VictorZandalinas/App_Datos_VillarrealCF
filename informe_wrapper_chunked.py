@@ -411,6 +411,33 @@ class InformeGeneratorChunked:
                 'os': os
             }
 
+            # Interceptar pd.read_parquet para aplicar filtrado automático de jornadas
+            orig_read_parquet = pd.read_parquet
+            def _filtered_read_parquet(*args, **kwargs):
+                df = orig_read_parquet(*args, **kwargs)
+                # Aplicar filtro de jornadas si las variables están definidas
+                j_ini_env = os.environ.get(f'{self.tipo}_J_INI')
+                j_fin_env = os.environ.get(f'{self.tipo}_J_FIN')
+                if j_ini_env and j_fin_env:
+                    try:
+                        j_ini = int(j_ini_env)
+                        j_fin = int(j_fin_env)
+                        # Buscar columna de jornada
+                        for col in df.columns:
+                            if any(x in col.lower() for x in ['week', 'jornada', 'semana']):
+                                # Convertir a numérico (maneja 'j18'->18, '18'->18, 18->18)
+                                col_str = df[col].astype(str).str.lower()
+                                col_str = col_str.str.replace('j', '').str.replace('w', '').str.strip()
+                                col_num = pd.to_numeric(col_str, errors='coerce')
+                                mask = (col_num >= j_ini) & (col_num <= j_fin)
+                                df = df[mask]
+                                break
+                    except:
+                        pass
+                return df
+
+            scope['pd'].read_parquet = _filtered_read_parquet
+
             # Ejecutar script
             exec(codigo, scope, scope)
 

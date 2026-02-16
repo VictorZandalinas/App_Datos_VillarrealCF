@@ -771,9 +771,9 @@ class CornersOfensivosReport:
                 (df_original['jornada'] == jornada_str) & 
                 (df_original['EQUIPO'] == equipo_principal)
             ]
-            
-            rival = f"J{jornada}"  # Valor por defecto
-            
+
+            rival = None  # Valor por defecto
+
             if len(partidos_jornada) > 0 and 'partido' in df_original.columns:
                 partido_str = partidos_jornada['partido'].iloc[0]
                 
@@ -800,14 +800,16 @@ class CornersOfensivosReport:
                     else:
                         rival = self.find_real_team_name(equipo1)
                         
-            
-            # Intentar cargar escudo del rival
-            escudo = self.load_any_team_logo(rival)
-            
+
+            # Intentar cargar escudo del rival solo si se encontró un rival válido
+            escudo = None
+            if rival is not None:
+                escudo = self.load_any_team_logo(rival)
+
             # Posición Y: un poco por debajo del eje X
             max_val = max(evolution_df['valor']) if max(evolution_df['valor']) > 0 else 10
             y_pos = max_val * -0.1
-            
+
             if escudo is not None:
                 # Colocar escudo
                 imagebox = OffsetImage(escudo, zoom=0.08)
@@ -815,8 +817,8 @@ class CornersOfensivosReport:
                 ax.add_artist(ab)
             else:
                 # Crear abreviatura de 3 letras
-                abrev = rival[:3].upper()
-                ax.text(jornada, y_pos, abrev, ha='center', va='center', 
+                abrev = rival[:3].upper() if rival else f"J{jornada}"
+                ax.text(jornada, y_pos, abrev, ha='center', va='center',
                         fontsize=7, weight='bold', color='#2c3e50')
                     
         # Configurar ejes
@@ -924,12 +926,16 @@ class CornersOfensivosReport:
         if villarreal_name:
             metrics_villarreal = get_team_metrics(villarreal_name, jornada_hasta)
         else:
-            # Valores por defecto si no se encuentra Villarreal
+            metrics_villarreal = None
+
+        # Validar si metrics_villarreal es None y usar valores por defecto
+        if metrics_villarreal is None:
+            # Valores por defecto si no se encuentra Villarreal o no hay datos
             metrics_villarreal = {
                 'corners_por_partido': 5.0,
+                'goles_corner_por_partido': 0.3,
+                'pct_goles_bp': 20.0,
                 'acciones_por_partido': 10.0,
-                'exito_promedio': 15.0,
-                'xg_por_partido': 0.8,
                 'num_partidos': 5
             }
         
@@ -937,9 +943,9 @@ class CornersOfensivosReport:
         if metrics_equipo is None:
             metrics_equipo = {
                 'corners_por_partido': 0,
+                'goles_corner_por_partido': 0,
+                'pct_goles_bp': 0,
                 'acciones_por_partido': 0,
-                'exito_promedio': 0,
-                'xg_por_partido': 0,
                 'num_partidos': 0
             }
         

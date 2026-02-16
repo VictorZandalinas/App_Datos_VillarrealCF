@@ -799,9 +799,9 @@ class FaltasFrontalesReport:
                 (df_original['jornada'] == jornada_str) & 
                 (df_original['EQUIPO'] == equipo_principal)
             ]
-            
-            rival = f"J{jornada}"  # Valor por defecto
-            
+
+            rival = None  # Valor por defecto
+
             if len(partidos_jornada) > 0 and 'partido' in df_original.columns:
                 partido_str = partidos_jornada['partido'].iloc[0]
                 
@@ -828,14 +828,16 @@ class FaltasFrontalesReport:
                     else:
                         rival = self.find_real_team_name(equipo1)
                         
-            
-            # Intentar cargar escudo del rival
-            escudo = self.load_any_team_logo(rival)
-            
+
+            # Intentar cargar escudo del rival solo si se encontró un rival válido
+            escudo = None
+            if rival is not None:
+                escudo = self.load_any_team_logo(rival)
+
             # Posición Y: un poco por debajo del eje X
             max_val = max(evolution_df['valor']) if max(evolution_df['valor']) > 0 else 10
             y_pos = max_val * -0.1
-            
+
             if escudo is not None:
                 # Colocar escudo
                 imagebox = OffsetImage(escudo, zoom=0.08)
@@ -843,8 +845,8 @@ class FaltasFrontalesReport:
                 ax.add_artist(ab)
             else:
                 # Crear abreviatura de 3 letras
-                abrev = rival[:3].upper()
-                ax.text(jornada, y_pos, abrev, ha='center', va='center', 
+                abrev = rival[:3].upper() if rival else f"J{jornada}"
+                ax.text(jornada, y_pos, abrev, ha='center', va='center',
                         fontsize=7, weight='bold', color='#2c3e50')
                     
         # Configurar ejes
@@ -951,6 +953,13 @@ class FaltasFrontalesReport:
         # Obtener métricas de Villarreal
         if villarreal_name:
             metrics_villarreal = get_team_metrics(villarreal_name, jornada_hasta)
+            if metrics_villarreal is None:
+                metrics_villarreal = {
+                    'faltas_por_partido': 3.0,
+                    'exito_promedio': 15.0,
+                    'rematados_promedio': 40.0,
+                    'num_partidos': 5
+                }
         else:
             # Valores por defecto si no se encuentra Villarreal
             metrics_villarreal = {

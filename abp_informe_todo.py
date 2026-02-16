@@ -131,12 +131,12 @@ TEAM_NAME_MAPPING = {
 EQUIPOS_OPTA = sorted(list(TEAM_NAME_MAPPING.keys()))
 
 # Lista de equipos en el orden que usan los SCRIPTS DE MEDIACOACH
-# ¡¡IMPORTANTE!! Este orden debe coincidir EXACTAMENTE con el menú de los scripts de mediacoach.
+# ¡¡IMPORTANTE!! Este orden debe coincidir EXACTAMENTE con sorted(df['EQUIPO'].unique()) del parquet.
 EQUIPOS_MEDIACOACH = [
     'Athletic Club', 'Atlético de Madrid', 'CA Osasuna', 'Deportivo Alavés',
     'Elche CF', 'FC Barcelona', 'Getafe CF', 'Girona FC', 'Levante UD',
     'RC Celta', 'RCD Espanyol', 'RCD Mallorca', 'Rayo Vallecano', 'Real Betis',
-    'Real Madrid', 'Real Sociedad', 'Sevilla FC', 'Valencia CF', 'Villarreal CF'
+    'Real Madrid', 'Real Oviedo', 'Real Sociedad', 'Sevilla FC', 'Valencia CF', 'Villarreal CF'
 ]
 
 # NUEVO: Lista de equipos en el orden que usa el script de SPORTIAN (Extraído de tu lista)
@@ -314,24 +314,43 @@ def main():
         jornada = jornada_fin
         nombre_recibido = re.sub(r'^\d+\.\s*', '', nombre_sucio).strip()
         equipo_canonico = None
-        
+
+        print(f"🔍 DEBUG: Nombre recibido desde web: '{nombre_recibido}'")
+
         # Buscar nombre canónico en el Mapping
+        # Primero buscar en las claves
         for key in TEAM_NAME_MAPPING.keys():
             if nombre_recibido.lower() == key.lower():
                 equipo_canonico = key
+                print(f"✅ DEBUG: Encontrado en claves canónicas: '{key}'")
                 break
+
+        # Si no encuentra, buscar en los valores de 'opta'
+        if not equipo_canonico:
+            for key, valores in TEAM_NAME_MAPPING.items():
+                if nombre_recibido.lower() == valores['opta'].lower():
+                    equipo_canonico = key
+                    print(f"✅ DEBUG: Encontrado en valores Opta: '{key}' (valor opta: '{valores['opta']}')")
+                    break
+
         if not equipo_canonico:
             print(f"❌ Error: No se encontró '{nombre_recibido}' en el mapping.")
+            print(f"   Nombre recibido: '{nombre_recibido}'")
+            print(f"   Claves disponibles: {list(TEAM_NAME_MAPPING.keys())}")
+            print(f"   Valores Opta disponibles: {[v['opta'] for v in TEAM_NAME_MAPPING.values()]}")
             sys.exit(1)
-            
+
         # Para Opta seguimos usando índice si es necesario, o nombre si cambiaste esos scripts
         # Asumimos que Opta sigue funcionando por índice:
+        print(f"🔍 DEBUG: Buscando '{equipo_canonico}' en EQUIPOS_OPTA: {EQUIPOS_OPTA}")
         try:
             indice = EQUIPOS_OPTA.index(equipo_canonico)
+            print(f"✅ DEBUG: Índice encontrado: {indice} (equipo: {EQUIPOS_OPTA[indice]})")
         except ValueError:
+            print(f"❌ DEBUG: '{equipo_canonico}' NO encontrado en EQUIPOS_OPTA, usando índice 0 (Alavés)")
             indice = 0 # Fallback por seguridad
-            
-        print(f"✅ Web: {equipo_canonico} (J{jornada_inicio}-J{jornada_fin})")
+
+        print(f"✅ Web: {equipo_canonico} (J{jornada_inicio}-J{jornada_fin}), índice Opta: {indice}")
     else:
         # Selección manual
         for i, eq in enumerate(EQUIPOS_OPTA, 1): print(f"{i:2d}. {eq}")
@@ -349,7 +368,13 @@ def main():
         print("🚀 Modo CHUNKED activado (optimizado para servidor)")
         try:
             from informe_wrapper_chunked import InformeGeneratorChunked
-            wrapper = InformeGeneratorChunked(tipo_informe='ABP', chunk_size=3)  # Reducido de 6 a 3 para evitar OOM
+            wrapper = InformeGeneratorChunked(
+                tipo_informe='ABP',
+                chunk_size=3,
+                team_mappings=TEAM_NAME_MAPPING,
+                equipos_opta=EQUIPOS_OPTA,
+                equipos_mediacoach=EQUIPOS_MEDIACOACH
+            )
             output_name = wrapper.ejecutar(equipo_canonico, jornada_inicio, jornada_fin)
             if output_name:
                 print(f"\n✅ GENERADO: {output_name}")
@@ -409,15 +434,19 @@ def main():
                 df = orig(*a, **k)
                 # Filtro global de jornadas si existen columnas relevantes
                 for c in df.columns:
-                    if any(x in c.lower() for x in ['jornada', 'week', 'match', 'stg', 'fecha']):
+                    if any(x in c.lower() for x in ['jornada', 'week', 'semana']):
                         try:
-                            v = pd.to_numeric(df[c].astype(str).str.lower().str.replace('j', '').str.strip(), errors='coerce')
+                            # Convertir a numérico (maneja 'j18'->18, '18'->18, 18->18)
+                            col_str = df[c].astype(str).str.lower()
+                            col_str = col_str.str.replace('j', '').str.replace('w', '').str.strip()
+                            v = pd.to_numeric(col_str, errors='coerce')
                             if v.notna().any():
                                 df = df[(v >= {jornada_inicio}) & (v <= {jornada_fin})]
+                                break
                         except: pass
                 return df
             pd.read_parquet = _r
-            
+
             # Ejecutamos el script original
             exec(open('{script_py}', encoding='utf-8').read())
         """)

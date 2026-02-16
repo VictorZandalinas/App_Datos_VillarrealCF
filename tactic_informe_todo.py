@@ -290,12 +290,24 @@ def main():
         # Limpieza de nombre
         nombre_recibido = re.sub(r'^\d+\.\s*', '', nombre_sucio).strip()
         equipo_canonico = None
+
+        # Primero buscar en las claves
         for key in TEAM_NAME_MAPPING.keys():
             if nombre_recibido.lower() == key.lower():
                 equipo_canonico = key
                 break
+
+        # Si no encuentra, buscar en los valores de 'opta'
+        if not equipo_canonico:
+            for key, valores in TEAM_NAME_MAPPING.items():
+                if nombre_recibido.lower() == valores['opta'].lower():
+                    equipo_canonico = key
+                    break
+
         if not equipo_canonico:
             print(f"❌ Error: No se encontró '{nombre_recibido}'")
+            print(f"   Nombre recibido: '{nombre_recibido}'")
+            print(f"   Claves disponibles: {list(TEAM_NAME_MAPPING.keys())}")
             sys.exit(1)
         indice = EQUIPOS_OPTA.index(equipo_canonico)
         print(f"✅ Web: {equipo_canonico} (J{jornada_inicio}-J{jornada_fin})")

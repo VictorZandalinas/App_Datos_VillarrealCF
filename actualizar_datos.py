@@ -292,7 +292,36 @@ def git_auto_sync(source_name):
 
         if result_push.returncode != 0:
             print(f"⚠️ Error en git push: {result_push.stderr}")
-            return False
+            print("🔄 Intentando pull + rebase para resolver conflictos...")
+
+            # Intentar pull --rebase
+            result_pull = subprocess.run(
+                ['git', 'pull', '--rebase', 'origin', 'main'],
+                cwd=script_dir,
+                capture_output=True,
+                text=True
+            )
+
+            if result_pull.returncode != 0:
+                print(f"❌ Error en git pull --rebase: {result_pull.stderr}")
+                print("⚠️ Revisar manualmente el repositorio")
+                return False
+
+            print("✅ Rebase completado, reintentando push...")
+
+            # Reintentar push
+            result_push_retry = subprocess.run(
+                ['git', 'push'],
+                cwd=script_dir,
+                capture_output=True,
+                text=True
+            )
+
+            if result_push_retry.returncode != 0:
+                print(f"❌ Error en git push después de rebase: {result_push_retry.stderr}")
+                return False
+
+            print("✅ Push completado después de rebase")
 
         print("✅ Push realizado correctamente a GitHub")
         logging.info(f"Git sync completado para {source_name}")

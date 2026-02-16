@@ -1065,12 +1065,10 @@ def generar_informe(n_clicks, equipo, j_ini, j_fin, bloque):
         carpeta_informes = BASE_PATH / 'informes_generados'
         carpeta_informes.mkdir(exist_ok=True)
         
-        # Ejecutar script
+        # Ejecutar script con argumentos posicionales (NO flags)
+        # Los scripts esperan: python script.py EQUIPO JORNADA_INICIO JORNADA_FIN
         resultado = subprocess.run(
-            ['python', str(script_path), 
-             '--equipo', equipo,
-             '--jornada_inicial', str(j_ini),
-             '--jornada_final', str(j_fin)],
+            ['python', str(script_path), equipo, str(j_ini), str(j_fin)],
             capture_output=True,
             text=True,
             timeout=300  # 5 minutos máximo
