@@ -13,37 +13,37 @@
   },
   "archivos_descargados": {
     "xml_eventos": [
-      "eventos_partido_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160502.xml",
-      "eventos_partido_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160502.xml"
+      "eventos_partido_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161608.xml",
+      "eventos_partido_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161608.xml"
     ],
     "pdf_informes": [
-      "informe_1_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160448.pdf",
-      "informe_2_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160450.pdf",
-      "informe_3_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160451.pdf",
-      "informe_4_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160452.pdf",
-      "informe_5_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160455.pdf",
-      "informe_6_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160457.pdf",
-      "informe_7_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160459.pdf",
-      "informe_8_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160500.pdf",
-      "informe_9_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160501.pdf"
+      "informe_1_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161554.pdf",
+      "informe_2_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161555.pdf",
+      "informe_3_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161557.pdf",
+      "informe_4_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161558.pdf",
+      "informe_5_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161559.pdf",
+      "informe_6_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161602.pdf",
+      "informe_7_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161605.pdf",
+      "informe_8_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161606.pdf",
+      "informe_9_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161607.pdf"
     ],
     "xlsx_rendimiento": [
-      "rendimiento_1_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160447.xlsx",
-      "rendimiento_2_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160448.xlsx"
+      "rendimiento_1_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161552.xlsx",
+      "rendimiento_2_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161553.xlsx"
     ],
     "xlsx_maxima_exigencia": [],
     "csv_equipos": [
-      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160449.csv",
-      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160450.csv",
-      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160456.csv",
-      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160458.csv"
+      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161555.csv",
+      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161556.csv",
+      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161600.csv",
+      "postpartido_equipos_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161604.csv"
     ],
     "csv_jugadores": [],
     "otros": [
-      "otro_xlsx_general_pos15_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160501.xlsx",
-      "otro_xlsx_general_pos16_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_160501.xlsx"
+      "otro_xlsx_general_pos15_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161607.xlsx",
+      "otro_xlsx_general_pos16_jdesconocida_030052d2-2e83-435d-af15-1aa01ce88b25_20260216_161607.xlsx"
     ]
   },
   "errores": [],
-  "timestamp": "2026-02-16T16:05:02.563182"
+  "timestamp": "2026-02-16T16:16:08.599587"
 }
