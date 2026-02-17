@@ -211,7 +211,7 @@ class CornersOfensivosReport:
             similar_teams = [team]
             for other_team in unique_teams:
                 if other_team != team and other_team not in processed_teams:
-                    if self.similarity(team, other_team) > 0.7:  # 70% de similitud
+                    if self.similarity(team, other_team) > 0.95:  # 95% - evitar fusionar Real Oviedo/Real Sociedad
                         similar_teams.append(other_team)
             
             # Elegir el nombre más largo como representativo
@@ -335,7 +335,7 @@ class CornersOfensivosReport:
                 similar_teams = [team]
                 for other_team in unique_teams:
                     if other_team != team and other_team not in processed_teams:
-                        if self.similarity(team, other_team) > 0.7:
+                        if self.similarity(team, other_team) > 0.95:
                             similar_teams.append(other_team)
                 canonical_name = max(similar_teams, key=len)
                 for similar_team in similar_teams:
