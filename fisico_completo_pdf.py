@@ -8,14 +8,17 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.patheffects as patheffects
-import importlib
-import traceback
+import subprocess
+import textwrap
+import json
+import tempfile
 from datetime import datetime
 from difflib import SequenceMatcher
 import unicodedata
 import re
 import gc
 import warnings
+from PyPDF2 import PdfReader, PdfWriter
 
 warnings.filterwarnings('ignore')
 
@@ -287,139 +290,174 @@ class GeneradorMaestro:
             print(f"✔️ Lectura normal permitida para: '{os.path.basename(path)}'")
             return self._read_parquet_original(path, **kwargs)
 
+    def _ejecutar_script_subprocess(self, script_name, config, temp_pdf_path, j_inicio, j_fin):
+        """
+        Ejecuta un script fisico individual en un subprocess aislado.
+
+        Cuando el subprocess termina, el SO recupera toda la RAM utilizada.
+
+        Args:
+            script_name (str): Nombre del módulo (sin .py)
+            config (dict): Configuración del script desde SCRIPT_CONFIG
+            temp_pdf_path (str): Ruta donde el subprocess guardará el PDF
+            j_inicio (int): Jornada inicial
+            j_fin (int): Jornada final
+
+        Returns:
+            bool: True si se generó el PDF correctamente
+        """
+        # Construir los argumentos de la función
+        func_args = {'mostrar': False, 'guardar': False}
+        for func_param_name, master_var_name in config['params_map'].items():
+            value = getattr(self, master_var_name)
+            func_args[func_param_name] = value
+
+        # Escribir argumentos en fichero temporal (evita problemas de escape)
+        args_file = temp_pdf_path + ".args.json"
+        with open(args_file, 'w', encoding='utf-8') as f:
+            json.dump(func_args, f, ensure_ascii=False)
+
+        injected_code = textwrap.dedent(f"""\
+            import matplotlib, pandas as pd, sys, json, os
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+
+            # Monkey-patch pd.read_parquet para filtrar por rango de jornadas
+            orig = pd.read_parquet
+            def _r(*a, **k):
+                df = orig(*a, **k)
+                for c in df.columns:
+                    if any(x in c.lower() for x in ['jornada', 'week', 'matchday']):
+                        try:
+                            s = df[c].astype(str).str.lower().str.replace('j', '').str.strip()
+                            v = pd.to_numeric(s, errors='coerce')
+                            if v.notna().any():
+                                df = df[(v >= {j_inicio}) & (v <= {j_fin})]
+                                break
+                        except:
+                            pass
+                return df
+            pd.read_parquet = _r
+
+            # Leer argumentos del fichero temporal
+            with open('{args_file}', 'r', encoding='utf-8') as f:
+                args = json.load(f)
+
+            # Importar el módulo y ejecutar la función
+            import importlib
+            module = importlib.import_module('{script_name}')
+            func = getattr(module, '{config["func"]}')
+            fig = func(**args)
+
+            if fig and isinstance(fig, plt.Figure):
+                fig.set_size_inches(11.69, 8.27, forward=True)
+                try:
+                    fig.tight_layout(pad=0.5)
+                except:
+                    pass
+                from matplotlib.backends.backend_pdf import PdfPages
+                with PdfPages('{temp_pdf_path}') as pdf:
+                    pdf.savefig(fig, bbox_inches='tight', pad_inches=0.1)
+                plt.close(fig)
+                print("PDF_SAVED_OK")
+            else:
+                print("NO_FIGURE_RETURNED")
+        """)
+
+        try:
+            proceso = subprocess.Popen(
+                [sys.executable, "-u", "-c", injected_code],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            stdout, _ = proceso.communicate(timeout=300)
+
+            if stdout:
+                lineas = stdout.strip().split('\n')
+                for linea in lineas[-5:]:
+                    print(f"   {linea}")
+
+            if proceso.returncode != 0:
+                print(f"   ⚠️ {script_name} terminó con código {proceso.returncode}")
+
+            return os.path.exists(temp_pdf_path)
+
+        except subprocess.TimeoutExpired:
+            print(f"   ❌ Timeout ejecutando {script_name} (>300s)")
+            proceso.kill()
+            proceso.wait()
+            return False
+        except Exception as e:
+            print(f"   ❌ Error ejecutando {script_name}: {e}")
+            return False
+
     def ejecutar_todos(self):
-        if not self.recopilar_parametros(): 
+        if not self.recopilar_parametros():
             return
 
-        # 1. Definir la jornada tope (capturada en recopilar_parametros desde Dash)
-        # Si no existe (ejecución manual), usamos 99 para no filtrar nada.
-        limit_j = getattr(self, 'jornada_max_seleccionada', 99)
+        j_inicio = getattr(self, 'jornada_inicio', 1)
+        j_fin = getattr(self, 'jornada_max_seleccionada', 99)
 
-        # 2. Guardar la función original de pandas para poder usarla dentro del parche
-        _original_pd_read = pd.read_parquet
+        output_pdf_path = f"Informe_Fisico_{self.equipo_principal.replace(' ', '_')}_J{j_inicio}_J{j_fin}.pdf"
 
-        # 3. Definir el Parche de Fuerza Bruta para filtrar CUALQUIER parquet que se abra
-        def _patched_read_filtered(path, **kwargs):
-            # Lógica de intercepción de datos pre-filtrados en memoria (lo que ya tenías para rendimiento_fisico)
-            if os.path.normpath(self.main_data_path) in os.path.normpath(path):
-                print(f"✔️  [PARCHE] Interceptando lectura de '{os.path.basename(path)}'. Usando datos de memoria.")
-                df = self.df_para_script
-            else:
-                # Lectura normal del disco para otros archivos (como player_stats, etc)
-                df = _original_pd_read(path, **kwargs)
+        # Crear directorio temporal para PDFs intermedios
+        temp_dir = tempfile.mkdtemp(prefix="fisico_")
 
-            # --- APLICAR TOPE DE JORNADA A CUALQUIER COLUMNA QUE PAREZCA UNA JORNADA ---
-            # Buscamos en todas las columnas nombres como 'jornada', 'week', 'match_week', etc.
-            patterns = ['jornada', 'week', 'matchday', 'match_week', 'matchWeek']
-            for col in df.columns:
-                if any(p in col.lower() for p in patterns):
-                    try:
-                        # Limpiamos el rastro de letras 'J' o 'j' (ej: 'J14' -> '14')
-                        s_vals = df[col].astype(str).str.lower().str.replace('j', '').str.strip()
-                        # Convertimos a número
-                        n_vals = pd.to_numeric(s_vals, errors='coerce')
-
-                        # Si la columna realmente contiene números de jornada
-                        if n_vals.notna().any():
-                            # Filtramos: jornada >= 1 (excluye J0) y <= tope
-                            df = df[(n_vals >= 1) & (n_vals <= limit_j)]
-                    except:
-                        pass
-            return df
-
-        # 4. Activar el parche globalmente sustituyendo la función de pandas
-        pd.read_parquet = _patched_read_filtered
-
-        # 5. Configurar el archivo de salida
-        output_pdf_path = f"Informe_Fisico_{self.equipo_principal.replace(' ', '_')}_J{self.jornada_inicio}_J{self.jornada_max_seleccionada}.pdf"
-        
         try:
-            with PdfPages(output_pdf_path) as pdf:
-                # Generar y añadir la portada
-                fig_portada = self.generar_portada()
+            # 1. Generar portada en el proceso master (ligera, no necesita subprocess)
+            portada_path = os.path.join(temp_dir, "00_portada.pdf")
+            fig_portada = self.generar_portada()
+            with PdfPages(portada_path) as pdf:
                 pdf.savefig(fig_portada, bbox_inches='tight', pad_inches=0)
-                plt.close(fig_portada)
-                del fig_portada
-                gc.collect()
-                
-                print("\n" + "="*60 + f"\n🚀 INICIANDO EJECUCIÓN (TOPE: J{limit_j})\n" + "="*60)
-                
-                # Ejecutar cada script de la configuración
-                for i, (script_name, config) in enumerate(SCRIPT_CONFIG.items(), 1):
-                    script_base_name = script_name.replace('.py', '')
-                    print(f"\n--- [{i}/{len(SCRIPT_CONFIG)}] Ejecutando: {script_base_name} ---")
-                    
-                    try:
-                        # Seleccionar el DataFrame correcto según el tipo de datos del script
-                        if config['tipo_datos'] == 'temporada_completa_comparativa':
-                            self.df_para_script = self.df_comparativo_principal_vs_vcf
-                        elif config['tipo_datos'] == 'ultimas_5_comparativa':
-                            self.df_para_script = self.df_comparativo_sprints_ultimas_5
-                        elif config['tipo_datos'] == 'ultimas_5':
-                            self.df_para_script = self.df_principal_ultimas_5
-                            if config.get('equipo_fijo') == 'Villarreal CF':
-                                self.df_para_script = self.df_villarreal_ultimas_5
-                        else:
-                            self.df_para_script = self.df_principal_temporada_completa
+            plt.close(fig_portada)
+            del fig_portada
+            gc.collect()
 
-                        # Construir los argumentos para la función del script (mostar/guardar siempre False)
-                        func_args = {'mostrar': False, 'guardar': False}
-                        for func_param_name, master_var_name in config['params_map'].items():
-                            func_args[func_param_name] = getattr(self, master_var_name)
+            print("\n" + "="*60 + f"\n🚀 INICIANDO EJECUCIÓN EN MODO SUBPROCESS (J{j_inicio}-J{j_fin})\n" + "="*60)
 
-                        # Importar el módulo del script dinámicamente y ejecutar su función
-                        module = importlib.import_module(script_base_name)
-                        importlib.reload(module)
-                        generar_func = getattr(module, config['func'])
-                        
-                        figura_reporte = generar_func(**func_args)
+            # 2. Ejecutar cada script en un subprocess aislado
+            pdf_parciales = [portada_path]
 
-                        # Si el script devuelve una figura de Matplotlib, la añadimos al PDF
-                        if figura_reporte and isinstance(figura_reporte, plt.Figure):
-                            # Forzar tamaño A4 horizontal
-                            figura_reporte.set_size_inches(11.69, 8.27, forward=True)
-                            try:
-                                figura_reporte.tight_layout(pad=0.5)
-                            except:
-                                pass
-                            
-                            pdf.savefig(figura_reporte, bbox_inches='tight', pad_inches=0.1)
-                            figura_reporte.clf()
-                            plt.close(figura_reporte)
-                            del figura_reporte
-                            print(f"✅ Página añadida correctamente.")
-                        else:
-                            print(f"⚠️  El script no devolvió una figura válida.")
+            for i, (script_name, config) in enumerate(SCRIPT_CONFIG.items(), 1):
+                script_base_name = script_name.replace('.py', '')
+                print(f"\n--- [{i}/{len(SCRIPT_CONFIG)}] Ejecutando: {script_base_name} ---")
 
-                        if 'module' in locals():
-                            del module
-                        if script_base_name in sys.modules:
-                            del sys.modules[script_base_name] # Sacar módulo de memoria
-                    
-                    except Exception as e:
-                        print(f"❌ ERROR GRAVE EN {script_base_name}: {e}")
-                        traceback.print_exc()
+                temp_pdf = os.path.join(temp_dir, f"{i:02d}_{script_base_name}.pdf")
+                exito = self._ejecutar_script_subprocess(
+                    script_base_name, config, temp_pdf, j_inicio, j_fin
+                )
 
-                    finally:
-                        plt.close('all')
-                        # Limpiar caches de lru_cache del módulo importado
-                        if 'module' in dir():
-                            for attr_name in dir(module):
-                                try:
-                                    attr = getattr(module, attr_name)
-                                    if hasattr(attr, 'cache_clear'):
-                                        attr.cache_clear()
-                                except Exception:
-                                    pass
-                        gc.collect()
+                if exito:
+                    pdf_parciales.append(temp_pdf)
+                    print(f"✅ Página añadida correctamente.")
+                else:
+                    print(f"⚠️  El script no generó una figura válida.")
+
+            # 3. Fusionar todos los PDFs parciales en el PDF final
+            print(f"\n📄 Fusionando {len(pdf_parciales)} páginas...")
+            writer = PdfWriter()
+            for pdf_path in pdf_parciales:
+                try:
+                    reader = PdfReader(pdf_path)
+                    for page in reader.pages:
+                        writer.add_page(page)
+                except Exception as e:
+                    print(f"   ⚠️ Error leyendo {os.path.basename(pdf_path)}: {e}")
+
+            with open(output_pdf_path, 'wb') as f:
+                writer.write(f)
 
             print("\n" + "="*60 + f"\n🎉 PROCESO FINALIZADO\n✅ Informe guardado como: {output_pdf_path}\n" + "="*60)
 
         finally:
-            # 6. RESTAURAR PANDAS: Muy importante devolver pd.read_parquet a su estado original
-            pd.read_parquet = _original_pd_read
-
-        print("\n" + "="*60 + "\n🎉 PROCESO FINALIZADO\n" + f"✅ Informe maestro guardado como: {output_pdf_path}\n" + "="*60)
+            # Limpiar archivos temporales
+            import shutil
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     generador = GeneradorMaestro()

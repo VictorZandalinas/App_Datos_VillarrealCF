@@ -6,8 +6,9 @@ Ejecuta scripts de análisis en grupos pequeños con limpieza de memoria entre c
 
 import os
 import sys
-import io
 import re
+import subprocess
+import textwrap
 from pathlib import Path
 import pandas as pd
 import matplotlib
@@ -370,7 +371,10 @@ class InformeGeneratorChunked:
 
     def _ejecutar_script_individual(self, script, equipo, j_inicio, j_fin):
         """
-        Ejecuta un script individual usando exec() (modelo de tactic_informe_todo.py).
+        Ejecuta un script individual en un subprocess aislado.
+
+        Usa subprocess.Popen en lugar de exec() para que al terminar el
+        subproceso, el SO recupere toda la RAM utilizada por el script.
 
         Args:
             script (str): Nombre del script
@@ -387,70 +391,55 @@ class InformeGeneratorChunked:
         # Preparar inputs automáticos
         respuestas = self._preparar_inputs(script, equipo, j_fin)
 
-        # Configurar variables de entorno para filtrado de jornadas
-        os.environ[f'{self.tipo}_J_INI'] = str(j_inicio)
-        os.environ[f'{self.tipo}_J_FIN'] = str(j_fin)
-
-        # Redirigir stdin
-        stdin_original = sys.stdin
-        sys.stdin = io.StringIO(respuestas)
+        # Código inyectado: monkey-patch pd.read_parquet + ejecutar script
+        injected_code = textwrap.dedent(f"""\
+            import matplotlib, pandas as pd, sys, numpy as np, re
+            matplotlib.use('Agg')
+            orig = pd.read_parquet
+            def _r(*a, **k):
+                df = orig(*a, **k)
+                for c in df.columns:
+                    if any(x in c.lower() for x in ['jornada', 'week', 'semana']):
+                        try:
+                            col_str = df[c].astype(str).str.lower()
+                            col_str = col_str.str.replace('j', '').str.replace('w', '').str.strip()
+                            v = pd.to_numeric(col_str, errors='coerce')
+                            if v.notna().any():
+                                df = df[(v >= {j_inicio}) & (v <= {j_fin})]
+                                break
+                        except: pass
+                return df
+            pd.read_parquet = _r
+            exec(open('{script}', encoding='utf-8').read())
+        """)
 
         try:
-            # Leer código del script
-            with open(script, 'r', encoding='utf-8') as f:
-                codigo = f.read()
+            proceso = subprocess.Popen(
+                [sys.executable, "-u", "-c", injected_code],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            stdout, _ = proceso.communicate(input=respuestas, timeout=300)
 
-            # Crear scope aislado con pandas y matplotlib
-            scope = {
-                '__builtins__': __builtins__,
-                '__name__': '__main__',
-                '__file__': script,
-                'pd': pd,
-                'plt': plt,
-                'sys': sys,
-                'os': os
-            }
+            # Mostrar últimas líneas de salida del subprocess
+            if stdout:
+                lineas = stdout.strip().split('\n')
+                # Mostrar últimas 5 líneas para contexto
+                for linea in lineas[-5:]:
+                    print(f"   {linea}")
 
-            # Interceptar pd.read_parquet para aplicar filtrado automático de jornadas
-            orig_read_parquet = pd.read_parquet
-            def _filtered_read_parquet(*args, **kwargs):
-                df = orig_read_parquet(*args, **kwargs)
-                # Aplicar filtro de jornadas si las variables están definidas
-                j_ini_env = os.environ.get(f'{self.tipo}_J_INI')
-                j_fin_env = os.environ.get(f'{self.tipo}_J_FIN')
-                if j_ini_env and j_fin_env:
-                    try:
-                        j_ini = int(j_ini_env)
-                        j_fin = int(j_fin_env)
-                        # Buscar columna de jornada
-                        for col in df.columns:
-                            if any(x in col.lower() for x in ['week', 'jornada', 'semana']):
-                                # Convertir a numérico (maneja 'j18'->18, '18'->18, 18->18)
-                                col_str = df[col].astype(str).str.lower()
-                                col_str = col_str.str.replace('j', '').str.replace('w', '').str.strip()
-                                col_num = pd.to_numeric(col_str, errors='coerce')
-                                mask = (col_num >= j_ini) & (col_num <= j_fin)
-                                df = df[mask]
-                                break
-                    except:
-                        pass
-                return df
+            if proceso.returncode != 0:
+                print(f"   ⚠️ {script} terminó con código {proceso.returncode}")
 
-            scope['pd'].read_parquet = _filtered_read_parquet
-
-            # Ejecutar script
-            exec(codigo, scope, scope)
-
+        except subprocess.TimeoutExpired:
+            print(f"   ❌ Timeout ejecutando {script} (>300s)")
+            proceso.kill()
+            proceso.wait()
         except Exception as e:
             print(f"   ❌ Error ejecutando {script}: {e}")
-            # No hacer raise para que continue con otros scripts
-
-        finally:
-            # Restaurar stdin y limpiar
-            sys.stdin = stdin_original
-            scope.clear()
-            del scope
-            clean_memory_agresivo()
 
         # Detectar PDF generado
         pdfs_despues = set(Path('.').glob("*.pdf"))
@@ -470,10 +459,7 @@ class InformeGeneratorChunked:
                 print(f"   ⚠️ Error moviendo PDF {pdf_path} a {dest}: {e}")
                 return None
         else:
-            print(f"   ⚠️ Script {script} no generó PDF")
             return None
-
-        return None
 
     def _preparar_inputs(self, script, equipo, jornada):
         """

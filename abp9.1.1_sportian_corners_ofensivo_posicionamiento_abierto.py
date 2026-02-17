@@ -22,11 +22,12 @@ from scipy.ndimage import gaussian_filter
 warnings.filterwarnings('ignore')
 
 class ReporteOfensivoCornersBilateral:
-    def __init__(self, tracking_path="extraccion_sportian/corners_tracking.parquet", team_filter=None):
-        self.tracking_path = tracking_path
+    def __init__(self, tracking_path="extraccion_sportian/corners_ofensivo_enrich.parquet", team_filter=None):
+        # Asegúrate de que aquí ponga el nombre del archivo nuevo
+        self.tracking_path = tracking_path 
         self.team_filter = team_filter
         self.df_tracking = None
-        self.historial_lanzadores = {} 
+        # self.historial_lanzadores = {}  <-- Ya no hace falta
         self.team_stats = None
         
         # Almacenes de datos separados
@@ -36,6 +37,7 @@ class ReporteOfensivoCornersBilateral:
         # Mapas de metadatos (Nombre y Altura)
         self.player_map = {}
         self.player_height_map = {} 
+        self.load_tracking_data()
 
         # --- 1. CARGA DE EVENTOS (OPTA) ---
         try:
@@ -103,11 +105,9 @@ class ReporteOfensivoCornersBilateral:
         # --- 6. CARGA DEL TRACKING ---
         self.load_tracking_data()
         
-        if self.df_tracking is not None:
-            self.construir_historial_lanzadores()
-        
-        # --- 7. CONSTRUIR DICCIONARIO xG POR JUGADOR (OPTA) ---
-        self.xg_por_jugador = self.build_xg_by_player() if team_filter else {}
+        if self.df_tracking is not None:        
+            # --- 7. CONSTRUIR DICCIONARIO xG POR JUGADOR (OPTA) ---
+            self.xg_por_jugador = self.build_xg_by_player() if team_filter else {}
         
         # --- 8. EJECUCIÓN DEL ANÁLISIS ---
         if team_filter:
@@ -542,32 +542,6 @@ class ReporteOfensivoCornersBilateral:
             
         return None
 
-    def construir_historial_lanzadores(self):
-        try:
-            eventos_unicos = self.df_tracking.drop_duplicates(subset=['ID_Evento_Corner'])
-            for _, row in eventos_unicos.iterrows():
-                jugador = str(row.get('Nombre_Lanzador', 'Desconocido')).strip()
-                tipo_raw = str(row.get('Tipo_Lanzamiento', ''))
-                y_balon = row.get('Y_Balon', 50)
-                if jugador in ["Desconocido", "None", "nan"]: continue
-                lado = 'izquierda' if y_balon > 50 else 'derecha'
-                tipo_real = None
-                if 'In-swinger' in tipo_raw: tipo_real = 'Cerrado'
-                elif 'Out-swinger' in tipo_raw: tipo_real = 'Abierto'
-                
-                if tipo_real:
-                    if jugador not in self.historial_lanzadores:
-                        self.historial_lanzadores[jugador] = {'izquierda': [], 'derecha': []}
-                    self.historial_lanzadores[jugador][lado].append(tipo_real)
-        except: pass
-
-    def inferir_tipo_lanzamiento(self, jugador, lado):
-        jugador = str(jugador).strip()
-        if jugador in self.historial_lanzadores:
-            historial = self.historial_lanzadores[jugador].get(lado, [])
-            if historial: return Counter(historial).most_common(1)[0][0]
-        return "Neutro"
-
     def clasificar_zona_remate(self, x, y, lado_origen):
         """Clasifica la zona final según las nuevas coordenadas personalizadas."""
         es_izq = (lado_origen == 'izquierda') 
@@ -669,7 +643,7 @@ class ReporteOfensivoCornersBilateral:
                 zona = "LANZADOR"
                 rol = "LANZADOR"
             else:
-                zona = self.clasificar_zona_remate(x_ini, y_ini, lado)
+                zona = row.get('Zona_Precalc', 'SIN CLASIFICAR')
                 
                 # Clasificación Táctica para el Patrón
                 if "VIGILANCIA" in zona: cnt_vig += 1
@@ -697,109 +671,175 @@ class ReporteOfensivoCornersBilateral:
         stats_estructurales = (cnt_vig, cnt_corto, cnt_1er, cnt_cen, cnt_2do, cnt_rech)
         
         return stats_estructurales, atacantes_ini
+    
+    def procesar_ataque_ligero(self, df_atacantes, frame_remate, ball_x, ball_y, es_valido):
+        """
+        Versión optimizada de analizar_disposicion_ofensiva.
+        Usa la columna 'Zona_Precalc' del ETL y solo calcula el Rol (Rematador).
+        """
+        # Contadores para el patrón
+        cnt = {'VIGILANCIA':0, 'CORTO':0, '1ER PALO':0, 'CENTRO':0, '2DO PALO':0, 'RECHACE':0}
+        
+        # Mapa de posiciones finales para ver quién llega al balón
+        mapa_pos_final = dict(zip(
+            frame_remate['Nombre_Jugador_Tracking'], 
+            zip(frame_remate['X_Jugador'], frame_remate['Y_Jugador'])
+        ))
+        
+        roles = []
+        zonas_finales = [] # Para visualización o lógica
+        
+        # Iteramos sobre el DataFrame ya filtrado
+        for idx, row in df_atacantes.iterrows():
+            # 1. Zona (Ya viene calculada del ETL)
+            zona_raw = row.get('Zona_Precalc', 'SIN CLASIFICAR')
+            
+            # Agregamos al contador del patrón (Simplificación de zonas)
+            if 'VIGILANCIA' in zona_raw: cnt['VIGILANCIA'] += 1
+            elif 'CORTO' in zona_raw: cnt['CORTO'] += 1
+            elif '1ER PALO' in zona_raw or 'AP 1ER' in zona_raw: cnt['1ER PALO'] += 1
+            elif '2DO PALO' in zona_raw or 'AP 2DO' in zona_raw: cnt['2DO PALO'] += 1
+            elif 'RECHACE' in zona_raw: cnt['RECHACE'] += 1
+            elif 'LANZADOR' in zona_raw: pass
+            else: cnt['CENTRO'] += 1 # Centro, Penalti, etc.
+
+            # 2. Rol (Dinámico: ¿Estaba cerca del balón en T_remate?)
+            rol = "OTRO"
+            nombre = row['Nombre_Jugador_Tracking']
+            
+            if 'LANZADOR' in zona_raw:
+                rol = "LANZADOR"
+            elif nombre in mapa_pos_final and es_valido:
+                xf, yf = mapa_pos_final[nombre]
+                dist = np.hypot(xf - ball_x, yf - ball_y)
+                if dist < 4.0: # Umbral de remate
+                    rol = "REMATADOR"
+            
+            roles.append(rol)
+            # Normalizamos 'Zona_Precalc' a 'Zona_Detallada' para compatibilidad con el resto del script
+            zonas_finales.append(zona_raw)
+
+        df_atacantes = df_atacantes.copy()
+        df_atacantes['Zona_Detallada'] = zonas_finales
+        df_atacantes['Rol_Calculado'] = roles
+        
+        # Tupla estructural para el patrón
+        stats = (cnt['VIGILANCIA'], cnt['CORTO'], cnt['1ER PALO'], cnt['CENTRO'], cnt['2DO PALO'], cnt['RECHACE'])
+        
+        return stats, df_atacantes
 
     def extract_data(self, side_req, type_req):
-        if self.df_tracking is None: return []
+        if self.df_tracking is None or self.df_tracking.empty: return []
+        
         datos_contextuales = []
-        ids_eventos = self.df_tracking[['ID_Evento_Corner', 'ID_Partido']].drop_duplicates().values
         target_team = str(self.team_filter).strip().lower()
         
-        def safe_float(val, default):
-            try: return float(val)
-            except (ValueError, TypeError): return default
-
-        for id_evento, id_partido in ids_eventos:
-            df_corner = self.df_tracking[(self.df_tracking['ID_Evento_Corner'] == id_evento) & (self.df_tracking['ID_Partido'] == id_partido)].copy()
-            if df_corner.empty: continue
+        # AGRUPAMIENTO RÁPIDO: El parquet ya está limpio, iterar groupby es muy rápido
+        # Asumimos que df_tracking tiene columnas: 'ID_Evento_Corner', 'Tipo_Lanzamiento_Calc', 'Zona_Precalc'
+        
+        for id_evento, df_corner in self.df_tracking.groupby('ID_Evento_Corner'):
             
-            y_balon = df_corner.head(10)['Y_Balon'].mean()
-            lado = 'izquierda' if y_balon > 50 else 'derecha'
-            if lado != side_req: continue
-
-            idx_kick, time_kick = self.detectar_inicio_saque(df_corner, lado)
-            if idx_kick is None: continue 
+            # --- 1. FILTRADO RÁPIDO (Metadatos en fila 0) ---
+            row_meta = df_corner.iloc[0]
             
-            row = df_corner.iloc[idx_kick]
-            equipo_lanz = str(row.get('Equipo_Lanzador', '')).strip()
-            if target_team not in equipo_lanz.lower() and equipo_lanz.lower() not in target_team: continue
-            
-            lanzador = str(row.get('Nombre_Lanzador', 'Desconocido'))
-            tipo_raw = str(row.get('Tipo_Lanzamiento', ''))
-            perfil = 'Cerrado' if 'In-swinger' in tipo_raw else ('Abierto' if 'Out-swinger' in tipo_raw else self.inferir_tipo_lanzamiento(lanzador, lado))
-            if type_req not in perfil: continue
+            # Filtro Equipo
+            equipo_lanz = str(row_meta.get('Equipo_Lanzador', '')).strip()
+            if target_team not in equipo_lanz.lower(): 
+                tipo = row_meta.get('Tipo_Lanzamiento_Calc', 'NO_EXISTE')
+                print(f"DEBUG: Encontrado {equipo_lanz}. Tipo calculado: {tipo}. Buscamos: {type_req}")
+                continue
 
-            jornada = row.get('Jornada', 0)
-            mn = row.get('Minuto_Corner', 0)
-            sc = row.get('Segundo_Corner', 0)
+            # Filtro Tipo (Usamos la columna pre-calculada por el ETL)
+            tipo_calc = row_meta.get('Tipo_Lanzamiento_Calc', 'Neutro')
+            if type_req not in tipo_calc: continue
             
-            # Obtener nombre normalizado del lanzador para el patrón
-            lanzador_name = self.get_opta_name(equipo_lanz, row.get('Dorsal_Lanzador','?'), lanzador)
+            # Filtro Lado (Calculado por Y del balón en el inicio)
+            # El ETL recorta para que empiece en T=0 aprox.
+            try:
+                y_init = df_corner.iloc[0]['Y_Balon']
+            except: y_init = 50
+            lado = 'izquierda' if y_init > 50 else 'derecha'
+            if side_req != lado: continue
 
+            # --- 2. INTEGRACIÓN OPTA (Igual que antes, necesaria para xG y Target) ---
+            jornada = row_meta.get('Jornada', 0)
+            mn = row_meta.get('Minuto_Corner', 0)
+            sc = row_meta.get('Segundo_Corner', 0)
+            lanzador_nombre = row_meta.get('Nombre_Lanzador', 'Desconocido')
+            
+            # Opta Lookup
+            lanzador_optaname = self.get_opta_name(equipo_lanz, row_meta.get('Dorsal_Lanzador','?'), lanzador_nombre)
             opta_row = self.get_opta_event_raw(jornada, equipo_lanz, mn, sc)
             
-            target_x, target_y = 100, 50 
-            es_centro_valido = False     
+            # Defaults
+            target_x, target_y = 100, 50
+            es_centro_valido = False
             trayectoria_opta = None
             xg_secuencia = 0.0
             
-            time_remate = time_kick + 1.5 
+            # Tiempos relativos (El ETL garantiza que el saque es T=0.0)
+            time_kick = 0.0 
+            time_remate = 1.8 # Default si falla detección
             ball_x_remate, ball_y_remate = 100, 50
 
             if opta_row is not None:
                 try:
-                    target_x = safe_float(opta_row.get('Pass End X'), 100.0)
-                    target_y = safe_float(opta_row.get('Pass End Y'), 50.0)
-                    start_x = safe_float(opta_row.get('x'), 100.0)
-                    start_y = safe_float(opta_row.get('y'), 50.0)
+                    target_x = float(opta_row.get('Pass End X', 100.0))
+                    target_y = float(opta_row.get('Pass End Y', 50.0))
+                    start_x = float(opta_row.get('x', 100.0))
+                    start_y = float(opta_row.get('y', 50.0))
                     xg_secuencia = self.get_xg_from_opta_window(opta_row)
                     
                     trayectoria_opta = np.column_stack((np.linspace(start_x, target_x, 5), np.linspace(start_y, target_y, 5)))
+                    if 15 <= target_y <= 85: es_centro_valido = True
                     
-                    # Rango ampliado para validez (15-85)
-                    if 15 <= target_y <= 85:
-                        es_centro_valido = True
-                    
+                    # Detectar momento llegada (Esto sí se calcula aquí porque depende del target Opta)
                     t_best, bx_best, by_best = self.detectar_momento_remate(df_corner, target_x, target_y, time_kick)
                     if t_best is not None:
                         time_remate = t_best
                         ball_x_remate = bx_best
                         ball_y_remate = by_best
-                        
-                except Exception as e:
-                    pass
+                except: pass
 
+            # --- 3. EXTRACCIÓN Y PROCESAMIENTO JUGADORES ---
+            
+            # Trayectorias (Usamos todo el evento recortado)
             trayectorias_jug = self.extract_player_trajectories(df_corner, time_kick, equipo_lanz)
             
-            frame_kick = df_corner[df_corner['Segundos_Desde_Saque'] == time_kick].drop_duplicates(subset=['Nombre_Jugador_Tracking'])
-            if frame_kick.empty: frame_kick = df_corner.iloc[[idx_kick]]
-            frame_kick = frame_kick.copy()
-            frame_kick['Dorsal'] = frame_kick.get('Dorsal_Jugador_Tracking', "?")
+            # Frame Inicial (Foto T=0) para ver disposición
+            # Usamos un rango muy pequeño porque T=0 está garantizado por el ETL
+            frame_kick = df_corner[df_corner['Segundos_Desde_Saque'].between(-0.1, 0.2)].copy()
+            frame_kick = frame_kick.drop_duplicates(subset=['Nombre_Jugador_Tracking'], keep='last')
             
-            frame_remate_all = df_corner[
-                (df_corner['Segundos_Desde_Saque'] >= time_remate - 0.04) & 
-                (df_corner['Segundos_Desde_Saque'] <= time_remate + 0.04)
+            # Frame Remate (Foto T=remate)
+            frame_remate = df_corner[
+                (df_corner['Segundos_Desde_Saque'] >= time_remate - 0.1) & 
+                (df_corner['Segundos_Desde_Saque'] <= time_remate + 0.1)
             ].drop_duplicates(subset=['Nombre_Jugador_Tracking'])
             
-            if frame_remate_all.empty:
-                frame_remate_all = df_corner.iloc[(df_corner['Segundos_Desde_Saque'] - time_remate).abs().argsort()[:25]]
+            # Filtrar solo atacantes para el análisis
+            atacantes_kick = frame_kick[frame_kick['NombreEquipoJugador_Tracking'] == equipo_lanz].copy()
+            
+            # Asignar nombres Opta
+            atacantes_kick['Nombre_Jugador_Tracking'] = atacantes_kick.apply(
+                lambda r: self.get_opta_name(r['NombreEquipoJugador_Tracking'], r.get('Dorsal_Jugador_Tracking', '?'), r['Nombre_Jugador_Tracking']), axis=1
+            )
+            atacantes_kick['Dorsal'] = atacantes_kick['Dorsal_Jugador_Tracking'] # Alias
 
-            # Obtenemos la estructura táctica (Vig, Corto, 1er, Cen, 2do, Rech)
-            stats_struct, df_att = self.analizar_disposicion_ofensiva(
-                frame_kick, frame_remate_all, equipo_lanz, lado, 
-                ball_x_remate, ball_y_remate, es_centro_valido, lanzador_real=lanzador
+            # --- 4. GENERAR ESTADÍSTICAS (HELPER LIGERO) ---
+            # Aquí usamos el helper nuevo que lee 'Zona_Precalc'
+            stats_struct, df_att_processed = self.procesar_ataque_ligero(
+                atacantes_kick, frame_remate, ball_x_remate, ball_y_remate, es_centro_valido
             )
             
-            df_att['Nombre_Jugador_Tracking'] = df_att.apply(lambda r: self.get_opta_name(r['NombreEquipoJugador_Tracking'], r['Dorsal'], r['Nombre_Jugador_Tracking']), axis=1)
-            
-            # --- CLAVE DEL PATRÓN: (LANZADOR, VIG, CORTO, 1ER, CEN, 2DO, RECH) ---
-            clave_patron = (lanzador_name,) + stats_struct
+            clave_patron = (lanzador_optaname,) + stats_struct
 
             datos_contextuales.append({
-                'ataque_df': df_att, 
-                'ataque_stats_generales': clave_patron, # Clave nueva
+                'ataque_df': df_att_processed, 
+                'ataque_stats_generales': clave_patron,
                 'lado': lado,
-                'lanzador_nombre': lanzador_name,
-                'lanzador_dorsal': row.get('Dorsal_Lanzador','?'),
+                'lanzador_nombre': lanzador_optaname,
+                'lanzador_dorsal': row_meta.get('Dorsal_Lanzador','?'),
                 'trayectoria': trayectoria_opta, 
                 'player_trajectories': trayectorias_jug,
                 'id': id_evento,
@@ -1524,29 +1564,27 @@ class ReporteOfensivoCornersBilateral:
 
 def seleccionar_equipo():
     try:
-        df = pd.read_parquet("extraccion_sportian/corners_tracking.parquet")
-        # ... (código de carga de columnas igual que antes) ...
+        # LEEMOS EL PARQUET NUEVO
+        df = pd.read_parquet("extraccion_sportian/corners_ofensivo_enrich.parquet")
+        
+        # Buscamos directamente la columna de equipo (el ETL la guarda como Equipo_Lanzador)
         if 'Equipo_Lanzador' in df.columns:
             equipos = sorted([str(e) for e in df['Equipo_Lanzador'].dropna().unique()])
         else:
+            # Fallback por si acaso
             equipos = sorted([str(e) for e in df['NombreEquipoJugador_Tracking'].dropna().unique()])
             
         for i, e in enumerate(equipos, 1): print(f"{i}. {e}")
         
-        # --- CAMBIO AQUÍ ---
-        sel = input("Número o Nombre exacto: ").strip() # .strip() quita espacios extra
+        sel = input("Número o Nombre exacto: ").strip()
         
-        # 1. Si escribe el nombre tal cual (ej: "Real Madrid")
-        if sel in equipos:
-            return sel
-            
-        # 2. Si escribe el número (lógica antigua)
-        if sel.isdigit() and 0 < int(sel) <= len(equipos):
-            return equipos[int(sel)-1]
+        if sel in equipos: return sel
+        if sel.isdigit() and 0 < int(sel) <= len(equipos): return equipos[int(sel)-1]
             
         return None
-        # -------------------
-    except: return None
+    except Exception as e:
+        print(f"Error leyendo equipos: {e}")
+        return None
 
 if __name__ == "__main__":
     equipo = seleccionar_equipo()
