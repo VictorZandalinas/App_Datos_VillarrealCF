@@ -314,8 +314,20 @@ class GeneradorMaestro:
 
         # Escribir argumentos en fichero temporal (evita problemas de escape)
         args_file = temp_pdf_path + ".args.json"
+
+        class _NumpyEncoder(json.JSONEncoder):
+            def default(self, obj):
+                import numpy as np
+                if isinstance(obj, (np.integer,)):
+                    return int(obj)
+                if isinstance(obj, (np.floating,)):
+                    return float(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                return super().default(obj)
+
         with open(args_file, 'w', encoding='utf-8') as f:
-            json.dump(func_args, f, ensure_ascii=False)
+            json.dump(func_args, f, ensure_ascii=False, cls=_NumpyEncoder)
 
         injected_code = textwrap.dedent(f"""\
             import matplotlib, pandas as pd, sys, json, os
