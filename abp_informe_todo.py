@@ -439,10 +439,15 @@ def main():
                     _con = _ddb.connect()
                     _safe = str(path).replace("'", "\\'")
                     _info = _con.execute("DESCRIBE SELECT * FROM read_parquet('" + _safe + "') LIMIT 0").df()
-                    _jcol = next((_c for _c in _info['column_name'] if any(_x in _c.lower() for _x in ['jornada','week','semana','matchday'])), None)
+                    _jrow = [(r['column_name'], r['column_type']) for _, r in _info.iterrows() if any(_x in r['column_name'].lower() for _x in ['jornada','week','semana','matchday'])]
+                    _jcol = _jrow[0][0] if _jrow else None
+                    _jtype = _jrow[0][1] if _jrow else ''
                     if _jcol:
-                        _sql = ("SELECT * FROM read_parquet(?) WHERE "
-                                "TRY_CAST(TRIM(replace(replace(lower(CAST(" + _jcol + " AS VARCHAR)),'j',''),'w','')) AS INTEGER) BETWEEN ? AND ?")
+                        if any(_t in _jtype.upper() for _t in ['INT','BIGINT','SMALLINT','HUGEINT','DOUBLE','FLOAT','DECIMAL']):
+                            _sql = "SELECT * FROM read_parquet(?) WHERE " + _jcol + " BETWEEN ? AND ?"
+                        else:
+                            _sql = ("SELECT * FROM read_parquet(?) WHERE "
+                                    "TRY_CAST(TRIM(replace(replace(lower(CAST(" + _jcol + " AS VARCHAR)),'j',''),'w','')) AS INTEGER) BETWEEN ? AND ?")
                         _df = _con.execute(_sql, [path, _j0, _j1]).df()
                         _con.close()
                         return _df
