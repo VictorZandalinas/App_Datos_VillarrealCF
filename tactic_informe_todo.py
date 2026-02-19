@@ -31,82 +31,76 @@ def clean_memory():
     gc.collect()
 
 # Guardamos la función original de pandas
-# --- EN tactic_informe_todo.py ---
-
-# Guardamos la función original de pandas
 _original_read_parquet = pd.read_parquet
 
-def patched_read_parquet(*args, **kwargs):
+def patched_read_parquet(path, *args, **kwargs):
     """
-    Parche robusto para filtrar datos de Mediacoach y Opta.
+    Parche con DuckDB pushdown para filtrar por rango de jornadas.
+    Lee env vars TACTIC_J_INI / TACTIC_J_FIN para el rango.
     """
-    # 1. Leer el archivo completo (es necesario para ver qué columnas tiene)
-    df = _original_read_parquet(*args, **kwargs)
-    
-    # 2. Obtener configuración del entorno
     try:
         j_ini = int(os.environ.get('TACTIC_J_INI', 0))
         j_fin = int(os.environ.get('TACTIC_J_FIN', 99))
-    except:
-        return df # Si no hay config, devolvemos todo
+    except Exception:
+        return _original_read_parquet(path, *args, **kwargs)
 
-    # 3. Estrategia de detección de columna "Jornada"
-    col_jornada = None
-    
-    # Lista de posibles nombres de columna (prioridad alta primero)
-    candidatos = [
-        'Jornada', 'jornada', 'Jornada_num', # Mediacoach
-        'Week', 'week', 'Matchday', 'matchday', # Opta estándar
-        'Round', 'round', 'fecha', 'Fecha'      # Otros
-    ]
-    
-    for cand in candidatos:
-        if cand in df.columns:
-            col_jornada = cand
-            break
-            
-    # Si no encontramos exacto, buscamos aproximado
+    if j_ini == 0:
+        return _original_read_parquet(path, *args, **kwargs)
+
+    # Intentar DuckDB pushdown
+    try:
+        import duckdb as _ddb
+        if isinstance(path, str) and path.endswith('.parquet'):
+            _con = _ddb.connect()
+            _safe = path.replace("'", "\\'")
+            _info = _con.execute(
+                "DESCRIBE SELECT * FROM read_parquet('" + _safe + "') LIMIT 0"
+            ).df()
+            _jcol = next(
+                (_c for _c in _info['column_name']
+                 if any(_x in _c.lower() for _x in ['jornada', 'week', 'semana', 'matchday'])),
+                None
+            )
+            if _jcol:
+                _sql = (
+                    "SELECT * FROM read_parquet(?) WHERE "
+                    "TRY_CAST(TRIM(replace(replace(lower(CAST(" + _jcol + " AS VARCHAR)),'j',''),'w','')) AS INTEGER) BETWEEN ? AND ?"
+                )
+                _df = _con.execute(_sql, [path, j_ini, j_fin]).df()
+                _con.close()
+                filas = len(_df)
+                if filas == 0:
+                    print(f"   ⚠️ ALERTA DE FILTRO: 0 filas. Columna: {_jcol} (Rango: {j_ini}-{j_fin})")
+                return _df
+            _con.close()
+    except Exception as e:
+        pass
+
+    # Fallback pandas
+    df = _original_read_parquet(path, *args, **kwargs)
+    candidatos = ['Jornada', 'jornada', 'Jornada_num',
+                  'Week', 'week', 'Matchday', 'matchday', 'Round', 'round']
+    col_jornada = next((c for c in candidatos if c in df.columns), None)
     if not col_jornada:
-        for c in df.columns:
-            if any(x in c.lower() for x in ['jornada', 'week', 'match', 'stg']):
-                col_jornada = c
-                break
-
-    # 4. Aplicar filtro
+        col_jornada = next(
+            (c for c in df.columns if any(x in c.lower() for x in ['jornada', 'week', 'match', 'stg'])),
+            None
+        )
     if col_jornada:
         try:
-            # Crear columna temporal numérica limpia
-            # Convertimos a string, quitamos 'J', 'Week', espacios y convertimos a número
-            s = df[col_jornada].astype(str).str.lower()
-            s = s.str.replace('j', '', regex=False)
-            s = s.str.replace('week', '', regex=False)
-            s = s.str.replace('matchday', '', regex=False)
-            s = s.str.strip()
-            
-            temp_col = '__temp_j_filter'
-            df[temp_col] = pd.to_numeric(s, errors='coerce')
-            
-            # Verificar si tenemos datos válidos antes de filtrar
-            if df[temp_col].notna().any():
+            s = (df[col_jornada].astype(str).str.lower()
+                 .str.replace('j', '', regex=False)
+                 .str.replace('week', '', regex=False)
+                 .str.replace('matchday', '', regex=False)
+                 .str.strip())
+            v = pd.to_numeric(s, errors='coerce')
+            if v.notna().any():
                 filas_antes = len(df)
-                
-                # Filtrar filas
-                if j_ini > 0:
-                    df = df[(df[temp_col] >= j_ini) & (df[temp_col] <= j_fin)]
-                
-                filas_despues = len(df)
-                
-                # LOG DE DEPURACIÓN (Verás esto en la consola si algo va mal)
-                # Si el filtrado deja 0 filas, puede ser un error de lógica
-                if filas_antes > 0 and filas_despues == 0:
-                    print(f"   ⚠️ ALERTA DE FILTRO: {filas_antes} -> 0 filas. Columna usada: {col_jornada} (Rango: {j_ini}-{j_fin})")
-            
-            # Limpiar
-            df.drop(columns=[temp_col], inplace=True)
+                df = df[(v >= j_ini) & (v <= j_fin)]
+                if filas_antes > 0 and len(df) == 0:
+                    print(f"   ⚠️ ALERTA DE FILTRO: {filas_antes} -> 0 filas. Columna: {col_jornada} (Rango: {j_ini}-{j_fin})")
         except Exception as e:
             print(f"   ⚠️ Error filtrando por {col_jornada}: {e}")
-            pass
-            
     return df
 
 # Aplicar el parche globalmente

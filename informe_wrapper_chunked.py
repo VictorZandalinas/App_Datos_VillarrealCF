@@ -391,21 +391,38 @@ class InformeGeneratorChunked:
         # Preparar inputs automáticos
         respuestas = self._preparar_inputs(script, equipo, j_fin)
 
-        # Código inyectado: monkey-patch pd.read_parquet + ejecutar script
+        # Código inyectado: monkey-patch pd.read_parquet (DuckDB pushdown) + ejecutar script
         injected_code = textwrap.dedent(f"""\
-            import matplotlib, pandas as pd, sys, numpy as np, re
+            import matplotlib, pandas as pd, sys, numpy as np
             matplotlib.use('Agg')
-            orig = pd.read_parquet
-            def _r(*a, **k):
-                df = orig(*a, **k)
+            _j0, _j1 = {j_inicio}, {j_fin}
+            _orig_rp = pd.read_parquet
+            def _r(path, *a, **kw):
+                try:
+                    import duckdb as _ddb
+                    if not (isinstance(path, str) and path.endswith('.parquet')):
+                        return _orig_rp(path, *a, **kw)
+                    _con = _ddb.connect()
+                    _safe = str(path).replace("'", "\\'")
+                    _info = _con.execute("DESCRIBE SELECT * FROM read_parquet('" + _safe + "') LIMIT 0").df()
+                    _jcol = next((_c for _c in _info['column_name'] if any(_x in _c.lower() for _x in ['jornada','week','semana','matchday'])), None)
+                    if _jcol:
+                        _sql = ("SELECT * FROM read_parquet(?) WHERE "
+                                "TRY_CAST(TRIM(replace(replace(lower(CAST(" + _jcol + " AS VARCHAR)),'j',''),'w','')) AS INTEGER) BETWEEN ? AND ?")
+                        _df = _con.execute(_sql, [path, _j0, _j1]).df()
+                        _con.close()
+                        return _df
+                    _con.close()
+                except Exception:
+                    pass
+                df = _orig_rp(path, *a, **kw)
                 for c in df.columns:
                     if any(x in c.lower() for x in ['jornada', 'week', 'semana']):
                         try:
-                            col_str = df[c].astype(str).str.lower()
-                            col_str = col_str.str.replace('j', '').str.replace('w', '').str.strip()
-                            v = pd.to_numeric(col_str, errors='coerce')
+                            s = df[c].astype(str).str.lower().str.replace('j', '').str.replace('w', '').str.strip()
+                            v = pd.to_numeric(s, errors='coerce')
                             if v.notna().any():
-                                df = df[(v >= {j_inicio}) & (v <= {j_fin})]
+                                df = df[(v >= _j0) & (v <= _j1)]
                                 break
                         except: pass
                 return df
