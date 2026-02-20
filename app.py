@@ -154,7 +154,10 @@ BLOQUES_CONFIG = {
     }
 }
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[
+    dbc.themes.BOOTSTRAP,
+    "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+])
 app.index_string = '''
 <!DOCTYPE html>
 <html>
@@ -306,25 +309,70 @@ def obtener_resumen_datos():
 # --- LAYOUTS ---
 
 login_layout = html.Div([
-    html.Div(className="login-background"), # Capa de la foto que se mueve
+    html.Div(className="login-background"),  # Capa de la foto que se mueve
     html.Div(className="login-bg-gradient"), # Capa oscura para contraste
     dbc.Container([
         dbc.Row([
             dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.Div([
-                            html.Img(src=get_logo_base64("logodatos-villarrealcf.png"), height="300px", className="mb-4 d-block mx-auto"),
-                            html.H2("Villarreal CF", className="text-center mb-4 login-title"),
-                        ]),
-                        dbc.Input(id="username", placeholder="Usuario", type="text", className="mb-3 modern-input"),
-                        dbc.Input(id="password", placeholder="Contraseña", type="password", className="mb-4 modern-input"),
-                        dbc.Button("INICIAR SESIÓN", id="login-button", className="w-100 modern-button"),
-                        html.Div(id="login-error", className="text-danger mt-3 text-center")
-                    ])
-                ], className="login-card")
-            ], width=12, md=6, lg=4)
-        ], justify="center", className="vh-100 align-items-center")
+                html.Div([
+                    # Logo y cabecera
+                    html.Div([
+                        html.Img(src=get_logo_base64("logodatos-villarrealcf.png"),
+                                 height="160px", className="d-block mx-auto login-logo"),
+                    ], className="text-center mb-3"),
+                    html.H2("Departamento de Datos", className="login-title text-center mb-1"),
+                    html.P("Villarreal CF", className="login-subtitle text-center mb-4"),
+
+                    # Campo usuario
+                    html.Div([
+                        html.Span(html.I(className="bi bi-person-fill"), className="login-field-icon"),
+                        dcc.Input(
+                            id="username",
+                            type="text",
+                            placeholder="Usuario",
+                            className="login-input",
+                            n_submit=0,
+                            debounce=False,
+                            autoComplete="username",
+                            style={"width": "100%"},
+                        ),
+                    ], className="login-field-wrapper mb-3"),
+
+                    # Campo contraseña con ojo
+                    html.Div([
+                        html.Span(html.I(className="bi bi-lock-fill"), className="login-field-icon"),
+                        dcc.Input(
+                            id="password",
+                            type="password",
+                            placeholder="Contraseña",
+                            className="login-input",
+                            n_submit=0,
+                            debounce=False,
+                            autoComplete="current-password",
+                            style={"width": "100%"},
+                        ),
+                        html.Button(
+                            html.I(id="eye-icon", className="bi bi-eye"),
+                            id="toggle-password",
+                            className="login-eye-btn",
+                            n_clicks=0,
+                            type="button",
+                        ),
+                    ], className="login-field-wrapper mb-4"),
+
+                    # Botón entrar
+                    dbc.Button(
+                        [html.I(className="bi bi-box-arrow-in-right me-2"), "INICIAR SESIÓN"],
+                        id="login-button",
+                        className="w-100 login-submit-btn",
+                        n_clicks=0,
+                    ),
+
+                    # Error
+                    html.Div(id="login-error", className="login-error text-center mt-3"),
+                ], className="login-card"),
+            ], width=12, md=7, lg=5, xl=4),
+        ], justify="center", className="vh-100 align-items-center"),
     ], fluid=True),
 ], className="login-container")
 
@@ -1522,13 +1570,26 @@ def clear_sportian_after_complete(n, disabled):
 
 @app.callback(
     [Output('login-status', 'data'), Output('login-error', 'children')],
-    Input('login-button', 'n_clicks'),
+    [Input('login-button', 'n_clicks'),
+     Input('username', 'n_submit'),
+     Input('password', 'n_submit')],
     [State('username', 'value'), State('password', 'value')],
     prevent_initial_call=True
 )
-def login_callback(n, u, p):
-    if u == USERNAME and p == PASSWORD: return True, ""
-    return False, "Credenciales incorrectas"
+def login_callback(n_clicks, n_submit_u, n_submit_p, u, p):
+    if u == USERNAME and p == PASSWORD:
+        return True, ""
+    return False, "⚠ Credenciales incorrectas"
+
+@app.callback(
+    [Output('password', 'type'), Output('eye-icon', 'className')],
+    Input('toggle-password', 'n_clicks'),
+    prevent_initial_call=True
+)
+def toggle_password_visibility(n_clicks):
+    if n_clicks and n_clicks % 2 == 1:
+        return "text", "bi bi-eye-slash"
+    return "password", "bi bi-eye"
 
 @app.callback(
     [Output('progress-interval', 'disabled', allow_duplicate=True), 
