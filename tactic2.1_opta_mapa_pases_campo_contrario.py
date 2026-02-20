@@ -61,11 +61,17 @@ class PasesCampoContrario:
         self.df = None
         self.passes_data = pd.DataFrame()
 
-        # Usar caché para team_stats y player_stats
+        # Usar caché para team_stats y player_stats (optimizado con columnas necesarias)
         if PasesCampoContrario._team_stats_cache is None:
-            PasesCampoContrario._team_stats_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
+            PasesCampoContrario._team_stats_cache = pd.read_parquet(
+                "extraccion_opta/datos_opta_parquet/team_stats.parquet",
+                columns=['Team Name', 'Match ID', 'Team ID', 'Week']
+            )
         if PasesCampoContrario._player_stats_cache is None:
-            PasesCampoContrario._player_stats_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+            PasesCampoContrario._player_stats_cache = pd.read_parquet(
+                "extraccion_opta/datos_opta_parquet/player_stats.parquet",
+                columns=['Player ID', 'Player Name', 'Team Name', 'Week']
+            )
 
         self.team_stats = PasesCampoContrario._team_stats_cache
         self.player_stats = PasesCampoContrario._player_stats_cache

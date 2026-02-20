@@ -1021,7 +1021,7 @@ class ReporteCampogramasCorners:
 def seleccionar_equipo_interactivo():
     """Selección interactiva de equipo"""
     try:
-        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet", columns=['Team Name'])
         equipos = sorted(df['Team Name'].dropna().unique())
         if not equipos: 
             pass

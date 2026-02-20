@@ -41,7 +41,8 @@ class AnalizadorSaquesPorteria:
         
         # 🔥 CARGAR PLAYER_STATS
         try:
-            self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+            self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet",
+                                               columns=['Player ID', 'Player Name', 'Team Name', 'Shirt Number'])
         except Exception as e:
             print(f"❌ Error cargando player_stats: {e}")
             self.player_stats = None

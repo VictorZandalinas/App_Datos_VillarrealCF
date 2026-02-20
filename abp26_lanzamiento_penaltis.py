@@ -911,9 +911,9 @@ class AnalizadorPenaltis:
 def seleccionar_equipo_interactivo():
     """Función para seleccionar equipo interactivamente"""
     try:
-        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet", columns=['Team Name'])
         equipos = sorted(df['Team Name'].dropna().unique())
-        if not equipos: 
+        if not equipos:
             pass
             return None
         

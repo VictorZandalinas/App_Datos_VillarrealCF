@@ -40,7 +40,8 @@ class AnalizadorLanzamientosPortero:
         self.team_filter = None
         
         try:
-            self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+            self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet",
+                                               columns=['Player ID', 'Player Name', 'Team Name', 'Shirt Number'])
         except Exception as e:
             print(f"❌ Error cargando player_stats: {e}")
             self.player_stats = None
@@ -2232,7 +2233,7 @@ class AnalizadorLanzamientosPortero:
 def seleccionar_equipo_interactivo():
     try:
         # 🔥 Cargar desde match_events para la selección
-        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet", columns=['Team Name'])
         equipos = sorted(df['Team Name'].dropna().unique())
         
         if not equipos: print("No se encontraron equipos."); return None
@@ -2289,7 +2290,7 @@ def main():
 if __name__ == "__main__":
     pass
     try:
-        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+        df = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet", columns=['Team Name'])
         equipos = sorted(df['Team Name'].dropna().unique())
         if equipos:
             pass

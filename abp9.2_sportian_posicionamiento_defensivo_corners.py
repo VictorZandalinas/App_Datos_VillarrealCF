@@ -31,7 +31,9 @@ class ReporteDefensivoCorners:
         self.posicionamiento_derecha = pd.DataFrame()
         
         try:
-            self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
+            # Optimizado: solo necesitamos Team Name para selección de equipo
+            self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet",
+                                               columns=['Team Name', 'Match ID', 'Team ID'])
         except:
             self.team_stats = None
         

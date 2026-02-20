@@ -36,11 +36,13 @@ class RedPasesEquipo:
         return cls._open_play_cache.copy()
 
     @classmethod
-    def _get_match_events_data(cls):
+    def _get_match_events_data(cls, columns=None):
         """Carga match_events.parquet una sola vez y lo cachea."""
         if cls._match_events_cache is None:
             print("📥 [CACHÉ] Cargando match_events.parquet por primera vez...")
             cls._match_events_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+        if columns:
+            return cls._match_events_cache[columns].copy()
         return cls._match_events_cache.copy()
 
     @classmethod
@@ -58,11 +60,17 @@ class RedPasesEquipo:
         self.df = None
         self.passes_data = pd.DataFrame()
 
-        # Usar caché para team_stats y player_stats
+        # Usar caché para team_stats y player_stats (optimizado con columnas necesarias)
         if RedPasesEquipo._team_stats_cache is None:
-            RedPasesEquipo._team_stats_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
+            RedPasesEquipo._team_stats_cache = pd.read_parquet(
+                "extraccion_opta/datos_opta_parquet/team_stats.parquet",
+                columns=['Team Name', 'Match ID', 'Team ID', 'Week']
+            )
         if RedPasesEquipo._player_stats_cache is None:
-            RedPasesEquipo._player_stats_cache = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+            RedPasesEquipo._player_stats_cache = pd.read_parquet(
+                "extraccion_opta/datos_opta_parquet/player_stats.parquet",
+                columns=['Player ID', 'Player Name', 'Team Name', 'Week']
+            )
 
         self.team_stats = RedPasesEquipo._team_stats_cache
         self.player_stats = RedPasesEquipo._player_stats_cache

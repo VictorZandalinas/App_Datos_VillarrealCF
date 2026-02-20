@@ -78,8 +78,10 @@ class ReporteOfensivoCornersBilateral:
 
         # --- 5. CARGA DE OPTA STATS Y MAPEO (NOMBRE Y ALTURA) ---
         try:
-            self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
-            df_players = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+            self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet",
+                                               columns=['Team Name', 'Team ID'])
+            df_players = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet",
+                                         columns=['Player ID', 'Player Name', 'Team Name', 'Shirt Number', 'Match Name', 'Height'])
             
             for _, row in df_players.iterrows():
                 team_key = str(row.get('Team Name', '')).strip().lower()

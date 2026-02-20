@@ -24,7 +24,8 @@ class AnalizadorContraataques:
         self.team_filter = None
         
         try:
-            self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+            self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet",
+                                                 columns=['Player ID', 'Player Name'])
         except:
             self.player_stats = None
 
@@ -544,7 +545,7 @@ class AnalizadorContraataques:
         return fig
 
 def seleccionar_equipo():
-    df_temp = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet")
+    df_temp = pd.read_parquet("extraccion_opta/datos_opta_parquet/match_events.parquet", columns=['Team Name'])
     equipos = sorted(df_temp['Team Name'].dropna().unique())
     for i, eq in enumerate(equipos, 1):
         pass
