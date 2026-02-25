@@ -18,17 +18,26 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class LanzamientosLadoIzquierdo:
-    def __init__(self, data_path="extraccion_opta/datos_opta_parquet/abp_events.parquet", team_filter=None):
+    def __init__(self, data_path="extraccion_opta/datos_opta_parquet/abp_events.parquet", team_filter=None, jornada_inicio=None, jornada_fin=None):
         self.data_path = data_path
         self.team_filter = team_filter
+        self.jornada_inicio = jornada_inicio
+        self.jornada_fin = jornada_fin
         self.df = None
         self.lanzamientos_data = pd.DataFrame()
         self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
         self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+
+        if jornada_inicio is not None and jornada_fin is not None:
+            if 'Week' in self.team_stats.columns:
+                self.team_stats = self.team_stats[(self.team_stats['Week'].astype(int) >= jornada_inicio) & (self.team_stats['Week'].astype(int) <= jornada_fin)]
+            if 'Week' in self.player_stats.columns:
+                self.player_stats = self.player_stats[(self.player_stats['Week'].astype(int) >= jornada_inicio) & (self.player_stats['Week'].astype(int) <= jornada_fin)]
+
         self.load_data(team_filter)
-        
+
         if team_filter:
-            self.df = self.df.merge(self.team_stats[['Team ID', 'Team Position']], 
+            self.df = self.df.merge(self.team_stats[['Team ID', 'Team Position']],
                         on='Team ID', how='left')
             self.extract_lanzamientos_izquierda(team_filter)
     
@@ -259,22 +268,33 @@ class LanzamientosLadoIzquierdo:
         try:
             # Cargar TODAS las columnas necesarias, incluyendo 'periodId' y 'timeStamp'
             columns_needed = [
-                'Match ID', 'periodId', 'Team ID', 'Team Name', 'Event Name', 'outcome', 
-                'timeMin', 'timeSec', 'x', 'y', 'Pass End X', 'Pass End Y', 
-                'playerName', 'playerId', 'Corner taken', 
+                'Match ID', 'periodId', 'Team ID', 'Team Name', 'Event Name', 'outcome',
+                'timeMin', 'timeSec', 'x', 'y', 'Pass End X', 'Pass End Y',
+                'playerName', 'playerId', 'Corner taken', 'Week',
                 'Throw in', 'Free kick taken', 'timeStamp'
             ]
-            
+
             self.df = pd.read_parquet(self.data_path, columns=columns_needed)
-            
+
             # Aplicar la normalización del timestamp
             self.df['timeStamp'] = self.df['timeStamp'].apply(self.normalize_timestamp)
-            
+
+            # FILTRO POR JORNADAS
+            if 'Week' in self.df.columns:
+                if self.jornada_inicio is not None and self.jornada_fin is not None:
+                    self.df = self.df[
+                        (self.df['Week'].astype(int) >= self.jornada_inicio) &
+                        (self.df['Week'].astype(int) <= self.jornada_fin)
+                    ]
+                    print(f"📅 Filtrando jornadas {self.jornada_inicio} a {self.jornada_fin}")
+            else:
+                print("⚠️ Columna 'Week' no encontrada. Continuando sin filtro de jornadas.")
+
             # Si hay filtro de equipo, filtrar matches desde el inicio
             if team_filter:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
-            
+
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
     
@@ -916,9 +936,12 @@ class LanzamientosLadoIzquierdo:
             ax_bg.axis('off')
         
         # Título principal
-        fig.suptitle('CORNERS OFENSIVOS - LADO IZQUIERDO', 
+        fig.suptitle('CORNERS OFENSIVOS - LADO IZQUIERDO',
                      fontsize=20, fontweight='bold', color='#1e3d59', y=0.95, family='serif')
-        
+        if self.jornada_inicio and self.jornada_fin:
+            fig.text(0.5, 0.91, f'Últimas 10 Jornadas de {self.jornada_inicio} – {self.jornada_fin}',
+                     ha='center', fontsize=9, color='#555555', style='italic')
+
         # Logos superiores
         if (ball := self.load_ball_image()) is not None:
             ax_ball = fig.add_axes([0.05, 0.90, 0.06, 0.06])
@@ -1200,12 +1223,13 @@ def main():
         if (equipo := seleccionar_equipo_interactivo()) is None:
             pass
             return
-        
-        analyzer = LanzamientosLadoIzquierdo(team_filter=equipo)
+
+        jornada_fin = int(input("Introduce la jornada actual: ").strip())
+        jornada_inicio = max(1, jornada_fin - 10)
+        analyzer = LanzamientosLadoIzquierdo(team_filter=equipo, jornada_inicio=jornada_inicio, jornada_fin=jornada_fin)
         analyzer.print_summary(team_filter=equipo)
         analyzer.debug_lanzamientos(team_filter=equipo)
 
-        
         if (fig := analyzer.create_lanzamientos_visualization(team_filter=equipo)):
             plt.show()
             equipo_filename = equipo.replace(' ', '_').replace('/', '_')
@@ -1219,10 +1243,11 @@ def main():
         import traceback
         traceback.print_exc()
 
-def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
+def generar_campogramas_personalizado(equipo, jornada_fin, mostrar=True, guardar=True):
     """Función para generar campogramas de forma personalizada"""
+    jornada_inicio = max(1, jornada_fin - 10)
     try:
-        analyzer = LanzamientosLadoIzquierdo(team_filter=equipo)
+        analyzer = LanzamientosLadoIzquierdo(team_filter=equipo, jornada_inicio=jornada_inicio, jornada_fin=jornada_fin)
         analyzer.print_summary(team_filter=equipo)
         fig = analyzer.create_lanzamientos_visualization(team_filter=equipo)
         

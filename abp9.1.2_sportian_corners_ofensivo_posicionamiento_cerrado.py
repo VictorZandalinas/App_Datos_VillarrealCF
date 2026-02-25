@@ -33,6 +33,8 @@ class ReporteOfensivoCornersBilateral:
         # Almacenes de datos separados
         self.data_left = []
         self.data_right = []
+        self._photo_cache = {}
+        self._img_cache = {}
         
         # Mapas de metadatos (Nombre y Altura)
         self.player_map = {}
@@ -46,6 +48,8 @@ class ReporteOfensivoCornersBilateral:
             self.df_events['Match ID'] = self.df_events['Match ID'].astype(str)
         except:
             self.df_events = pd.DataFrame()
+            self.df_events['Week_str'] = self.df_events['Week'].astype(str)
+            self.df_events['time_abs'] = self.df_events['timeMin'].astype(float) * 60 + self.df_events['timeSec'].astype(float)
 
         # --- 2. CARGA DE ALTURAS (METADATOS LIGA) ---
         id_to_height = {}
@@ -127,32 +131,29 @@ class ReporteOfensivoCornersBilateral:
         return tracking_name
     
     def get_opta_event_raw(self, jornada, team_tracking, min_track, sec_track):
-        """Recupera la fila del evento de Opta para leer Pass End X/Y."""
         if self.df_events.empty: return None
         
-        subset = self.df_events[self.df_events['Week'].astype(str) == str(jornada)]
+        # 1. Filtro por Jornada
+        subset = self.df_events[self.df_events['Week'].astype(str) == str(jornada)].copy()
         if subset.empty: return None
 
         time_track = min_track * 60 + sec_track
+        t_trk = str(team_tracking).lower().strip()
+
+        # 2. Filtro de equipo (Nombre tracking en Opta o viceversa)
+        # Reemplazamos las líneas que daban error por esta lógica limpia:
+        team_col = subset['Team Name'].str.lower().str.strip()
+        mask_team = (team_col.str.contains(t_trk, regex=False)) | (team_col.apply(lambda x: x in t_trk))
         
-        # Margen de tolerancia de tiempo (10 segundos)
-        for _, row in subset.iterrows():
-            # Filtro Equipo
-            t_evt = str(row.get('Team Name', '')).lower().strip()
-            t_trk = str(team_tracking).lower().strip()
-            if t_evt not in t_trk and t_trk not in t_evt:
-                if SequenceMatcher(None, t_evt, t_trk).ratio() < 0.6: continue
-            
-            try:
-                min_evt = float(row.get('timeMin', 0))
-                sec_evt = float(row.get('timeSec', 0))
-                time_evt = min_evt * 60 + sec_evt
-                
-                # Si coincide en tiempo, devolvemos la fila entera
-                if abs(time_evt - time_track) <= 10:
-                    return row
-            except: continue
-        return None
+        subset = subset[mask_team]
+        if subset.empty: return None
+
+        # 3. Filtro por tiempo (ventana de 10 segundos)
+        times = subset['timeMin'].astype(float) * 60 + subset['timeSec'].astype(float)
+        mask_time = (times - time_track).abs() <= 10
+        hits = subset[mask_time]
+        
+        return hits.iloc[0] if not hits.empty else None
 
     def detectar_momento_remate(self, df_corner, target_x, target_y, start_time):
         """
@@ -358,42 +359,34 @@ class ReporteOfensivoCornersBilateral:
         """Busca el evento en Opta y devuelve la línea recta."""
         if self.df_events.empty: return None
         
-        subset = self.df_events[self.df_events['Week'].astype(str) == str(jornada)]
+        subset = self.df_events[self.df_events['Week_str'] == str(jornada)]
+        if subset.empty: return None
+
+        t_trk = str(team_tracking).lower().strip()
+        team_col = subset['Team Name'].str.lower().str.strip()
+        subset = subset[team_col.str.contains(t_trk, regex=False) | team_col.apply(lambda t: t in t_trk)]
         if subset.empty: return None
 
         time_track = min_track * 60 + sec_track
-        best_match = None
+        times = subset['time_abs']
+        mask_time = (times - time_track).abs() <= 10
+        hits = subset[mask_time]
         
-        for _, row in subset.iterrows():
-            t_evt = str(row.get('Team Name', '')).lower().strip()
-            t_trk = str(team_tracking).lower().strip()
-            if t_evt not in t_trk and t_trk not in t_evt:
-                if SequenceMatcher(None, t_evt, t_trk).ratio() < 0.6: continue
-            
-            try:
-                min_evt = float(row.get('timeMin', 0))
-                sec_evt = float(row.get('timeSec', 0))
-            except: continue
-            
-            time_evt = min_evt * 60 + sec_evt
-            if abs(time_evt - time_track) <= 10:
-                best_match = row
-                break
+        if hits.empty: return None
         
-        if best_match is not None:
-            try:
-                x_start = float(best_match.get('x'))
-                y_start = float(best_match.get('y'))
-                x_end = float(best_match.get('Pass End X'))
-                y_end = float(best_match.get('Pass End Y'))
-                
-                xs = np.linspace(x_start, x_end, 5)
-                ys = np.linspace(y_start, y_end, 5)
-                return np.column_stack((xs, ys))
-            except (ValueError, TypeError):
-                return None
+        best_match = hits.iloc[0]
+        
+        try:
+            x_start = float(best_match.get('x'))
+            y_start = float(best_match.get('y'))
+            x_end = float(best_match.get('Pass End X'))
+            y_end = float(best_match.get('Pass End Y'))
             
-        return None
+            xs = np.linspace(x_start, x_end, 5)
+            ys = np.linspace(y_start, y_end, 5)
+            return np.column_stack((xs, ys))
+        except (ValueError, TypeError):
+            return None
     
     def extract_player_trajectories(self, df_corner, time_kick, attacking_team):
         """
@@ -482,8 +475,13 @@ class ReporteOfensivoCornersBilateral:
         return best_match
 
     def create_circular_player_photo(self, player_name, photos_data, size=(90, 90)):
+        if player_name in self._img_cache:
+            return self._img_cache[player_name]
+        
         match = self.match_player_name(player_name, photos_data)
-        if not match: return None
+        if not match:
+            self._img_cache[player_name] = None
+            return None
         
         try:
             img_data = base64.b64decode(match['image_base64'])
@@ -493,8 +491,12 @@ class ReporteOfensivoCornersBilateral:
             output = Image.new('RGBA', size, (0,0,0,0))
             output.paste(img, (0,0))
             output.putalpha(mask)
-            return np.array(output) / 255.0
-        except: return None
+            result = np.array(output) / 255.0
+            self._img_cache[player_name] = result
+            return result
+        except:
+            self._img_cache[player_name] = None
+            return None
 
     def load_background(self):
         return plt.imread("assets/fondo_informes.png") if os.path.exists("assets/fondo_informes.png") else None
@@ -746,7 +748,6 @@ class ReporteOfensivoCornersBilateral:
             equipo_lanz = str(row_meta.get('Equipo_Lanzador', '')).strip()
             if target_team not in equipo_lanz.lower(): 
                 tipo = row_meta.get('Tipo_Lanzamiento_Calc', 'NO_EXISTE')
-                print(f"DEBUG: Encontrado {equipo_lanz}. Tipo calculado: {tipo}. Buscamos: {type_req}")
                 continue
 
             # Filtro Tipo (Usamos la columna pre-calculada por el ETL)

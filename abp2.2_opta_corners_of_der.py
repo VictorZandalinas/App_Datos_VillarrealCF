@@ -17,19 +17,56 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class LanzamientosLadoDerecho:
-    def __init__(self, data_path="extraccion_opta/datos_opta_parquet/abp_events.parquet", team_filter=None):
+    def __init__(self, data_path="extraccion_opta/datos_opta_parquet/abp_events.parquet", team_filter=None, jornada_inicio=None, jornada_fin=None):
         self.data_path = data_path
         self.team_filter = team_filter
+        self.jornada_inicio = jornada_inicio  # Ahora sí está definido
+        self.jornada_fin = jornada_fin        # Ahora sí está definido
         self.df = None
         self.lanzamientos_data = pd.DataFrame()
         self.team_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/team_stats.parquet")
         self.player_stats = pd.read_parquet("extraccion_opta/datos_opta_parquet/player_stats.parquet")
+
+        if jornada_inicio is not None and jornada_fin is not None:
+            if 'Week' in self.team_stats.columns:
+                self.team_stats = self.team_stats[(self.team_stats['Week'].astype(int) >= jornada_inicio) & (self.team_stats['Week'].astype(int) <= jornada_fin)]
+            if 'Week' in self.player_stats.columns:
+                self.player_stats = self.player_stats[(self.player_stats['Week'].astype(int) >= jornada_inicio) & (self.player_stats['Week'].astype(int) <= jornada_fin)]
+        
+        # --- NUEVOS CACHÉS ---
+        self.player_photo_cache = {}  # Caché para fotos procesadas
+        self.dorsal_cache = {}        # Caché para dorsales
+        self.ball_image = None        # Para cargar el balón una vez
+        self.background_image = None  # Para cargar el fondo una vez
+        # ---------------------
+        
         self.load_data(team_filter)
+        
+        # Precargar assets y dorsales
+        self._precargar_assets()
+        self._cargar_cache_dorsales()
         
         if team_filter:
             self.df = self.df.merge(self.team_stats[['Team ID', 'Team Position']], 
                         on='Team ID', how='left')
             self.extract_lanzamientos_derecha(team_filter)
+
+
+    def _precargar_assets(self):
+        """Precarga imágenes estáticas una sola vez"""
+        try:
+            if os.path.exists("assets/balon.png"):
+                self.ball_image = plt.imread("assets/balon.png")
+            if os.path.exists("assets/fondo_informes.png"):
+                self.background_image = plt.imread("assets/fondo_informes.png")
+        except Exception as e:
+            print(f"⚠️ Error precargando assets: {e}")
+
+    def _cargar_cache_dorsales(self):
+        """Precarga todos los dorsales en un diccionario"""
+        for _, row in self.player_stats.iterrows():
+            if pd.notna(row['Match Name']) and pd.notna(row['Shirt Number']):
+                self.dorsal_cache[row['Match Name']] = str(int(row['Shirt Number']))
     
     def format_player_name_multiline(self, player_name, max_chars_per_line=12):
         """Divide nombres largos en 2 líneas de forma inteligente"""
@@ -60,15 +97,11 @@ class LanzamientosLadoDerecho:
         return line1, line2
 
     def get_player_shirt_number_by_name(self, player_name):
-        """Obtiene el dorsal del jugador por nombre"""
+        """Obtiene el dorsal del jugador por nombre usando caché"""
         if pd.isna(player_name):
             return None
-        
-        player_info = self.player_stats[self.player_stats['Match Name'] == player_name]
-        if not player_info.empty:
-            shirt_number = player_info['Shirt Number'].iloc[0]
-            return str(int(shirt_number)) if pd.notna(shirt_number) else None
-        return None
+        return self.dorsal_cache.get(player_name)
+
 
     def load_data(self, team_filter=None):
         """Carga los datos necesarios desde los parquets"""
@@ -76,16 +109,23 @@ class LanzamientosLadoDerecho:
             # Cargar solo columnas necesarias
             columns_needed = ['Match ID', 'periodId', 'Team ID', 'Team Name', 'Event Name', 'outcome', 
                 'timeMin', 'timeSec', 'x', 'y', 'Pass End X', 'Pass End Y', 
-                'playerName', 'playerId', 'Corner taken', 
+                'playerName', 'playerId', 'Corner taken', 'Week',
                 'Throw in', 'Free kick taken', 'timeStamp']
             
             self.df = pd.read_parquet(self.data_path, columns=columns_needed)
             self.df['timeStamp'] = self.df['timeStamp'].apply(self.normalize_timestamp)
-
             
-            # Filtrar eventos relevantes para lanzamientos
-            # relevant_events = ['Pass', 'Goal', 'Attempt Saved', 'Miss', 'Post']
-            # self.df = self.df[self.df['Event Name'].isin(relevant_events)]
+            # VERIFICAR SI EXISTE LA COLUMNA JORNADA
+            if 'Week' in self.df.columns:
+                # FILTRO POR JORNADAS - SOLO SI EXISTE LA COLUMNA
+                if self.jornada_inicio is not None and self.jornada_fin is not None:
+                    self.df = self.df[
+                        (self.df['Week'].astype(int) >= self.jornada_inicio) & 
+                        (self.df['Week'].astype(int) <= self.jornada_fin)
+                    ]
+                    print(f"📅 Filtrando jornadas {self.jornada_inicio} a {self.jornada_fin}")
+            else:
+                print("⚠️ Columna 'Week' no encontrada. Continuando sin filtro de jornadas.")
             
             # Si hay filtro de equipo, filtrar matches desde el inicio
             if team_filter:
@@ -94,7 +134,8 @@ class LanzamientosLadoDerecho:
             
         except Exception as e:
             print(f"❌ Error al cargar los datos: {e}")
-    
+            self.df = pd.DataFrame()  # Inicializar como DataFrame vacío en lugar de None
+        
     def normalize_timestamp(self, timestamp):
         """Normaliza timestamps quitando la Z final si existe"""
         if pd.isna(timestamp):
@@ -475,9 +516,17 @@ class LanzamientosLadoDerecho:
             return []
 
     def get_player_photo_without_dorsal(self, player_name, photos_data):
-        """Obtiene la foto sin fondo blanco pero SIN dorsal"""
+        """Obtiene la foto sin fondo blanco usando caché"""
+        # Clave única para el caché
+        cache_key = f"{player_name}_{self.team_filter}"
+        
+        # Si ya está en caché, devolverla directamente
+        if cache_key in self.player_photo_cache:
+            return self.player_photo_cache[cache_key]
+        
         match = self.match_player_name(player_name, photos_data, self.team_filter)
         if not match:
+            self.player_photo_cache[cache_key] = None
             return None
         
         try:
@@ -493,11 +542,12 @@ class LanzamientosLadoDerecho:
             
             # Verificar dimensiones
             if len(data.shape) != 3 or data.shape[2] != 4:
+                self.player_photo_cache[cache_key] = None
                 return None
             
             height, width = data.shape[:2]
             
-            # Flood fill ITERATIVO para evitar recursión infinita
+            # Flood fill ITERATIVO
             def flood_fill_iterative(start_points, threshold=235):
                 visited = np.zeros((height, width), dtype=bool)
                 background_mask = np.zeros((height, width), dtype=bool)
@@ -509,12 +559,10 @@ class LanzamientosLadoDerecho:
                             data[y, x, 1] >= threshold and 
                             data[y, x, 2] >= threshold)
                 
-                # Usar pila en lugar de recursión
                 for start_y, start_x in start_points:
                     if visited[start_y, start_x] or not is_background_color(start_y, start_x):
                         continue
                     
-                    # Pila para flood fill iterativo
                     stack = [(start_y, start_x)]
                     
                     while stack:
@@ -527,28 +575,27 @@ class LanzamientosLadoDerecho:
                         visited[y, x] = True
                         background_mask[y, x] = True
                         
-                        # Añadir vecinos a la pila (4-connected es más estable)
                         stack.extend([(y-1, x), (y+1, x), (y, x-1), (y, x+1)])
                 
                 return background_mask
             
-            # Puntos de inicio: solo esquinas y algunos puntos de borde
             border_points = [
-                (0, 0), (0, width-1), (height-1, 0), (height-1, width-1),  # Esquinas
-                (0, width//2), (height-1, width//2),  # Centro superior e inferior
-                (height//2, 0), (height//2, width-1)   # Centro izquierda y derecha
+                (0, 0), (0, width-1), (height-1, 0), (height-1, width-1),
+                (0, width//2), (height-1, width//2),
+                (height//2, 0), (height//2, width-1)
             ]
             
-            # Aplicar flood fill
             background_mask = flood_fill_iterative(border_points, threshold=230)
-            
-            # Aplicar la máscara para hacer transparente el fondo
             data[background_mask] = [0, 0, 0, 0]
             
-            return data.astype(np.float32) / 255.0
+            # Guardar en caché ANTES de devolver
+            result = data.astype(np.float32) / 255.0
+            self.player_photo_cache[cache_key] = result
+            return result
         
         except Exception as e:
             print(f"⚠️ Error procesando foto de {player_name}: {e}")
+            self.player_photo_cache[cache_key] = None
             return None
 
     def get_player_photo_with_team_filter(self, player_name, photos_data, team_filter):
@@ -771,7 +818,6 @@ class LanzamientosLadoDerecho:
         return ranking
 
     def create_aerial_ranking(self, ax, team_filter):
-        """Crea el ranking visual de jugadores con más lanzamientos que terminan en remate"""
         aerial_data = self.get_aerial_ranking_data(team_filter)
         photos_data = self.load_player_photos()
         
@@ -875,6 +921,9 @@ class LanzamientosLadoDerecho:
         # Título principal
         fig.suptitle('CORNERS OFENSIVOS - LADO DERECHO', 
                      fontsize=20, fontweight='bold', color='#1e3d59', y=0.95, family='serif')
+        if self.jornada_inicio and self.jornada_fin:
+            fig.text(0.5, 0.91, f'Últimas 10 Jornadas de {self.jornada_inicio} – {self.jornada_fin}',
+                     ha='center', fontsize=9, color='#555555', style='italic')
         
         # Logos superiores
         if (ball := self.load_ball_image()) is not None:
@@ -1124,7 +1173,9 @@ def main():
             pass
             return
         
-        analyzer = LanzamientosLadoDerecho(team_filter=equipo)
+        jornada_fin = int(input("Introduce la jornada actual: ").strip())
+        jornada_inicio = max(1, jornada_fin - 10)
+        analyzer = LanzamientosLadoDerecho(team_filter=equipo, jornada_inicio=jornada_inicio, jornada_fin=jornada_fin)
         analyzer.print_summary(team_filter=equipo)
         analyzer.debug_lanzamientos(team_filter=equipo)
 
@@ -1143,7 +1194,9 @@ def main():
         import traceback
         traceback.print_exc()
 
-def generar_campogramas_personalizado(equipo, mostrar=True, guardar=True):
+def generar_campogramas_personalizado(equipo, jornada_fin, mostrar=True, guardar=True):
+    jornada_inicio = max(1, jornada_fin - 10)
+    analyzer = LanzamientosLadoDerecho(team_filter=equipo, jornada_inicio=jornada_inicio, jornada_fin=jornada_fin)
     """Función para generar campogramas de forma personalizada"""
     try:
         analyzer = LanzamientosLadoDerecho(team_filter=equipo)

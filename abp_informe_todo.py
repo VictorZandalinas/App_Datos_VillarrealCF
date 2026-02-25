@@ -473,7 +473,7 @@ def main():
 
         # Ejecución del subproceso
         proceso = subprocess.Popen(["python3", "-c", injected_code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-        stdout, _ = proceso.communicate(input=respuestas, timeout=300) # Aumentado timeout por seguridad
+        stdout, _ = proceso.communicate(input=respuestas, timeout=420) # abp2.2 tarda ~321s
         
         # Log parcial para depurar si falla
         print(f"SALIDA (últimos bytes): {stdout[-200:]}") 
