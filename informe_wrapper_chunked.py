@@ -124,6 +124,15 @@ class InformeGeneratorChunked:
     memoria agresivamente entre chunks para evitar OOM en servidores limitados.
     """
 
+    # Scripts que necesitan datos de TODA la liga (carpeta general, no equipo específico)
+    SCRIPTS_LIGA = [
+        'tactic1_opta_clasificacion_liga.py',
+        'tactic1.1_mediacoach_resumen_con_balon.py',
+        'tactic1.2_mediacoach_resumen_sin_balon.py',
+        'tactic1.3_mediacoach_evolucion_resumen_general.py',
+        'tactic1.4_opta_xT.py',
+    ]
+
     def __init__(self, tipo_informe, chunk_size=6, team_mappings=None, equipos_opta=None, equipos_mediacoach=None):
         """
         Inicializa el generador de informes.
@@ -391,17 +400,50 @@ class InformeGeneratorChunked:
         # Preparar inputs automáticos
         respuestas = self._preparar_inputs(script, equipo, j_fin)
 
+        # Determinar si es un script de "liga" (datos de toda la liga) o de "equipo"
+        is_script_liga = script in self.SCRIPTS_LIGA
+
         # Código inyectado: monkey-patch pd.read_parquet (DuckDB pushdown) + ejecutar script
+        # - Para scripts de equipo: merge rival folder + Villarreal folder
+        # - Para scripts de liga: usar carpeta general directamente (sin merge)
         injected_code = textwrap.dedent(f"""\
             import matplotlib, pandas as pd, sys, numpy as np
+            import os as _os
             matplotlib.use('Agg')
             _j0, _j1 = {j_inicio}, {j_fin}
+            _equipo_key = '{equipo}'
+            _is_liga = {is_script_liga}
+            def _norm(s):
+                for x in [' cf',' fc',' rc',' rcd',' ca',' ud',' ','-']:
+                    s = s.lower().replace(x,'')
+                return s
+            def _find_folder(name):
+                _b = 'data_por_equipos'
+                if not _os.path.exists(_b): return None
+                _t = _norm(name)
+                for _d in _os.listdir(_b):
+                    if _os.path.isdir(_os.path.join(_b,_d)):
+                        _dn = _norm(_d)
+                        if _t in _dn or _dn in _t: return _d
+                return None
+            _equipo_folder = _find_folder(_equipo_key)
+            _villa_folder = _find_folder('Villarreal')
+            if _villa_folder == _equipo_folder:
+                _villa_folder = None
+            def _to_path(orig, folder):
+                if folder is None: return None
+                c = orig[2:] if orig.startswith('./') else orig
+                t = _os.path.join('data_por_equipos', folder, c)
+                if _os.path.exists(t): return t
+                _idx = c.find('/')
+                if _idx > 0:
+                    t2 = _os.path.join('data_por_equipos', folder, c[_idx+1:])
+                    if _os.path.exists(t2): return t2
+                return None
             _orig_rp = pd.read_parquet
-            def _r(path, *a, **kw):
+            def _read_one(path):
                 try:
                     import duckdb as _ddb
-                    if not (isinstance(path, str) and path.endswith('.parquet')):
-                        return _orig_rp(path, *a, **kw)
                     _con = _ddb.connect()
                     _safe = str(path).replace("'", "\\'")
                     _info = _con.execute("DESCRIBE SELECT * FROM read_parquet('" + _safe + "') LIMIT 0").df()
@@ -420,17 +462,34 @@ class InformeGeneratorChunked:
                     _con.close()
                 except Exception:
                     pass
-                df = _orig_rp(path, *a, **kw)
-                for c in df.columns:
-                    if any(x in c.lower() for x in ['jornada', 'week', 'semana']):
+                df = _orig_rp(path)
+                for _c in df.columns:
+                    if any(x in _c.lower() for x in ['jornada', 'week', 'semana']):
                         try:
-                            s = df[c].astype(str).str.lower().str.replace('j', '').str.replace('w', '').str.strip()
+                            s = df[_c].astype(str).str.lower().str.replace('j', '').str.replace('w', '').str.strip()
                             v = pd.to_numeric(s, errors='coerce')
                             if v.notna().any():
                                 df = df[(v >= _j0) & (v <= _j1)]
                                 break
                         except: pass
                 return df
+            def _r(path, *a, **kw):
+                if not (isinstance(path, str) and path.endswith('.parquet')):
+                    return _orig_rp(path, *a, **kw)
+                # Para scripts de liga: usar ruta original (carpeta general)
+                if _is_liga:
+                    return _read_one(path)
+                # Para scripts de equipo: redirigir a carpetas de equipo
+                p1 = _to_path(path, _equipo_folder)
+                p2 = _to_path(path, _villa_folder)
+                if p1 and p2:
+                    return pd.concat([_read_one(p1), _read_one(p2)], ignore_index=True).drop_duplicates()
+                elif p1:
+                    return _read_one(p1)
+                elif p2:
+                    return _read_one(p2)
+                else:
+                    return _read_one(path)
             pd.read_parquet = _r
             exec(open('{script}', encoding='utf-8').read())
         """)

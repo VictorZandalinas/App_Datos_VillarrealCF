@@ -23,6 +23,15 @@ except ImportError as e:
     print(f"❌ Error: Falta PyPDF2. pip install PyPDF2")
     sys.exit(1)
 
+# --- Scripts que necesitan datos de TODA la liga (carpeta general, no equipo específico) ---
+SCRIPTS_LIGA = [
+    'tactic1_opta_clasificacion_liga.py',
+    'tactic1.1_mediacoach_resumen_con_balon.py',
+    'tactic1.2_mediacoach_resumen_sin_balon.py',
+    'tactic1.3_mediacoach_evolucion_resumen_general.py',
+    'tactic1.4_opta_xT.py',
+]
+
 # --- 1. CONFIGURACIÓN DE MEMORIA Y PARCHE PANDAS ---
 
 def clean_memory():
@@ -33,11 +42,80 @@ def clean_memory():
 # Guardamos la función original de pandas
 _original_read_parquet = pd.read_parquet
 
+# Variable global para indicar si el script actual es de "liga" (datos generales)
+_current_script_is_liga = False
+
+# --- Helpers para resolución de rutas por equipo ---
+
+def _norm_team(s):
+    for x in [' cf', ' fc', ' rc', ' rcd', ' ca', ' ud', ' ', '-']:
+        s = s.lower().replace(x, '')
+    return s
+
+def _find_team_folder(name):
+    _b = 'data_por_equipos'
+    if not os.path.exists(_b):
+        return None
+    _t = _norm_team(name)
+    for _d in os.listdir(_b):
+        if os.path.isdir(os.path.join(_b, _d)):
+            _dn = _norm_team(_d)
+            if _t in _dn or _dn in _t:
+                return _d
+    return None
+
+def _to_team_path(orig, folder):
+    if folder is None:
+        return None
+    c = orig[2:] if orig.startswith('./') else orig
+    t = os.path.join('data_por_equipos', folder, c)
+    if os.path.exists(t):
+        return t
+    idx = c.find('/')
+    if idx > 0:
+        t2 = os.path.join('data_por_equipos', folder, c[idx + 1:])
+        if os.path.exists(t2):
+            return t2
+    return None
+
+def _duckdb_filter(path, j_ini, j_fin):
+    """Aplica DuckDB pushdown de jornadas. Devuelve DataFrame o None si no aplica."""
+    try:
+        import duckdb as _ddb
+        _con = _ddb.connect()
+        _safe = path.replace("'", "\\'")
+        _info = _con.execute(
+            "DESCRIBE SELECT * FROM read_parquet('" + _safe + "') LIMIT 0"
+        ).df()
+        _jrow = [(r['column_name'], r['column_type']) for _, r in _info.iterrows()
+                 if any(_x in r['column_name'].lower() for _x in ['jornada', 'week', 'semana', 'matchday'])]
+        _jcol = _jrow[0][0] if _jrow else None
+        _jtype = _jrow[0][1] if _jrow else ''
+        if _jcol:
+            if any(_t in _jtype.upper() for _t in ['INT', 'BIGINT', 'SMALLINT', 'HUGEINT', 'DOUBLE', 'FLOAT', 'DECIMAL']):
+                _sql = "SELECT * FROM read_parquet(?) WHERE " + _jcol + " BETWEEN ? AND ?"
+            else:
+                _sql = (
+                    "SELECT * FROM read_parquet(?) WHERE "
+                    "TRY_CAST(TRIM(replace(replace(lower(CAST(" + _jcol + " AS VARCHAR)),'j',''),'w','')) AS INTEGER) BETWEEN ? AND ?"
+                )
+            _df = _con.execute(_sql, [path, j_ini, j_fin]).df()
+            _con.close()
+            return _df
+        _con.close()
+    except Exception:
+        pass
+    return None
+
 def patched_read_parquet(path, *args, **kwargs):
     """
     Parche con DuckDB pushdown para filtrar por rango de jornadas.
     Lee env vars TACTIC_J_INI / TACTIC_J_FIN para el rango.
+    Lee TACTIC_EQUIPO para redirigir a carpetas de equipo y mergear con Villarreal.
+    Para scripts de SCRIPTS_LIGA: usa carpeta general (no redirección).
     """
+    global _current_script_is_liga
+
     try:
         j_ini = int(os.environ.get('TACTIC_J_INI', 0))
         j_fin = int(os.environ.get('TACTIC_J_FIN', 99))
@@ -47,36 +125,45 @@ def patched_read_parquet(path, *args, **kwargs):
     if j_ini == 0:
         return _original_read_parquet(path, *args, **kwargs)
 
-    # Intentar DuckDB pushdown
-    try:
-        import duckdb as _ddb
+    # Scripts de liga: usar carpeta general (no redirección a carpetas de equipo)
+    if _current_script_is_liga:
         if isinstance(path, str) and path.endswith('.parquet'):
-            _con = _ddb.connect()
-            _safe = path.replace("'", "\\'")
-            _info = _con.execute(
-                "DESCRIBE SELECT * FROM read_parquet('" + _safe + "') LIMIT 0"
-            ).df()
-            _jrow = [(r['column_name'], r['column_type']) for _, r in _info.iterrows()
-                     if any(_x in r['column_name'].lower() for _x in ['jornada', 'week', 'semana', 'matchday'])]
-            _jcol = _jrow[0][0] if _jrow else None
-            _jtype = _jrow[0][1] if _jrow else ''
-            if _jcol:
-                if any(_t in _jtype.upper() for _t in ['INT','BIGINT','SMALLINT','HUGEINT','DOUBLE','FLOAT','DECIMAL']):
-                    _sql = "SELECT * FROM read_parquet(?) WHERE " + _jcol + " BETWEEN ? AND ?"
-                else:
-                    _sql = (
-                        "SELECT * FROM read_parquet(?) WHERE "
-                        "TRY_CAST(TRIM(replace(replace(lower(CAST(" + _jcol + " AS VARCHAR)),'j',''),'w','')) AS INTEGER) BETWEEN ? AND ?"
-                    )
-                _df = _con.execute(_sql, [path, j_ini, j_fin]).df()
-                _con.close()
-                filas = len(_df)
-                if filas == 0:
-                    print(f"   ⚠️ ALERTA DE FILTRO: 0 filas. Columna: {_jcol} (Rango: {j_ini}-{j_fin})")
+            _df = _duckdb_filter(path, j_ini, j_fin)
+            if _df is not None:
+                if len(_df) == 0:
+                    print(f"   ⚠️ ALERTA DE FILTRO: 0 filas. (Rango: {j_ini}-{j_fin})")
                 return _df
-            _con.close()
-    except Exception as e:
-        pass
+        return _original_read_parquet(path, *args, **kwargs)
+
+    # Resolver rutas a carpetas de equipo (rival + Villarreal)
+    equipo = os.environ.get('TACTIC_EQUIPO', '')
+    if equipo and isinstance(path, str) and path.endswith('.parquet'):
+        equipo_folder = _find_team_folder(equipo)
+        villa_folder = _find_team_folder('Villarreal')
+        if villa_folder == equipo_folder:
+            villa_folder = None
+        p1 = _to_team_path(path, equipo_folder)
+        p2 = _to_team_path(path, villa_folder)
+        if p1 and p2:
+            df1 = _duckdb_filter(p1, j_ini, j_fin)
+            if df1 is None:
+                df1 = _original_read_parquet(p1, *args, **kwargs)
+            df2 = _duckdb_filter(p2, j_ini, j_fin)
+            if df2 is None:
+                df2 = _original_read_parquet(p2, *args, **kwargs)
+            return pd.concat([df1, df2], ignore_index=True).drop_duplicates()
+        elif p1:
+            path = p1
+        elif p2:
+            path = p2
+
+    # Intentar DuckDB pushdown (con path posiblemente resuelto)
+    if isinstance(path, str) and path.endswith('.parquet'):
+        _df = _duckdb_filter(path, j_ini, j_fin)
+        if _df is not None:
+            if len(_df) == 0:
+                print(f"   ⚠️ ALERTA DE FILTRO: 0 filas. (Rango: {j_ini}-{j_fin})")
+            return _df
 
     # Fallback pandas
     df = _original_read_parquet(path, *args, **kwargs)
@@ -231,21 +318,27 @@ def ejecutar_script_en_memoria(script_path, inputs_simulados):
     Ahorra mucha CPU y RAM al no abrir nuevos interpretes.
     """
     print(f"   ▶️ Procesando: {os.path.basename(script_path)}")
-    
+
+    # Determinar si es script de liga
+    is_script_liga = script_path in SCRIPTS_LIGA
+    global _current_script_is_liga
+    _current_script_is_liga = is_script_liga
+
     # 1. Redirigir stdin para que el script 'crea' que el usuario escribe
     stdin_original = sys.stdin
     sys.stdin = io.StringIO(inputs_simulados)
-    
+
     # 2. Crear entorno aislado (Scope)
     # Importante: Pasamos 'pd' ya parcheado para que filtren automáticamente
     script_scope = {
         '__builtins__': __builtins__,
         '__name__': '__main__',
         '__file__': script_path,
-        'pd': pd, 
+        'pd': pd,
         'plt': plt,
         'sys': sys,
-        'os': os
+        'os': os,
+        '_is_script_liga': is_script_liga,  # Flag para el parche
     }
     
     try:
@@ -363,6 +456,7 @@ def main():
     # Así los scripts hijos sabrán qué filtrar al leer parquets
     os.environ['TACTIC_J_INI'] = str(jornada_inicio)
     os.environ['TACTIC_J_FIN'] = str(jornada_fin)
+    os.environ['TACTIC_EQUIPO'] = equipo_canonico
 
     # Preparar directorios
     temp_dir = "reportes_temporales"
