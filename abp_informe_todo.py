@@ -406,7 +406,14 @@ def main():
             continue
         
         pdfs_antes = set(f for f in os.listdir('.') if f.endswith(".pdf"))
-        
+
+        # --- DETECCIÓN CARPETA GENERAL vs EQUIPO ---
+        # Scripts cuyo número entero (el que sigue a 'abp') está en este conjunto
+        # leen de la carpeta GENERAL; el resto leen de la carpeta del equipo.
+        _ABP_GENERAL = {'1','3','4','5','6','10','11','12','13','14','15','16','18','20','23','24'}
+        _m_abp = re.match(r'^abp(\d+)', script_py)
+        _is_liga = bool(_m_abp and _m_abp.group(1) in _ABP_GENERAL)
+
         # --- DEFINICIÓN DE RESPUESTAS (INPUTS) ---
         if 'mediacoach' in script_py.lower():
             # Mediacoach sigue usando índices (si no lo has cambiado)
@@ -432,6 +439,7 @@ def main():
             matplotlib.use('Agg')
             _j0, _j1 = {jornada_inicio}, {jornada_fin}
             _equipo_key = '{equipo_canonico}'
+            _is_liga = {_is_liga}
             def _norm(s):
                 for x in [' cf',' fc',' rc',' rcd',' ca',' ud',' ','-']:
                     s = s.lower().replace(x,'')
@@ -495,6 +503,10 @@ def main():
             def _r(path, *a, **kw):
                 if not (isinstance(path, str) and path.endswith('.parquet')):
                     return _orig_rp(path, *a, **kw)
+                # Scripts de liga usan la carpeta GENERAL (ruta original, sin redirección)
+                if _is_liga:
+                    return _read_one(path)
+                # Scripts de equipo: redirigir a carpeta del equipo + Villarreal
                 p1 = _to_path(path, _equipo_folder)
                 p2 = _to_path(path, _villa_folder)
                 if p1 and p2:

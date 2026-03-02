@@ -226,6 +226,65 @@ QUALIFIER_MAPPING = {
 }
 
 # ====================================
+# CREAR CARPETAS EQUIPOS FUNCTION
+# ====================================
+
+def run_crear_carpetas_equipos(add_message_fn=None, update_progress_fn=None, progress_start=95, progress_end=98):
+    """
+    Ejecuta crear_carpetas_equipos_datos.py para actualizar las carpetas por equipo
+    después de una descarga de datos. Llama a las funciones de progreso si se proporcionan.
+    """
+    script_path = os.path.join(os.path.dirname(__file__), 'crear_carpetas_equipos_datos.py')
+
+    if add_message_fn:
+        add_message_fn("📁 Actualizando carpetas de datos por equipo...")
+    else:
+        print("📁 Actualizando carpetas de datos por equipo...")
+
+    if update_progress_fn:
+        update_progress_fn(progress_start, "Actualizando carpetas por equipo...")
+
+    try:
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        output = (result.stdout + result.stderr).strip()
+        for line in output.splitlines():
+            if line.strip():
+                if add_message_fn:
+                    add_message_fn(f"  {line}")
+                else:
+                    print(f"  {line}")
+
+        if result.returncode == 0:
+            if add_message_fn:
+                add_message_fn("✅ Carpetas de equipos actualizadas correctamente.")
+            else:
+                print("✅ Carpetas de equipos actualizadas correctamente.")
+        else:
+            if add_message_fn:
+                add_message_fn(f"⚠️ crear_carpetas_equipos_datos.py terminó con código {result.returncode}.", "warning")
+            else:
+                print(f"⚠️ crear_carpetas_equipos_datos.py terminó con código {result.returncode}.")
+    except subprocess.TimeoutExpired:
+        if add_message_fn:
+            add_message_fn("⚠️ Timeout al actualizar carpetas de equipos (>300s).", "warning")
+        else:
+            print("⚠️ Timeout al actualizar carpetas de equipos (>300s).")
+    except Exception as e:
+        if add_message_fn:
+            add_message_fn(f"⚠️ Error al actualizar carpetas de equipos: {e}", "warning")
+        else:
+            print(f"⚠️ Error al actualizar carpetas de equipos: {e}")
+
+    if update_progress_fn:
+        update_progress_fn(progress_end, "Carpetas de equipos actualizadas.")
+
+
+# ====================================
 # GIT AUTO-SYNC FUNCTION
 # ====================================
 
@@ -2491,6 +2550,15 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
 
     process.wait()
 
+    # Actualizar carpetas de equipos con los nuevos datos
+    def _mc_add_message(msg, msg_type="info"):
+        messages.append({'timestamp': datetime.now().strftime("%H:%M:%S"), 'message': msg})
+        print(msg)
+    def _mc_update_progress(progress, status=""):
+        if progress_callback:
+            progress_callback(progress, status, messages[-50:])
+    run_crear_carpetas_equipos(add_message_fn=_mc_add_message, update_progress_fn=_mc_update_progress, progress_start=95, progress_end=98)
+
     # Auto-commit y push a GitHub
     print("📤 Subiendo cambios de MediaCoach a GitHub...")
     git_auto_sync("MediaCoach")
@@ -2708,6 +2776,9 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
     except Exception as e:
         add_message(f"⚠️ Error procesando ABP: {e}", "warning")
     
+    # Actualizar carpetas de equipos con los nuevos datos
+    run_crear_carpetas_equipos(add_message_fn=add_message, update_progress_fn=update_progress, progress_start=96, progress_end=98)
+
     add_message("🎉 ¡Actualización completada!", "success")
     update_progress(100, "¡Actualización completada!")
 
@@ -3356,9 +3427,14 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None):
         procesar_dataset(temp_csv_path, parquet_dest, id_col)
 
         add_message(f"✅ Datos de {tipo} actualizados en {parquet_dest}")
-        update_progress(80, "Sincronizando con Git...")
+        update_progress(80, "Actualizando carpetas de equipos...")
 
-        # 5. Sincronizar con Git
+        # 5. Actualizar carpetas de equipos con los nuevos datos
+        run_crear_carpetas_equipos(add_message_fn=add_message, update_progress_fn=update_progress, progress_start=82, progress_end=95)
+
+        update_progress(95, "Sincronizando con Git...")
+
+        # 6. Sincronizar con Git
         git_auto_sync("Sportian")
 
         add_message("✅ Proceso completado exitosamente")

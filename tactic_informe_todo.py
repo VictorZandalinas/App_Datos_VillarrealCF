@@ -24,13 +24,16 @@ except ImportError as e:
     sys.exit(1)
 
 # --- Scripts que necesitan datos de TODA la liga (carpeta general, no equipo específico) ---
-SCRIPTS_LIGA = [
-    'tactic1_opta_clasificacion_liga.py',
-    'tactic1.1_mediacoach_resumen_con_balon.py',
-    'tactic1.2_mediacoach_resumen_sin_balon.py',
-    'tactic1.3_mediacoach_evolucion_resumen_general.py',
-    'tactic1.4_opta_xT.py',
-]
+# Se usa matching por prefijo numérico para no depender del nombre completo del archivo.
+PREFIJOS_LIGA_TACTIC = (
+    'tactic1_', 'tactic1.1_', 'tactic1.2_', 'tactic1.3_', 'tactic1.4_',
+    'tactic2.2.1_',
+)
+
+def _es_script_liga_tactic(script_path):
+    """Devuelve True si el script tactic debe leer de la carpeta general."""
+    nombre = os.path.basename(script_path)
+    return any(nombre.startswith(p) for p in PREFIJOS_LIGA_TACTIC)
 
 # --- 1. CONFIGURACIÓN DE MEMORIA Y PARCHE PANDAS ---
 
@@ -319,8 +322,8 @@ def ejecutar_script_en_memoria(script_path, inputs_simulados):
     """
     print(f"   ▶️ Procesando: {os.path.basename(script_path)}")
 
-    # Determinar si es script de liga
-    is_script_liga = script_path in SCRIPTS_LIGA
+    # Determinar si es script de liga (usa carpeta general)
+    is_script_liga = _es_script_liga_tactic(script_path)
     global _current_script_is_liga
     _current_script_is_liga = is_script_liga
 

@@ -124,14 +124,21 @@ class InformeGeneratorChunked:
     memoria agresivamente entre chunks para evitar OOM en servidores limitados.
     """
 
-    # Scripts que necesitan datos de TODA la liga (carpeta general, no equipo específico)
-    SCRIPTS_LIGA = [
-        'tactic1_opta_clasificacion_liga.py',
-        'tactic1.1_mediacoach_resumen_con_balon.py',
-        'tactic1.2_mediacoach_resumen_sin_balon.py',
-        'tactic1.3_mediacoach_evolucion_resumen_general.py',
-        'tactic1.4_opta_xT.py',
-    ]
+    # Scripts TACTIC que necesitan datos de TODA la liga (carpeta general, no equipo específico).
+    # Se compara por prefijo numérico (e.g. 'tactic1_', 'tactic2.2.1_') para no depender
+    # del nombre completo del archivo.
+    PREFIJOS_LIGA_TACTIC = (
+        'tactic1_', 'tactic1.1_', 'tactic1.2_', 'tactic1.3_', 'tactic1.4_',
+        'tactic2.2.1_',
+    )
+
+    # Scripts ABP que usan la carpeta GENERAL (estadísticas de liga, no carpeta de equipo).
+    # Se identifica por el número entero que sigue a 'abp' (ignorando decimales).
+    NUMEROS_LIGA_ABP = {
+        '1', '3', '4', '5', '6',
+        '10', '11', '12', '13', '14', '15', '16', '18', '20',
+        '23', '24',
+    }
 
     def __init__(self, tipo_informe, chunk_size=6, team_mappings=None, equipos_opta=None, equipos_mediacoach=None):
         """
@@ -378,6 +385,19 @@ class InformeGeneratorChunked:
 
         return chunk_pdfs
 
+    def _es_script_liga(self, script):
+        """
+        Devuelve True si el script debe leer de la carpeta GENERAL (no carpeta de equipo).
+        - TACTIC: coincidencia de prefijo numérico (tactic1_, tactic1.1_, tactic2.2.1_, …)
+        - ABP: el número entero tras 'abp' está en NUMEROS_LIGA_ABP
+        """
+        if self.tipo in ('TACTIC', 'TACTICO'):
+            return any(script.startswith(p) for p in self.PREFIJOS_LIGA_TACTIC)
+        if self.tipo == 'ABP':
+            m = re.match(r'^abp(\d+)', script, re.IGNORECASE)
+            return bool(m and m.group(1) in self.NUMEROS_LIGA_ABP)
+        return False
+
     def _ejecutar_script_individual(self, script, equipo, j_inicio, j_fin):
         """
         Ejecuta un script individual en un subprocess aislado.
@@ -401,7 +421,7 @@ class InformeGeneratorChunked:
         respuestas = self._preparar_inputs(script, equipo, j_fin)
 
         # Determinar si es un script de "liga" (datos de toda la liga) o de "equipo"
-        is_script_liga = script in self.SCRIPTS_LIGA
+        is_script_liga = self._es_script_liga(script)
 
         # Código inyectado: monkey-patch pd.read_parquet (DuckDB pushdown) + ejecutar script
         # - Para scripts de equipo: merge rival folder + Villarreal folder
@@ -503,7 +523,7 @@ class InformeGeneratorChunked:
                 text=True,
                 bufsize=1
             )
-            stdout, _ = proceso.communicate(input=respuestas, timeout=300)
+            stdout, _ = proceso.communicate(input=respuestas, timeout=420)  # abp2.2 tarda ~321s
 
             # Mostrar últimas líneas de salida del subprocess
             if stdout:
@@ -516,7 +536,7 @@ class InformeGeneratorChunked:
                 print(f"   ⚠️ {script} terminó con código {proceso.returncode}")
 
         except subprocess.TimeoutExpired:
-            print(f"   ❌ Timeout ejecutando {script} (>300s)")
+            print(f"   ❌ Timeout ejecutando {script} (>420s)")
             proceso.kill()
             proceso.wait()
         except Exception as e:
