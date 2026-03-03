@@ -137,7 +137,7 @@ class InformeGeneratorChunked:
     NUMEROS_LIGA_ABP = {
         '1', '3', '4', '5', '6',
         '10', '11', '12', '13', '14', '15', '16', '18', '20',
-        '23', '24',
+        '23', '24', '25',
     }
 
     def __init__(self, tipo_informe, chunk_size=6, team_mappings=None, equipos_opta=None, equipos_mediacoach=None):

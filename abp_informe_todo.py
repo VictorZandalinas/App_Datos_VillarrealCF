@@ -410,7 +410,7 @@ def main():
         # --- DETECCIÓN CARPETA GENERAL vs EQUIPO ---
         # Scripts cuyo número entero (el que sigue a 'abp') está en este conjunto
         # leen de la carpeta GENERAL; el resto leen de la carpeta del equipo.
-        _ABP_GENERAL = {'1','3','4','5','6','10','11','12','13','14','15','16','18','20','23','24'}
+        _ABP_GENERAL = {'1','3','4','5','6','10','11','12','13','14','15','16','18','20','23','24','25'}
         _m_abp = re.match(r'^abp(\d+)', script_py)
         _is_liga = bool(_m_abp and _m_abp.group(1) in _ABP_GENERAL)
 

@@ -29,6 +29,8 @@ class AnalizadorPenaltis:
         # Inicializar variables
         self.df = None
         self.penalties_data = pd.DataFrame()
+        self._photos_cache = None   # Cache para load_player_photos
+        self._logo_cache = {}       # Cache para load_team_logo
         
         # Cargar archivos auxiliares
         try:
@@ -141,45 +143,50 @@ class AnalizadorPenaltis:
     def load_data(self, team_filter=None):
         """Carga los datos necesarios desde los parquets"""
         try:
-            # Cargar columnas básicas que sabemos que existen
-            columns_needed = ['Match ID', 'Team ID', 'Team Name', 'Event Name', 'outcome', 
-                'timeMin', 'timeSec', 'x', 'y', 'playerName', 'playerId', 'timeStamp', 'periodId']
-            
-            # Agregar columnas de penaltis que existen
-            penalty_columns = ['Penalty', 'Low Left', 'High Left', 'Low Centre', 'High Centre', 
-                            'Low Right', 'High Right', 'Goalmouth Y Coordinate', 'Goalmouth Z Coordinate',
-                            'Right footed', 'Left footed', 'Strong', 'Weak', 'Scored', 'Saved',
-                            'Standing', 'Diving']
-            
-            # Cargar todas las columnas (no filtrar, cargar todo el dataset)
-            self.df = pd.read_parquet(self.data_path)
-            
-            # Normalizar timestamp
-            self.df['timeStamp'] = self.df['timeStamp'].apply(self.normalize_timestamp)
-            
-            # Si hay filtro de equipo, filtrar matches desde el inicio
-            if team_filter:
+            # Columnas básicas + penaltis
+            columns_needed = ['Match ID', 'Team ID', 'Team Name', 'Event Name', 'outcome',
+                'timeMin', 'timeSec', 'x', 'y', 'playerName', 'playerId', 'timeStamp', 'periodId',
+                'Penalty', 'Low Left', 'High Left', 'Low Centre', 'High Centre',
+                'Low Right', 'High Right', 'Goalmouth Y Coordinate', 'Goalmouth Z Coordinate',
+                'Right footed', 'Left footed', 'Strong', 'Weak', 'Scored', 'Saved',
+                'Standing', 'Diving', 'Penalty taken', 'Missed', 'Panenka']
+
+            # Leer solo las columnas que existen en el parquet
+            import pyarrow.parquet as pq
+            parquet_columns = pq.read_schema(self.data_path).names
+            cols_to_load = [c for c in columns_needed if c in parquet_columns]
+            self.df = pd.read_parquet(self.data_path, columns=cols_to_load)
+
+            # Filtrar por equipo ANTES de normalizar timestamps (evita procesar 443k filas)
+            if team_filter and not self.team_stats.empty:
                 team_matches = self.team_stats[self.team_stats['Team Name'] == team_filter]['Match ID'].unique()
                 self.df = self.df[self.df['Match ID'].isin(team_matches)]
-            
+
+            # Normalizar timestamp solo sobre las filas filtradas
+            self.df['timeStamp'] = self.normalize_timestamp_vectorized(self.df['timeStamp'])
+
         except Exception as e:
             pass
 
     def normalize_timestamp(self, timestamp):
-        """Normaliza timestamps quitando la Z final si existe"""
+        """Normaliza un timestamp individual (mantenido para compatibilidad)"""
         if pd.isna(timestamp):
             return timestamp
-        
-        timestamp_str = str(timestamp).strip()
-        
-        if timestamp_str.endswith('Z'):
-            timestamp_str = timestamp_str[:-1]
-        
+        timestamp_str = str(timestamp).strip().rstrip('Z')
         try:
-            dt = pd.to_datetime(timestamp_str)
-            return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            return pd.to_datetime(timestamp_str).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         except:
-            return timestamp  # Devolver original si falla la conversión
+            return timestamp
+
+    def normalize_timestamp_vectorized(self, series):
+        """Normaliza timestamps de forma vectorizada (100x más rápido que .apply())"""
+        result = series.astype(str).str.strip().str.rstrip('Z')
+        parsed = pd.to_datetime(result, errors='coerce')
+        # Para los que se parsearon bien, formatear; para los que fallaron, usar original
+        mask = parsed.notna()
+        out = series.copy().astype(object)
+        out[mask] = parsed[mask].dt.strftime('%Y-%m-%d %H:%M:%S.%f').str[:-3]
+        return out
 
     def extract_penalties(self, team_filter=None):
         """Extrae todos los penaltis del equipo seleccionado"""
@@ -266,13 +273,17 @@ class AnalizadorPenaltis:
     def determine_penalty_result(self, penalty_row):
         """Determina el resultado del penalti basado en el Event Name y qualifiers"""
         event_name = penalty_row['Event Name']
-        
+
         # Verificar qualifiers específicos si están disponibles
-        if penalty_row.get('Scored') == 'Sí':
+        # pd.notna() evita TypeError cuando el valor es pd.NA
+        scored = penalty_row.get('Scored')
+        saved = penalty_row.get('Saved')
+        missed = penalty_row.get('Missed')
+        if pd.notna(scored) and scored == 'Sí':
             return 'Gol'
-        elif penalty_row.get('Saved') == 'Sí':
+        elif pd.notna(saved) and saved == 'Sí':
             return 'Parado'
-        elif penalty_row.get('Missed') == 'Sí':
+        elif pd.notna(missed) and missed == 'Sí':
             return 'Fallado'
         
         # Fallback basado en Event Name
@@ -307,26 +318,30 @@ class AnalizadorPenaltis:
             'goalkeeper_action': 'Desconocido'
         }
         
+        def _eq(val, target):
+            """Comparación segura contra pd.NA"""
+            return pd.notna(val) and val == target
+
         # Pie utilizado
-        if penalty_row.get('Right footed') == 'Sí':
+        if _eq(penalty_row.get('Right footed'), 'Sí'):
             characteristics['foot_used'] = 'Derecho'
-        elif penalty_row.get('Left footed') == 'Sí':
+        elif _eq(penalty_row.get('Left footed'), 'Sí'):
             characteristics['foot_used'] = 'Izquierdo'
-        
+
         # Potencia del disparo
-        if penalty_row.get('Strong') == 'Sí':
+        if _eq(penalty_row.get('Strong'), 'Sí'):
             characteristics['power'] = 'Fuerte'
-        elif penalty_row.get('Weak') == 'Sí':
+        elif _eq(penalty_row.get('Weak'), 'Sí'):
             characteristics['power'] = 'Suave'
-        
+
         # Técnica especial
-        if penalty_row.get('Panenka') == 'Sí':
+        if _eq(penalty_row.get('Panenka'), 'Sí'):
             characteristics['technique'] = 'Panenka'
-        
+
         # Acción del portero
-        if penalty_row.get('Standing') == 'Sí':
+        if _eq(penalty_row.get('Standing'), 'Sí'):
             characteristics['goalkeeper_action'] = 'De pie'
-        elif penalty_row.get('Diving') == 'Sí':
+        elif _eq(penalty_row.get('Diving'), 'Sí'):
             characteristics['goalkeeper_action'] = 'Lanzándose'
         
         return characteristics
@@ -364,7 +379,16 @@ class AnalizadorPenaltis:
             return str(int(shirt_number)) if pd.notna(shirt_number) else None
         return None
 
-    def load_team_logo(self, equipo, target_size=(80, 80)):
+    def load_team_logo(self, equipo, target_size=(80, 80)):  # noqa: mutable default ok here
+        """Carga y redimensiona el logo del equipo (con cache)"""
+        cache_key = (equipo, target_size)
+        if cache_key in self._logo_cache:
+            return self._logo_cache[cache_key]
+        result = self._load_team_logo_impl(equipo, target_size)
+        self._logo_cache[cache_key] = result
+        return result
+
+    def _load_team_logo_impl(self, equipo, target_size=(80, 80)):
         """Carga y redimensiona el logo del equipo"""
         try:
             from PIL import Image
@@ -442,14 +466,16 @@ class AnalizadorPenaltis:
         return plt.imread("assets/fondo_informes.png") if os.path.exists("assets/fondo_informes.png") else None
 
     def load_player_photos(self):
-        """Carga el JSON con las fotos de jugadores"""
+        """Carga el JSON con las fotos de jugadores (con cache)"""
+        if self._photos_cache is not None:
+            return self._photos_cache
         import json
         try:
             with open('assets/jugadores_optimizados.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
+                self._photos_cache = json.load(f)
         except FileNotFoundError:
-            pass
-            return []
+            self._photos_cache = []
+        return self._photos_cache
 
     def get_player_photo_without_dorsal(self, player_name, photos_data):
         """Obtiene la foto sin fondo blanco pero SIN dorsal"""

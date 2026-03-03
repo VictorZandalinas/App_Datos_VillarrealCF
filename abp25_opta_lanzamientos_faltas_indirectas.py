@@ -224,12 +224,13 @@ class ReporteCampogramasFaltas:
                 self.df['dorsal_lanzador'] = None
             
             try:
-                match_info = self.team_stats[['Match ID', 'Team Name', 'Is Home']].copy()
-                self.df = self.df.merge(
-                    match_info,
-                    on=['Match ID', 'Team Name'],
-                    how='left'
-                )
+                if 'Is Home' not in self.df.columns:
+                    match_info = self.team_stats[['Match ID', 'Team Name', 'Is Home']].copy()
+                    self.df = self.df.merge(
+                        match_info,
+                        on=['Match ID', 'Team Name'],
+                        how='left'
+                    )
             except Exception as e:
                 print(f"⚠️ Error en merge local/visitante: {e}")
                 self.df['Is Home'] = False  # Añadir columna por defecto si falla
@@ -298,13 +299,13 @@ class ReporteCampogramasFaltas:
         # Hacer copia para no modificar el DataFrame original
         df = self.df.copy()
         
-        # Aplicar filtro de jornadas
+        # Aplicar filtro de jornadas (comparación numérica para ser robusto con int/float/str)
         if jornadas_filter is not None:
-            # Usar el filtro proporcionado como parámetro
-            df = df[df['Week'].isin([str(j) for j in jornadas_filter])]
+            _jf_int = [int(j) for j in jornadas_filter]
+            df = df[pd.to_numeric(df['Week'], errors='coerce').isin(_jf_int)]
         elif hasattr(self, 'jornadas_filter') and self.jornadas_filter:
-            # Usar el filtro guardado en el objeto
-            df = df[df['Week'].isin([str(j) for j in self.jornadas_filter])]
+            _jf_int = [int(j) for j in self.jornadas_filter]
+            df = df[pd.to_numeric(df['Week'], errors='coerce').isin(_jf_int)]
         else:
             pass
         
