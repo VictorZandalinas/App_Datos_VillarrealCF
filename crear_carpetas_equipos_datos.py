@@ -1,6 +1,19 @@
 import pandas as pd
 import os
-import shutil  # Añadimos shutil para copiar archivos directamente
+import shutil
+import argparse
+import sys
+
+# ==========================================
+# 0. ARGUMENTOS DE LÍNEA DE COMANDOS
+# ==========================================
+parser = argparse.ArgumentParser(description='Actualizar carpetas de datos por equipo')
+parser.add_argument(
+    '--delta_path', default=None,
+    help='Carpeta temporal con solo los datos nuevos de esta sesión (modo delta rápido). '
+         'Estructura: delta/opta/, delta/mediacoach/, delta/sportian/'
+)
+args = parser.parse_args()
 
 # ==========================================
 # 1. CONFIGURACIÓN Y DICCIONARIO DE EQUIPOS
@@ -28,26 +41,31 @@ equipos_info = {
     "Villarreal": {"mc_id": 64, "opta_id": "74mcjsm72vr3l9pw2i4qfjchj", "sportian_name": "Villarreal"}
 }
 
+# carpeta_destino: subcarpeta real que se usa dentro de data_por_equipos/<equipo>/
+# Se separa de "ruta" para que en modo delta la ruta cambie pero la carpeta destino no.
 carpetas_config = {
     "mediacoach": {
         "ruta": "extraccion_mediacoach/data",
         "col_partido": "ID PARTIDO",
-        "claves_equipo":["ID EQUIPO", "id_equipo"]
+        "claves_equipo": ["ID EQUIPO", "id_equipo"],
+        "carpeta_destino": "extraccion_mediacoach/data"
     },
     "opta": {
         "ruta": "extraccion_opta/datos_opta_parquet",
         "col_partido": "Match ID",
-        "claves_equipo": ["Team ID", "team_id"]
+        "claves_equipo": ["Team ID", "team_id"],
+        "carpeta_destino": "datos_opta_parquet"
     },
     "sportian": {
         "ruta": "extraccion_sportian",
         "col_partido": "ID_Partido",
-        "claves_equipo": ["NombreEquipoJugador", "equipo"]
+        "claves_equipo": ["NombreEquipoJugador", "equipo"],
+        "carpeta_destino": "extraccion_sportian"
     }
 }
 
-# Aquí definimos los archivos que se deben copiar enteros sin retocar
-archivos_copia_directa =['estadisticas_abp.parquet', 'estadisticas_abp_liga.parquet']
+# Archivos que se copian enteros sin filtrar por equipo
+archivos_copia_directa = ['estadisticas_abp.parquet', 'estadisticas_abp_liga.parquet']
 carpeta_destino_base = "data_por_equipos"
 
 def buscar_columna_equipo(columnas, claves):
@@ -59,12 +77,37 @@ def buscar_columna_equipo(columnas, claves):
     return None
 
 # ==========================================
-# 2. PASO 1: DESCUBRIR PARTIDOS EN LOS DATOS ORIGEN
+# 2. MODO DELTA vs. MODO COMPLETO
+# En modo delta, se procesan solo las subcarpetas de args.delta_path
+# que contengan archivos .parquet nuevos, en lugar de las rutas completas.
+# ==========================================
+DELTA_MODE = args.delta_path is not None
+
+if DELTA_MODE:
+    print(f"⚡ MODO DELTA: procesando solo datos nuevos desde '{args.delta_path}'")
+    carpetas_config_efectivas = {}
+    for proveedor, config in carpetas_config.items():
+        delta_ruta = os.path.join(args.delta_path, proveedor)
+        if os.path.exists(delta_ruta) and any(
+            f.endswith('.parquet') for f in os.listdir(delta_ruta)
+        ):
+            carpetas_config_efectivas[proveedor] = {**config, "ruta": delta_ruta}
+
+    if not carpetas_config_efectivas:
+        print("⚠️  Delta vacío: no hay archivos .parquet nuevos. Saliendo.")
+        sys.exit(0)
+    proveedores_activos = list(carpetas_config_efectivas.keys())
+    print(f"   Proveedores con datos nuevos: {', '.join(proveedores_activos)}")
+else:
+    carpetas_config_efectivas = carpetas_config
+
+# ==========================================
+# 3. PASO 1: DESCUBRIR PARTIDOS EN LOS DATOS ORIGEN
 # ==========================================
 print("Paso 1: Identificando los partidos de cada equipo en los datos de origen...")
 partidos_por_equipo = {eq: {'mediacoach': set(), 'opta': set(), 'sportian': set()} for eq in equipos_info}
 
-for proveedor, config in carpetas_config.items():
+for proveedor, config in carpetas_config_efectivas.items():
     if not os.path.exists(config["ruta"]):
         continue
 
@@ -79,30 +122,30 @@ for proveedor, config in carpetas_config.items():
 
                     if col_eq:
                         for equipo, ids in equipos_info.items():
-                            id_buscar = ids["mc_id"] if proveedor == "mediacoach" else ids["opta_id"] if proveedor == "opta" else ids["sportian_name"]
-                            # Guardamos todos los IDs de partidos donde aparece este equipo
+                            id_buscar = (
+                                ids["mc_id"] if proveedor == "mediacoach"
+                                else ids["opta_id"] if proveedor == "opta"
+                                else ids["sportian_name"]
+                            )
                             partidos = df[df[col_eq] == id_buscar][config["col_partido"]].dropna().unique()
                             partidos_por_equipo[equipo][proveedor].update(partidos)
             except Exception as e:
                 print(f"Error escaneando {archivo}: {e}")
 
 # ==========================================
-# 3. PASO 2: FILTRAR Y AÑADIR INCREMENTALMENTE
-# OPTIMIZACIÓN: bucle por proveedor→archivo→equipo en lugar de equipo→proveedor→archivo
-# Así cada archivo origen se lee UNA SOLA VEZ (antes se leía 20 veces, una por equipo)
+# 4. PASO 2: FILTRAR Y AÑADIR INCREMENTALMENTE
+# Optimización: bucle por proveedor→archivo→equipo para leer cada archivo UNA SOLA VEZ.
+# En modo delta los archivos origen son pequeños (solo lo nuevo), por lo que es muy rápido.
 # ==========================================
 print("\nPaso 2: Actualizando carpetas de equipos de forma incremental...")
 
-for proveedor, config in carpetas_config.items():
+for proveedor, config in carpetas_config_efectivas.items():
     if not os.path.exists(config["ruta"]):
         continue
 
     ruta_origen = config["ruta"]
-    carpeta_proveedor = (
-        os.path.basename(ruta_origen)
-        if os.path.basename(ruta_origen) != "data"
-        else os.path.basename(os.path.dirname(ruta_origen)) + "/data"
-    )
+    # Usar carpeta_destino fija del config para que el modo delta no cambie la estructura
+    carpeta_proveedor = config["carpeta_destino"]
 
     # Pre-crear todas las carpetas destino de este proveedor
     for equipo in equipos_info.keys():
@@ -114,15 +157,17 @@ for proveedor, config in carpetas_config.items():
 
         ruta_archivo_origen = os.path.join(ruta_origen, archivo)
 
-        # Archivos de copia directa: se copian tal cual a cada equipo sin leer contenido
+        # Archivos de copia directa: se copian tal cual solo en modo completo.
+        # En modo delta estos archivos no existen (son generados, no descargados).
         if archivo in archivos_copia_directa:
-            for equipo in equipos_info.keys():
-                ruta_destino = os.path.join(carpeta_destino_base, equipo, carpeta_proveedor)
-                shutil.copy2(ruta_archivo_origen, os.path.join(ruta_destino, archivo))
+            if not DELTA_MODE:
+                for equipo in equipos_info.keys():
+                    ruta_destino = os.path.join(carpeta_destino_base, equipo, carpeta_proveedor)
+                    shutil.copy2(ruta_archivo_origen, os.path.join(ruta_destino, archivo))
             continue
 
         try:
-            # ✅ LECTURA ÚNICA: leemos el archivo origen una sola vez y lo distribuimos a los 20 equipos
+            # LECTURA ÚNICA: leemos el archivo origen una sola vez y lo distribuimos a los 20 equipos
             df_origen = pd.read_parquet(ruta_archivo_origen)
             tiene_col_partido = config["col_partido"] in df_origen.columns
 
@@ -159,4 +204,5 @@ for proveedor, config in carpetas_config.items():
         except Exception as e:
             print(f"Error procesando {archivo}: {e}")
 
-print("\n¡Proceso finalizado! Los archivos han sido actualizados incrementalmente y copiados tal cual.")
+modo_str = "delta (solo datos nuevos)" if DELTA_MODE else "completo"
+print(f"\n¡Proceso finalizado en modo {modo_str}! Las carpetas de equipos han sido actualizadas incrementalmente.")

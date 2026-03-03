@@ -229,24 +229,30 @@ QUALIFIER_MAPPING = {
 # CREAR CARPETAS EQUIPOS FUNCTION
 # ====================================
 
-def run_crear_carpetas_equipos(add_message_fn=None, update_progress_fn=None, progress_start=95, progress_end=98):
+def run_crear_carpetas_equipos(add_message_fn=None, update_progress_fn=None, progress_start=95, progress_end=98, delta_path=None):
     """
-    Ejecuta crear_carpetas_equipos_datos.py para actualizar las carpetas por equipo
-    después de una descarga de datos. Llama a las funciones de progreso si se proporcionan.
+    Ejecuta crear_carpetas_equipos_datos.py para actualizar las carpetas por equipo.
+    Si delta_path se proporciona, solo procesa los datos nuevos de esa carpeta temporal
+    (modo delta rápido) en lugar de leer todos los parquets de origen.
     """
     script_path = os.path.join(os.path.dirname(__file__), 'crear_carpetas_equipos_datos.py')
 
+    modo = "delta (solo datos nuevos)" if delta_path else "completo"
     if add_message_fn:
-        add_message_fn("📁 Actualizando carpetas de datos por equipo...")
+        add_message_fn(f"📁 Actualizando carpetas de datos por equipo (modo {modo})...")
     else:
-        print("📁 Actualizando carpetas de datos por equipo...")
+        print(f"📁 Actualizando carpetas de datos por equipo (modo {modo})...")
 
     if update_progress_fn:
         update_progress_fn(progress_start, "Actualizando carpetas por equipo...")
 
+    cmd = [sys.executable, script_path]
+    if delta_path:
+        cmd += ['--delta_path', delta_path]
+
     try:
         result = subprocess.run(
-            [sys.executable, script_path],
+            cmd,
             capture_output=True,
             text=True,
             timeout=600
@@ -2500,11 +2506,11 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
     import os
 
     # 1. Construir la ruta al script orquestador
-    # Asumimos que app.py está en la raíz
     base_path = os.getcwd()
     script_path = os.path.join(base_path, 'extraccion_mediacoach', 'descarga_completa.py')
-    
-    # 2. Comando exacto con los argumentos que espera tu nuevo descarga_completa.py
+    mc_data_path = os.path.join(base_path, 'extraccion_mediacoach', 'data')
+
+    # 2. Comando exacto con los argumentos que espera descarga_completa.py
     cmd = [
         sys.executable, script_path,
         '--liga', str(liga),
@@ -2515,49 +2521,105 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
 
     print(f"🚀 Lanzando orquestador: {' '.join(cmd)}")
 
-    # 3. Ejecutar y leer la salida en tiempo real
+    # 3. Snapshot pre-ejecución: IDs de partido existentes por archivo MediaCoach
+    #    Esto permite calcular el delta después del subprocess sin modificar descarga_completa.py
+    pre_match_ids = {}  # {filename: set(match_ids)}
+    COL_PARTIDO_MC = 'ID PARTIDO'
+    if os.path.exists(mc_data_path):
+        for f in os.listdir(mc_data_path):
+            if f.endswith('.parquet'):
+                try:
+                    df_snap = pd.read_parquet(os.path.join(mc_data_path, f))
+                    if COL_PARTIDO_MC in df_snap.columns:
+                        pre_match_ids[f] = set(df_snap[COL_PARTIDO_MC].unique())
+                    else:
+                        pre_match_ids[f] = set()
+                except Exception:
+                    pre_match_ids[f] = set()
+
+    # 4. Ejecutar y leer la salida en tiempo real
     process = subprocess.Popen(
-        cmd, 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.STDOUT, 
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
         universal_newlines=True
     )
 
     messages = []
-    
-    # Leemos línea a línea lo que imprime tu script (los PROGRESS:XX que pusimos)
+
     for line in process.stdout:
         clean_line = line.strip()
-        if not clean_line: continue
-        
-        print(f"STDOUT: {clean_line}") # Para ver en la terminal del Mac
-        
-        # Detectar el porcentaje para la barra de progreso
+        if not clean_line:
+            continue
+
+        print(f"STDOUT: {clean_line}")
+
         progreso_actual = 0
         if "PROGRESS:" in clean_line:
             try:
-                # Extrae el número entre PROGRESS: y -
                 progreso_actual = int(clean_line.split("PROGRESS:")[1].split("-")[0])
-            except: pass
-        
-        # Enviar a la web
+            except Exception:
+                pass
+
         if progress_callback:
             messages.append({'timestamp': datetime.now().strftime("%H:%M:%S"), 'message': clean_line})
-            # Limitamos a los últimos 50 mensajes para no saturar la web
             progress_callback(progreso_actual, clean_line, messages[-50:])
 
     process.wait()
 
-    # Actualizar carpetas de equipos con los nuevos datos
+    # 5. Helpers de mensajes/progreso para el resto del flujo
     def _mc_add_message(msg, msg_type="info"):
         messages.append({'timestamp': datetime.now().strftime("%H:%M:%S"), 'message': msg})
         print(msg)
+
     def _mc_update_progress(progress, status=""):
         if progress_callback:
             progress_callback(progress, status, messages[-50:])
-    run_crear_carpetas_equipos(add_message_fn=_mc_add_message, update_progress_fn=_mc_update_progress, progress_start=95, progress_end=98)
+
+    # 6. Calcular delta MediaCoach comparando snapshot pre/post
+    mc_delta_path = None
+    try:
+        if os.path.exists(mc_data_path):
+            delta_files = {}
+            for f in os.listdir(mc_data_path):
+                if not f.endswith('.parquet'):
+                    continue
+                try:
+                    df_post = pd.read_parquet(os.path.join(mc_data_path, f))
+                    if COL_PARTIDO_MC not in df_post.columns:
+                        continue
+                    old_ids = pre_match_ids.get(f, set())
+                    new_ids = set(df_post[COL_PARTIDO_MC].unique()) - old_ids
+                    if new_ids:
+                        delta_files[f] = df_post[df_post[COL_PARTIDO_MC].isin(new_ids)]
+                except Exception:
+                    pass
+
+            if delta_files:
+                mc_delta_path = tempfile.mkdtemp(prefix='datos_delta_mc_')
+                mc_delta_dir = os.path.join(mc_delta_path, 'mediacoach')
+                os.makedirs(mc_delta_dir, exist_ok=True)
+                for fname, df_delta in delta_files.items():
+                    df_delta.to_parquet(os.path.join(mc_delta_dir, fname), index=False)
+                total_nuevos = sum(len(df) for df in delta_files.values())
+                _mc_add_message(f"   ⚡ Delta MediaCoach: {len(delta_files)} archivos, {total_nuevos} filas nuevas.")
+    except Exception as e:
+        _mc_add_message(f"⚠️ No se pudo calcular delta MediaCoach, usando modo completo: {e}", "warning")
+        if mc_delta_path:
+            shutil.rmtree(mc_delta_path, ignore_errors=True)
+            mc_delta_path = None
+
+    # 7. Actualizar carpetas de equipos (modo delta si hay nuevos datos, completo si no)
+    try:
+        run_crear_carpetas_equipos(
+            add_message_fn=_mc_add_message, update_progress_fn=_mc_update_progress,
+            progress_start=95, progress_end=98, delta_path=mc_delta_path
+        )
+    finally:
+        if mc_delta_path:
+            shutil.rmtree(mc_delta_path, ignore_errors=True)
 
     # Auto-commit y push a GitHub
     print("📤 Subiendo cambios de MediaCoach a GitHub...")
@@ -2757,7 +2819,7 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
         if i < len(matches_needing_data) - 1:
             time.sleep(DELAY_SECONDS)
     
-    # 6. Save Data
+    # 6. Save Data (con delta para actualización rápida de carpetas por equipo)
     update_progress(85, "Guardando datos...")
     new_data = {}
     for data_type, df_list in all_data.items():
@@ -2765,19 +2827,27 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
             new_data[data_type] = pd.concat(df_list, ignore_index=True)
         else:
             new_data[data_type] = pd.DataFrame()
-    
-    save_opta_data(new_data, messages)
-    
-    # 7. ABP Processing
-    update_progress(95, "Procesando ABP...")
+
+    # Carpeta temporal delta: save_opta_data escribe aquí solo las filas realmente nuevas
+    opta_delta_path = tempfile.mkdtemp(prefix='datos_delta_opta_')
     try:
-        update_abp_events_standalone()
-        calculate_and_save_abp_statistics()
-    except Exception as e:
-        add_message(f"⚠️ Error procesando ABP: {e}", "warning")
-    
-    # Actualizar carpetas de equipos con los nuevos datos
-    run_crear_carpetas_equipos(add_message_fn=add_message, update_progress_fn=update_progress, progress_start=96, progress_end=98)
+        save_opta_data(new_data, messages, delta_path=opta_delta_path)
+
+        # 7. ABP Processing
+        update_progress(93, "Procesando ABP...")
+        try:
+            update_abp_events_standalone()
+            calculate_and_save_abp_statistics()
+        except Exception as e:
+            add_message(f"⚠️ Error procesando ABP: {e}", "warning")
+
+        # 8. Actualizar carpetas de equipos solo con los datos nuevos (modo delta = rápido)
+        run_crear_carpetas_equipos(
+            add_message_fn=add_message, update_progress_fn=update_progress,
+            progress_start=96, progress_end=98, delta_path=opta_delta_path
+        )
+    finally:
+        shutil.rmtree(opta_delta_path, ignore_errors=True)
 
     add_message("🎉 ¡Actualización completada!", "success")
     update_progress(100, "¡Actualización completada!")
@@ -3000,10 +3070,15 @@ def diagnosticar_duplicados(data_dict):
             sample_keys = new_df[keys].head(3)
             logging.info(f"📋 {data_type} - Muestra de claves:\n{sample_keys}")
 
-def save_opta_data(data_dict, messages=None):
-    """Versión mejorada con append seguro"""
+def save_opta_data(data_dict, messages=None, delta_path=None):
+    """Versión mejorada con append seguro y soporte para carpeta delta.
+
+    Si delta_path se proporciona, las filas verdaderamente nuevas se guardan también
+    en delta_path/opta/<archivo>.parquet para que crear_carpetas_equipos_datos.py
+    las procese rápidamente sin leer los parquets completos.
+    """
     logging.info("Iniciando guardado incremental seguro")
-    
+
     def add_message(msg, msg_type="info"):
         if messages is not None:
             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -3015,6 +3090,12 @@ def save_opta_data(data_dict, messages=None):
     except Exception as e:
         add_message(f"⌚ Error crítico: {str(e)}", "error")
         return
+
+    # Preparar carpeta delta/opta si se proporcionó
+    delta_opta_dir = None
+    if delta_path:
+        delta_opta_dir = os.path.join(delta_path, 'opta')
+        os.makedirs(delta_opta_dir, exist_ok=True)
 
     # Primero diagnosticar
     diagnosticar_duplicados(data_dict)
@@ -3036,7 +3117,7 @@ def save_opta_data(data_dict, messages=None):
         config = file_config[data_type]
         filename = OPTA_PATH / config['filename']
         unique_keys = config['keys']
-        
+
         add_message(f"💾 Procesando: {filename.name}")
 
         try:
@@ -3044,7 +3125,7 @@ def save_opta_data(data_dict, messages=None):
             for key in unique_keys:
                 if key in new_df.columns:
                     new_df = new_df.dropna(subset=[key])
-            
+
             if filename.exists():
                 existing_df = pd.read_parquet(filename)
                 initial_existing = len(existing_df)
@@ -3058,22 +3139,31 @@ def save_opta_data(data_dict, messages=None):
                 )
                 mask_new = merged['_merge'] == 'left_only'
                 truly_new_df = new_df[mask_new.values]
-                
+
                 if len(truly_new_df) > 0:
                     # Solo append las filas nuevas
                     final_df = pd.concat([existing_df, truly_new_df], ignore_index=True)
                     add_message(f"   ✅ Añadidas {len(truly_new_df)} filas nuevas")
+                    # Guardar también en delta para actualización rápida de carpetas por equipo
+                    if delta_opta_dir:
+                        truly_new_df.to_parquet(
+                            os.path.join(delta_opta_dir, config['filename']), index=False
+                        )
                 else:
                     final_df = existing_df
                     add_message(f"   ℹ️ No hay filas nuevas para añadir")
-                
+
                 add_message(f"   📊 Total: {initial_existing} → {len(final_df)} filas")
                 final_df.to_parquet(filename, index=False)
-                
+
             else:
-                # Archivo nuevo
+                # Archivo nuevo: todo es delta
                 new_df.to_parquet(filename, index=False)
                 add_message(f"   ✨ Archivo creado con {len(new_df)} filas")
+                if delta_opta_dir:
+                    new_df.to_parquet(
+                        os.path.join(delta_opta_dir, config['filename']), index=False
+                    )
 
         except Exception as e:
             add_message(f"❌ Error procesando {filename.name}: {e}", "error")
@@ -3423,14 +3513,54 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None):
         add_message(f"🔍 Tipo detectado: {tipo}")
         update_progress(50, f"Procesando {tipo}...")
 
-        # 4. Procesar el dataset
+        # 4. Snapshot de IDs existentes antes de procesar (para calcular el delta)
+        pre_ids = set()
+        if os.path.exists(parquet_dest):
+            try:
+                df_pre = pd.read_parquet(parquet_dest)
+                if id_col in df_pre.columns:
+                    pre_ids = set(df_pre[id_col].unique())
+            except Exception:
+                pass
+
+        # 5. Procesar el dataset (merge incremental CSV → parquet maestro)
         procesar_dataset(temp_csv_path, parquet_dest, id_col)
 
         add_message(f"✅ Datos de {tipo} actualizados en {parquet_dest}")
-        update_progress(80, "Actualizando carpetas de equipos...")
+        update_progress(75, "Calculando delta y actualizando carpetas de equipos...")
 
-        # 5. Actualizar carpetas de equipos con los nuevos datos
-        run_crear_carpetas_equipos(add_message_fn=add_message, update_progress_fn=update_progress, progress_start=82, progress_end=95)
+        # 6. Calcular las filas verdaderamente nuevas y escribir delta temporal
+        sportian_delta_path = None
+        try:
+            if os.path.exists(parquet_dest):
+                df_post = pd.read_parquet(parquet_dest)
+                if id_col in df_post.columns:
+                    new_ids = set(df_post[id_col].unique()) - pre_ids
+                    if new_ids:
+                        delta_df = df_post[df_post[id_col].isin(new_ids)]
+                        sportian_delta_path = tempfile.mkdtemp(prefix='datos_delta_sportian_')
+                        sportian_delta_dir = os.path.join(sportian_delta_path, 'sportian')
+                        os.makedirs(sportian_delta_dir, exist_ok=True)
+                        delta_df.to_parquet(
+                            os.path.join(sportian_delta_dir, os.path.basename(parquet_dest)),
+                            index=False
+                        )
+                        add_message(f"   ⚡ Delta Sportian: {len(new_ids)} eventos nuevos para distribuir.")
+        except Exception as e:
+            add_message(f"⚠️ No se pudo calcular delta Sportian, usando modo completo: {e}", "warning")
+            if sportian_delta_path:
+                shutil.rmtree(sportian_delta_path, ignore_errors=True)
+                sportian_delta_path = None
+
+        # 7. Actualizar carpetas de equipos (modo delta si hay nuevos datos, completo si no)
+        try:
+            run_crear_carpetas_equipos(
+                add_message_fn=add_message, update_progress_fn=update_progress,
+                progress_start=80, progress_end=95, delta_path=sportian_delta_path
+            )
+        finally:
+            if sportian_delta_path:
+                shutil.rmtree(sportian_delta_path, ignore_errors=True)
 
         update_progress(95, "Sincronizando con Git...")
 
