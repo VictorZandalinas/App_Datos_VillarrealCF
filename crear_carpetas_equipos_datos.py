@@ -67,7 +67,7 @@ partidos_por_equipo = {eq: {'mediacoach': set(), 'opta': set(), 'sportian': set(
 for proveedor, config in carpetas_config.items():
     if not os.path.exists(config["ruta"]):
         continue
-    
+
     for archivo in os.listdir(config["ruta"]):
         # Ignoramos los de copia directa en este paso porque no sirven para buscar partidos
         if archivo.endswith(".parquet") and archivo not in archivos_copia_directa:
@@ -76,7 +76,7 @@ for proveedor, config in carpetas_config.items():
                 df = pd.read_parquet(ruta_archivo)
                 if config["col_partido"] in df.columns:
                     col_eq = buscar_columna_equipo(df.columns, config["claves_equipo"])
-                    
+
                     if col_eq:
                         for equipo, ids in equipos_info.items():
                             id_buscar = ids["mc_id"] if proveedor == "mediacoach" else ids["opta_id"] if proveedor == "opta" else ids["sportian_name"]
@@ -88,68 +88,75 @@ for proveedor, config in carpetas_config.items():
 
 # ==========================================
 # 3. PASO 2: FILTRAR Y AÑADIR INCREMENTALMENTE
+# OPTIMIZACIÓN: bucle por proveedor→archivo→equipo en lugar de equipo→proveedor→archivo
+# Así cada archivo origen se lee UNA SOLA VEZ (antes se leía 20 veces, una por equipo)
 # ==========================================
 print("\nPaso 2: Actualizando carpetas de equipos de forma incremental...")
 
-for equipo in equipos_info.keys():
-    print(f"\n--- Procesando: {equipo} ---")
-    
-    for proveedor, config in carpetas_config.items():
-        if not os.path.exists(config["ruta"]):
+for proveedor, config in carpetas_config.items():
+    if not os.path.exists(config["ruta"]):
+        continue
+
+    ruta_origen = config["ruta"]
+    carpeta_proveedor = (
+        os.path.basename(ruta_origen)
+        if os.path.basename(ruta_origen) != "data"
+        else os.path.basename(os.path.dirname(ruta_origen)) + "/data"
+    )
+
+    # Pre-crear todas las carpetas destino de este proveedor
+    for equipo in equipos_info.keys():
+        os.makedirs(os.path.join(carpeta_destino_base, equipo, carpeta_proveedor), exist_ok=True)
+
+    for archivo in os.listdir(ruta_origen):
+        if not archivo.endswith(".parquet"):
             continue
-            
-        ruta_origen = config["ruta"]
-        carpeta_proveedor = os.path.basename(ruta_origen) if os.path.basename(ruta_origen) != "data" else os.path.basename(os.path.dirname(ruta_origen)) + "/data"
-        ruta_destino = os.path.join(carpeta_destino_base, equipo, carpeta_proveedor)
-        
-        os.makedirs(ruta_destino, exist_ok=True)
-        partidos_validos_origen = partidos_por_equipo[equipo][proveedor]
-        
-        for archivo in os.listdir(ruta_origen):
-            if not archivo.endswith(".parquet"):
-                continue
-                
-            ruta_archivo_origen = os.path.join(ruta_origen, archivo)
-            ruta_archivo_destino = os.path.join(ruta_destino, archivo)
-            
-            # NUEVO: Si es un archivo de copia directa, lo copiamos y pasamos al siguiente
-            if archivo in archivos_copia_directa:
-                shutil.copy2(ruta_archivo_origen, ruta_archivo_destino)
-                # print(f"  [>] {archivo}: Copiado directamente.") # (Opcional, descomentar si quieres que te avise)
-                continue
-            
-            try:
-                df_origen = pd.read_parquet(ruta_archivo_origen)
-                
-                # Si es un archivo de eventos por partido
-                if config["col_partido"] in df_origen.columns:
-                    
-                    # Filtramos el origen para tener solo los partidos que nos interesan
-                    df_origen_equipo = df_origen[df_origen[config["col_partido"]].isin(partidos_validos_origen)]
-                    
+
+        ruta_archivo_origen = os.path.join(ruta_origen, archivo)
+
+        # Archivos de copia directa: se copian tal cual a cada equipo sin leer contenido
+        if archivo in archivos_copia_directa:
+            for equipo in equipos_info.keys():
+                ruta_destino = os.path.join(carpeta_destino_base, equipo, carpeta_proveedor)
+                shutil.copy2(ruta_archivo_origen, os.path.join(ruta_destino, archivo))
+            continue
+
+        try:
+            # ✅ LECTURA ÚNICA: leemos el archivo origen una sola vez y lo distribuimos a los 20 equipos
+            df_origen = pd.read_parquet(ruta_archivo_origen)
+            tiene_col_partido = config["col_partido"] in df_origen.columns
+
+            for equipo in equipos_info.keys():
+                ruta_destino = os.path.join(carpeta_destino_base, equipo, carpeta_proveedor)
+                ruta_archivo_destino = os.path.join(ruta_destino, archivo)
+
+                if tiene_col_partido:
+                    partidos_validos = partidos_por_equipo[equipo][proveedor]
+                    df_origen_equipo = df_origen[df_origen[config["col_partido"]].isin(partidos_validos)]
+
                     if os.path.exists(ruta_archivo_destino):
                         df_destino = pd.read_parquet(ruta_archivo_destino)
                         partidos_existentes = set(df_destino[config["col_partido"]].unique())
                         partidos_nuevos = set(df_origen_equipo[config["col_partido"]].unique()) - partidos_existentes
-                        
+
                         if partidos_nuevos:
                             df_a_añadir = df_origen_equipo[df_origen_equipo[config["col_partido"]].isin(partidos_nuevos)]
                             df_final = pd.concat([df_destino, df_a_añadir], ignore_index=True)
                             df_final.to_parquet(ruta_archivo_destino, index=False)
-                            print(f"  [+] {archivo}: Añadidos {len(partidos_nuevos)} partidos nuevos.")
-                            
+                            print(f"  [+] {equipo} / {archivo}: Añadidos {len(partidos_nuevos)} partidos nuevos.")
+
                     else:
                         if not df_origen_equipo.empty:
                             df_origen_equipo.to_parquet(ruta_archivo_destino, index=False)
-                            print(f"  [C] {archivo}: Creado por primera vez con {len(df_origen_equipo[config['col_partido']].unique())} partidos.")
+                            print(f"  [C] {equipo} / {archivo}: Creado por primera vez con {len(df_origen_equipo[config['col_partido']].unique())} partidos.")
                         else:
                             df_origen.head(0).to_parquet(ruta_archivo_destino, index=False)
-                
-                # Si es un archivo GENERAL que NO está en la lista de copia directa, lo sobreescribimos
+
                 else:
+                    # Archivo general sin columna de partido: sobreescribir para cada equipo
                     df_origen.to_parquet(ruta_archivo_destino, index=False)
-                    
-            except Exception as e:
-                print(f"Error procesando {archivo} para {equipo}: {e}")
+
+        except Exception as e:
+            print(f"Error procesando {archivo}: {e}")
 
 print("\n¡Proceso finalizado! Los archivos han sido actualizados incrementalmente y copiados tal cual.")

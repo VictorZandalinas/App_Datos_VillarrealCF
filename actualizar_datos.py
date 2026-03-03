@@ -249,7 +249,7 @@ def run_crear_carpetas_equipos(add_message_fn=None, update_progress_fn=None, pro
             [sys.executable, script_path],
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=600
         )
         output = (result.stdout + result.stderr).strip()
         for line in output.splitlines():
@@ -271,9 +271,9 @@ def run_crear_carpetas_equipos(add_message_fn=None, update_progress_fn=None, pro
                 print(f"⚠️ crear_carpetas_equipos_datos.py terminó con código {result.returncode}.")
     except subprocess.TimeoutExpired:
         if add_message_fn:
-            add_message_fn("⚠️ Timeout al actualizar carpetas de equipos (>300s).", "warning")
+            add_message_fn("⚠️ Timeout al actualizar carpetas de equipos (>600s).", "warning")
         else:
-            print("⚠️ Timeout al actualizar carpetas de equipos (>300s).")
+            print("⚠️ Timeout al actualizar carpetas de equipos (>600s).")
     except Exception as e:
         if add_message_fn:
             add_message_fn(f"⚠️ Error al actualizar carpetas de equipos: {e}", "warning")
