@@ -1,0 +1,39 @@
+{
+  "match_id": "89725d08-fbd1-47d2-82eb-ba88fc8b18d1",
+  "jornada": "desconocida",
+  "total_archivos_descargados": 11,
+  "archivos_por_tipo": {
+    "xml_eventos": 0,
+    "pdf_informes": 7,
+    "xlsx_rendimiento": 2,
+    "xlsx_maxima_exigencia": 0,
+    "csv_equipos": 2,
+    "csv_jugadores": 0,
+    "otros": 0
+  },
+  "archivos_descargados": {
+    "xml_eventos": [],
+    "pdf_informes": [
+      "informe_1_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181747.pdf",
+      "informe_2_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181748.pdf",
+      "informe_3_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181749.pdf",
+      "informe_4_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181751.pdf",
+      "informe_5_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181753.pdf",
+      "informe_6_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181753.pdf",
+      "informe_7_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181755.pdf"
+    ],
+    "xlsx_rendimiento": [
+      "rendimiento_1_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181746.xlsx",
+      "rendimiento_2_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181746.xlsx"
+    ],
+    "xlsx_maxima_exigencia": [],
+    "csv_equipos": [
+      "postpartido_equipos_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181747.csv",
+      "postpartido_equipos_jdesconocida_89725d08-fbd1-47d2-82eb-ba88fc8b18d1_20260309_181752.csv"
+    ],
+    "csv_jugadores": [],
+    "otros": []
+  },
+  "errores": [],
+  "timestamp": "2026-03-09T18:17:55.242361"
+}
