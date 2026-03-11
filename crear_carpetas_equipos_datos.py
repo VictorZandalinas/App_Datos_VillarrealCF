@@ -54,7 +54,7 @@ carpetas_config = {
         "ruta": "extraccion_opta/datos_opta_parquet",
         "col_partido": "Match ID",
         "claves_equipo": ["Team ID", "team_id"],
-        "carpeta_destino": "datos_opta_parquet"
+        "carpeta_destino": "extraccion_opta/datos_opta_parquet"
     },
     "sportian": {
         "ruta": "extraccion_sportian",
