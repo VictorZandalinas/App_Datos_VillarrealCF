@@ -511,6 +511,34 @@ class InformeGeneratorChunked:
                 else:
                     return _read_one(path)
             pd.read_parquet = _r
+            # Auto-selección de equipo: interceptar input() para evitar fallos por índice incorrecto
+            # Problema: el wrapper envía el índice basado en la lista global (20 equipos), pero
+            # los scripts generan su lista dinámicamente desde los datos (puede tener distinto N).
+            import builtins as _builtins, sys as _sys
+            _orig_input = _builtins.input
+            _last_teams_cache = [None]
+            _rp_orig_tracking = pd.read_parquet
+            def _rp_tracking(path, *a, **kw):
+                result = _rp_orig_tracking(path, *a, **kw)
+                for _tc in result.columns:
+                    if 'team' in _tc.lower() and ('name' in _tc.lower() or _tc.lower() == 'team'):
+                        _last_teams_cache[0] = sorted(result[_tc].dropna().unique().tolist())
+                        break
+                return result
+            pd.read_parquet = _rp_tracking
+            _stdin_lines = _sys.stdin.read().split('\\n')
+            _stdin_idx = [0]
+            def _auto_input(prompt=''):
+                queued = _stdin_lines[_stdin_idx[0]] if _stdin_idx[0] < len(_stdin_lines) else ''
+                _stdin_idx[0] += 1
+                if 'equipo' in str(prompt).lower() and _last_teams_cache[0] is not None:
+                    try:
+                        _idx = _last_teams_cache[0].index(_equipo_key) + 1
+                        return str(_idx)  # consumimos queued (índice incorrecto), devolvemos el correcto
+                    except (ValueError, TypeError):
+                        pass
+                return queued
+            _builtins.input = _auto_input
             exec(open('{script}', encoding='utf-8').read())
         """)
 
