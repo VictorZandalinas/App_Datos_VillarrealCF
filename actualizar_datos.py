@@ -2523,7 +2523,8 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
 
     # 3. Snapshot pre-ejecución: IDs de partido existentes por archivo MediaCoach
     #    Esto permite calcular el delta después del subprocess sin modificar descarga_completa.py
-    pre_match_ids = {}  # {filename: set(match_ids)}
+    pre_match_ids = {}   # {filename: set(match_ids)}   — archivos con ID PARTIDO
+    pre_row_counts = {}  # {filename: int(row_count)}   — archivos sin ID PARTIDO
     COL_PARTIDO_MC = 'ID PARTIDO'
     if os.path.exists(mc_data_path):
         for f in os.listdir(mc_data_path):
@@ -2533,9 +2534,9 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
                     if COL_PARTIDO_MC in df_snap.columns:
                         pre_match_ids[f] = set(df_snap[COL_PARTIDO_MC].unique())
                     else:
-                        pre_match_ids[f] = set()
+                        pre_row_counts[f] = len(df_snap)
                 except Exception:
-                    pre_match_ids[f] = set()
+                    pass
 
     # 4. Ejecutar y leer la salida en tiempo real
     process = subprocess.Popen(
@@ -2589,6 +2590,11 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
                 try:
                     df_post = pd.read_parquet(os.path.join(mc_data_path, f))
                     if COL_PARTIDO_MC not in df_post.columns:
+                        # Archivos sin ID PARTIDO (rendimiento_fisico, maxima_exigencia, etc.):
+                        # incluir el archivo completo si creció respecto al snapshot pre-ejecución.
+                        old_count = pre_row_counts.get(f, -1)
+                        if old_count >= 0 and len(df_post) > old_count:
+                            delta_files[f] = df_post
                         continue
                     old_ids = pre_match_ids.get(f, set())
                     new_ids = set(df_post[COL_PARTIDO_MC].unique()) - old_ids
