@@ -1,0 +1,49 @@
+{
+  "match_id": "e1104498-a2ce-47ae-8615-c12568a40f2c",
+  "jornada": "desconocida",
+  "total_archivos_descargados": 19,
+  "archivos_por_tipo": {
+    "xml_eventos": 2,
+    "pdf_informes": 9,
+    "xlsx_rendimiento": 2,
+    "xlsx_maxima_exigencia": 0,
+    "csv_equipos": 4,
+    "csv_jugadores": 0,
+    "otros": 2
+  },
+  "archivos_descargados": {
+    "xml_eventos": [
+      "eventos_partido_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162014.xml",
+      "eventos_partido_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162014.xml"
+    ],
+    "pdf_informes": [
+      "informe_1_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162001.pdf",
+      "informe_2_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162002.pdf",
+      "informe_3_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162003.pdf",
+      "informe_4_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162004.pdf",
+      "informe_5_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162006.pdf",
+      "informe_6_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162009.pdf",
+      "informe_7_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162011.pdf",
+      "informe_8_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162012.pdf",
+      "informe_9_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162013.pdf"
+    ],
+    "xlsx_rendimiento": [
+      "rendimiento_1_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_161959.xlsx",
+      "rendimiento_2_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162000.xlsx"
+    ],
+    "xlsx_maxima_exigencia": [],
+    "csv_equipos": [
+      "postpartido_equipos_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162001.csv",
+      "postpartido_equipos_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162002.csv",
+      "postpartido_equipos_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162007.csv",
+      "postpartido_equipos_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162010.csv"
+    ],
+    "csv_jugadores": [],
+    "otros": [
+      "otro_xlsx_general_pos15_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162013.xlsx",
+      "otro_xlsx_general_pos16_jdesconocida_e1104498-a2ce-47ae-8615-c12568a40f2c_20260407_162013.xlsx"
+    ]
+  },
+  "errores": [],
+  "timestamp": "2026-04-07T16:20:14.798542"
+}
