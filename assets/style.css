@@ -1,38 +1,705 @@
+/* ============================================
+   VILLARREAL CF - DASHBOARD PROFESIONAL
+   Departamento de Datos
+   ============================================ */
+
+/* --- VARIABLES DE DISEÑO --- */
+:root {
+    /* Colores corporativos Villarreal */
+    --vr-yellow: #FFD700;
+    --vr-yellow-dark: #FFC000;
+    --vr-blue: #1E90FF;
+    --vr-blue-dark: #0056b3;
+    --vr-blue-deep: #0a2e8a;
+
+    /* Paleta profesional */
+    --bg-primary: #f5f7fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #eef2f7;
+
+    --text-primary: #1a1a2e;
+    --text-secondary: #4a4a68;
+    --text-muted: #8a8aa3;
+
+    --border-light: #e2e8f0;
+    --border-medium: #cbd5e1;
+
+    /* Sombras profesionales */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+    --shadow-glow: 0 0 30px rgba(255, 215, 0, 0.3);
+
+    /* Bordes redondeados */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+
+    /* Transiciones */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.25s ease;
+    --transition-slow: 0.4s ease;
+}
+
 /* --- ESTILOS GENERALES --- */
 body {
-    background-color: #f8f9fa;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
     padding: 0;
     position: relative;
+    color: var(--text-primary);
+    line-height: 1.6;
 }
 
-/* MARCA DE AGUA EXPANDIDA POR TODA LA HOJA */
+/* Tipografía profesional */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+/* Marca de agua sutil - FULLSCREEN */
 body::before {
     content: "";
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    
+    width: 100vw;
+    height: 100vh;
     background-image: url('departamento_datos.png');
-    
-    /* CONFIGURACIÓN PARA EXPANDIR */
-    background-size: cover;      /* Esto hace que la imagen se estire para cubrir toda la pantalla */
-    background-position: center; /* La mantiene centrada al estirarse */
+    background-size: cover;
+    background-position: center;
     background-repeat: no-repeat;
-    
-    /* TRANSPARENCIA Y CAPAS */
-    opacity: 0.15;    /* 0.05 es ideal para que no moleste a la vista (5% de visibilidad) */
-    z-index: -1000;   /* Lo enviamos al fondo absoluto */
-    pointer-events: none; 
+    opacity: 0.08;
+    z-index: -1000;
+    pointer-events: none;
 }
 
-/* --- LOGIN HELICÓPTERO (AERIAL VIEW EFFECT) --- */
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--vr-yellow) 0%, var(--vr-yellow-dark) 100%);
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--vr-yellow-dark) 0%, #FFB300 100%);
+}
+
+/* ============================================
+   NAVBAR PROFESIONAL
+   ============================================ */
+.navbar {
+    background: linear-gradient(90deg, #0a2e8a 0%, #1a4dbf 50%, #0a2e8a 100%) !important;
+    padding: 0.75rem 1.5rem !important;
+    box-shadow: var(--shadow-lg);
+    border-bottom: 2px solid var(--vr-yellow);
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-brand img {
+    filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.4));
+    transition: filter var(--transition-base);
+}
+
+.navbar-brand:hover img {
+    filter: drop-shadow(0 4px 12px rgba(255, 215, 0, 0.6));
+}
+
+.nav-link-custom {
+    color: rgba(255, 255, 255, 0.85) !important;
+    transition: all var(--transition-base);
+    margin-left: 12px;
+    padding: 8px 16px !important;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nav-link-custom:hover {
+    color: #ffffff !important;
+    background: rgba(255, 215, 0, 0.15);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   TARJETAS GENERALES
+   ============================================ */
+.card {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    background: var(--bg-secondary);
+    transition: all var(--transition-base);
+    overflow: hidden;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+.card-header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+    border-bottom: 2px solid var(--vr-yellow);
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+}
+
+.card-header h4,
+.card-header h5 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+/* ============================================
+   GENERADOR DE INFORMES
+   ============================================ */
+.btn {
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    padding: 12px 24px;
+    transition: all var(--transition-base);
+    letter-spacing: 0.02em;
+    border: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* Botones de informe principales */
+#btn-rep-abp,
+#btn-rep-fisico,
+#btn-rep-tactic {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-medium) !important;
+    padding: 0;
+    height: 100%;
+    min-height: 220px;
+    transition: all var(--transition-base);
+    overflow: hidden;
+    position: relative;
+}
+
+#btn-rep-abp:hover {
+    border-color: #dc3545 !important;
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.05) 0%, rgba(220, 53, 69, 0.1) 100%);
+    box-shadow: 0 8px 25px rgba(220, 53, 69, 0.2);
+}
+
+#btn-rep-fisico:hover {
+    border-color: #198754 !important;
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.05) 0%, rgba(25, 135, 84, 0.1) 100%);
+    box-shadow: 0 8px 25px rgba(25, 135, 84, 0.2);
+}
+
+#btn-rep-tactic:hover {
+    border-color: var(--vr-blue) !important;
+    background: linear-gradient(135deg, rgba(30, 144, 255, 0.05) 0%, rgba(30, 144, 255, 0.1) 100%);
+    box-shadow: 0 8px 25px rgba(30, 144, 255, 0.2);
+}
+
+#btn-rep-abp .d-flex img {
+    transition: transform var(--transition-slow);
+}
+
+#btn-rep-fisico .d-flex img {
+    transition: transform var(--transition-slow);
+}
+
+#btn-rep-tactic .d-flex img {
+    transition: transform var(--transition-slow);
+}
+
+#btn-rep-abp:hover img,
+#btn-rep-fisico:hover img,
+#btn-rep-tactic:hover img {
+    transform: scale(1.08);
+}
+
+#btn-rep-abp span,
+#btn-rep-fisico span,
+#btn-rep-tactic span {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    transition: color var(--transition-base);
+}
+
+#btn-rep-abp:hover span {
+    color: #dc3545;
+}
+
+#btn-rep-fisico:hover span {
+    color: #198754;
+}
+
+#btn-rep-tactic:hover span {
+    color: var(--vr-blue);
+}
+
+/* ============================================
+   DROPDOWNS Y FORMULARIOS
+   ============================================ */
+select,
+.form-control,
+.form-select {
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    transition: all var(--transition-base);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+select:focus,
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--vr-blue);
+    box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.12);
+    outline: none;
+}
+
+.form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ============================================
+   GRID DE JORNADAS
+   ============================================ */
+.jornada-card {
+    background: linear-gradient(135deg, #ffffff 0%, var(--bg-tertiary) 100%);
+    border-left: 4px solid var(--vr-yellow);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-base);
+    overflow: hidden;
+    min-height: 130px;
+}
+
+.jornada-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    border-left-color: var(--vr-blue);
+}
+
+.jornada-card .card-body {
+    padding: 14px 12px !important;
+}
+
+.jornada-card h6 {
+    font-size: 0.7rem !important;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.jornada-card .js-plotly-plot {
+    height: 70px !important;
+}
+
+.fuente-stats {
+    font-size: 0.6rem !important;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.fuente-stats > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    min-width: 0;
+}
+
+.fuente-stats img {
+    height: 6px !important;
+    width: auto;
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.fuente-stats span {
+    white-space: nowrap;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.55rem;
+}
+
+/* ============================================
+   PÁGINA DE ACTUALIZACIÓN
+   ============================================ */
+
+/* Tarjetas de proveedores */
+#btn-update-opta ~ .card,
+#btn-update-mediacoach ~ .card,
+#btn-update-sportian ~ .card {
+    border: none;
+    overflow: hidden;
+}
+
+/* Headers específicos por proveedor */
+.card-header[style*="background: #1E90FF"] {
+    background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%) !important;
+}
+
+.card-header[style*="background: #DC143C"] {
+    background: linear-gradient(135deg, #dc143c 0%, #a80f2c 100%) !important;
+}
+
+.card-header[style*="background: #FFD700"] {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+}
+
+/* Botones de actualización */
+#btn-update-opta,
+#btn-update-mediacoach {
+    background: linear-gradient(135deg, var(--vr-blue) 0%, var(--vr-blue-dark) 100%);
+    border: none;
+}
+
+#btn-update-opta:hover,
+#btn-update-mediacoach:hover {
+    background: linear-gradient(135deg, var(--vr-blue-dark) 0%, #004494 100%);
+    box-shadow: 0 6px 20px rgba(30, 144, 255, 0.35);
+}
+
+#btn-update-sportian {
+    background: linear-gradient(135deg, var(--vr-yellow) 0%, var(--vr-yellow-dark) 100%);
+    color: #1a1a2e;
+    border: none;
+}
+
+#btn-update-sportian:hover {
+    background: linear-gradient(135deg, var(--vr-yellow-dark) 0%, #FFB300 100%);
+    box-shadow: 0 6px 20px rgba(255, 215, 0, 0.35);
+}
+
+/* Zona de upload Sportian */
+#sportian-upload {
+    border: 2px dashed var(--border-medium) !important;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    transition: all var(--transition-base);
+}
+
+#sportian-upload:hover {
+    border-color: var(--vr-yellow) !important;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.05) 0%, rgba(255, 215, 0, 0.1) 100%);
+    box-shadow: var(--shadow-md);
+}
+
+#sportian-upload div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+#sportian-upload i {
+    transition: transform var(--transition-base);
+}
+
+#sportian-upload:hover i {
+    transform: scale(1.1);
+}
+
+/* Progress bars */
+.progress {
+    border-radius: var(--radius-xl);
+    background: var(--bg-tertiary);
+    height: 20px;
+    border: 1px solid var(--border-light);
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, var(--vr-yellow) 0%, var(--vr-yellow-dark) 100%);
+    border-radius: var(--radius-xl);
+    transition: width var(--transition-base);
+    position: relative;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        transparent 100%
+    );
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Console de output */
+#update-progress {
+    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    color: #00ff88;
+    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 12px;
+    height: 150px;
+    overflow-y: auto;
+}
+
+/* ============================================
+   MODALES
+   ============================================ */
+.modal-content {
+    border: none;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+    border-bottom: 2px solid var(--vr-yellow);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: 1rem 1.5rem;
+}
+
+.modal-title {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+/* ============================================
+   SPINNERS
+   ============================================ */
+.spinner-border {
+    border-width: 3px;
+}
+
+/* ============================================
+   ALERTAS
+   ============================================ */
+.alert {
+    border: none;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    padding: 1rem 1.25rem;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    color: #155724;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    color: #721c24;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+    color: #856404;
+}
+
+/* ============================================
+   UTILIDADES Y ANIMACIONES
+   ============================================ */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Clases de utilidad */
+.fade-in-up {
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+.slide-in-right {
+    animation: slideInRight 0.4s ease forwards;
+}
+
+/* Hover lift para tarjetas */
+.hover-lift {
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* ============================================
+   RESPONSIVE GENERAL
+   ============================================ */
+@media (max-width: 768px) {
+    /* Navbar responsive */
+    .navbar {
+        padding: 0.5rem 1rem !important;
+    }
+
+    .navbar-brand {
+        font-size: 1rem;
+    }
+
+    .navbar-brand img {
+        height: 60px !important;
+    }
+
+    /* Botones de informe */
+    #btn-rep-abp,
+    #btn-rep-fisico,
+    #btn-rep-tactic {
+        min-height: 180px;
+    }
+
+    /* Tarjetas de jornadas */
+    .jornada-card {
+        min-height: 110px;
+    }
+
+    /* Login responsive */
+    .login-card {
+        padding: 32px 24px 28px;
+        width: 85%;
+    }
+
+    .login-logo {
+        height: 120px !important;
+    }
+
+    .login-title {
+        font-size: 1.15rem;
+    }
+
+    .login-subtitle {
+        font-size: 0.7rem;
+    }
+}
+
+/* ============================================
+   ANIMACIONES DE ENTRADA
+   ============================================ */
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Animar entrada de tarjetas */
+.card {
+    animation: slideUp 0.4s ease forwards;
+}
+
+/* Retraso escalonado para tarjetas de proveedores */
+body #app-wrapper .card:nth-child(1) { animation-delay: 0.1s; }
+body #app-wrapper .card:nth-child(2) { animation-delay: 0.2s; }
+body #app-wrapper .card:nth-child(3) { animation-delay: 0.3s; }
+
+/* ============================================
+   LOGIN HELICÓPTERO (AERIAL VIEW EFFECT)
+   ============================================ */
 .login-container {
     position: relative;
-    width: 100%;
+    width: 100vw;
     height: 100vh;
     overflow: hidden;
     display: flex;
@@ -40,16 +707,17 @@ body::before {
     justify-content: center;
 }
 
-/* Capa de imagen que simula vuelo de helicóptero */
+/* Capa de imagen que simula vuelo de helicóptero - RESPONSIVE */
 .login-background {
-    position: absolute;
-    width: 125%;
-    height: 125%;
-    top: -12.5%;
-    left: -12.5%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     background-image: url('fondo_login.jpg');
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     z-index: -2;
     animation: helicopterFlight 35s ease-in-out infinite;
     will-change: transform;
@@ -68,9 +736,11 @@ body::before {
 
 /* Gradiente oscuro para que el formulario destaque */
 .login-bg-gradient {
-    position: absolute;
-    width: 100%;
-    height: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     background: linear-gradient(
         135deg,
         rgba(0, 10, 40, 0.60) 0%,
@@ -95,6 +765,8 @@ body::before {
     position: relative;
     z-index: 10;
     animation: cardFadeIn 0.6s ease-out;
+    max-width: 480px;
+    width: 90%;
 }
 
 @keyframes cardFadeIn {
@@ -221,70 +893,3 @@ body::before {
     font-weight: 500;
 }
 
-/* --- NAVBAR --- */
-.navbar {
-    background: linear-gradient(90deg, #032ff1f8 0%, #4206e6f8 100%) !important;
-    padding: 0.5rem 1rem;
-}
-
-.nav-link-custom {
-    color: rgba(255, 255, 255, 0.8) !important;
-    transition: all 0.3s ease;
-    margin-left: 15px;
-    font-weight: 500;
-}
-
-.nav-link-custom:hover {
-    color: white !important;
-    transform: translateY(-2px);
-}
-
-/* --- CARDS JORNADAS (DISEÑO VILLARREAL) --- */
-/* Cápsula ultra compacta */
-.jornada-card {
-    background: linear-gradient(135deg, #FFD700 0%, #FFC700 100%);
-    border-left: 3px solid #1E90FF !important;
-    border-radius: 8px;
-    min-height: 120px;
-}
-
-.jornada-card .card-body {
-    padding: 4px !important;
-}
-
-.jornada-card h6 {
-    font-size: 0.65rem !important;
-    color: #333;
-}
-
-/* Gráfico mini */
-.jornada-card .js-plotly-plot {
-    height: 65px !important;
-}
-
-/* Estadísticas de partidos */
-.fuente-stats {
-    font-size: 0.55rem !important; /* Un poco más pequeño para que quepa "part." */
-    font-weight: 700;
-    color: #333;
-    white-space: nowrap; /* Evita que el texto salte de línea */
-}
-
-.fuente-stats img {
-    height: 9px !important;
-    width: auto;
-    margin-right: 2px;
-}
-
-/* --- UTILIDADES Y ANIMACIONES --- */
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #f1f1f1; }
-::-webkit-scrollbar-thumb {
-    background: #1E90FF;
-    border-radius: 10px;
-}

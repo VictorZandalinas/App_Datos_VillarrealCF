@@ -163,8 +163,12 @@ app.index_string = '''
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Departamento Datos - Villarreal CF</title>
     <link rel="icon" href="/assets/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     {%metas%}{%css%}
 </head>
 <body>{%app_entry%}{%config%}{%scripts%}{%renderer%}</body>
@@ -380,64 +384,74 @@ def crear_layout_principal():
     df = obtener_resumen_datos()
     ligas = sorted(df['liga'].unique()) if not df.empty else []
     temporadas = sorted(df['temporada'].unique(), reverse=True) if not df.empty else []
-    
+
     return dbc.Container([
         # --- NAVBAR ---
         dbc.Navbar([
             dbc.Container([
                 dbc.NavbarBrand([
-                    html.Img(src=get_logo_base64("logodatos-villarrealcf.png"), height="80px", className="me-2"),
-                    "Departamento de Datos"
-                ], className="ms-2 fw-bold d-flex align-items-center"),
+                    html.Img(src=get_logo_base64("logodatos-villarrealcf.png"), height="70px", className="me-2"),
+                    html.Span("Departamento de Datos", className="d-none d-md-inline")
+                ], className="ms-2"),
                 dbc.Nav([
                     dbc.NavItem(
-                        html.A("🔄 Actualizar Datos", href="/actualizar", className="nav-link nav-link-custom", style={'cursor': 'pointer'})
+                        html.A([
+                            html.I(className="bi bi-cloud-arrow-up me-1"),
+                            "Actualizar Datos"
+                        ], href="/actualizar", className="nav-link nav-link-custom")
                     ),
-                    dbc.NavItem(dbc.NavLink("🚪 Cerrar Sesión", id="logout-btn", href="#", className="nav-link-custom"))
+                    dbc.NavItem(dbc.NavLink([
+                        html.I(className="bi bi-box-arrow-right me-1"),
+                        "Cerrar Sesión"
+                    ], id="logout-btn", href="#", className="nav-link-custom"))
                 ], className="ms-auto", navbar=True)
             ])
-        ], color="dark", dark=True, className="mb-4 shadow"),
-        
+        ], color="dark", dark=True, className="mb-5"),
+
         # --- BLOQUE: GENERADOR DE INFORMES ---
         dbc.Row([
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H4("📊 Generador de Informes", className="text-white mb-0"), className="bg-dark"),
-                    
+                    dbc.CardHeader([
+                        html.I(className="bi bi-file-earmark-bar-graph me-2"),
+                        "Generador de Informes"
+                    ]),
+
                     dbc.CardBody([
+                        html.P("Selecciona el tipo de informe que deseas generar:", className="text-muted mb-4"),
                         # --- LOS 3 BOTONES PRINCIPALES ---
                         dbc.Row([
                             dbc.Col([
                                 dbc.Button([
                                     html.Div([
-                                        html.Img(src="/assets/abp_icono.png", height="150px", className="mb-2"),
+                                        html.Img(src="/assets/abp_icono.png", height="120px", className="mb-3"),
                                         html.Span("Informe ABP", className="fw-bold")
                                     ], className="d-flex flex-column align-items-center justify-content-center")
-                                ], id="btn-rep-abp", n_clicks=0, color="danger", outline=True, className="w-100 py-3 shadow-sm")
+                                ], id="btn-rep-abp", n_clicks=0, className="w-100")
                             ], width=4),
-                            
+
                             dbc.Col([
                                 dbc.Button([
                                     html.Div([
-                                        html.Img(src="/assets/fisico_icono.png", height="150px", className="mb-2"),
+                                        html.Img(src="/assets/fisico_icono.png", height="120px", className="mb-3"),
                                         html.Span("Informe Físico", className="fw-bold")
                                     ], className="d-flex flex-column align-items-center justify-content-center")
-                                ], id="btn-rep-fisico", n_clicks=0, color="success", outline=True, className="w-100 py-3 shadow-sm")
+                                ], id="btn-rep-fisico", n_clicks=0, className="w-100")
                             ], width=4),
-                            
+
                             dbc.Col([
                                 dbc.Button([
                                     html.Div([
-                                        html.Img(src="/assets/tactica_icono.png", height="150px", className="mb-2"),
+                                        html.Img(src="/assets/tactica_icono.png", height="120px", className="mb-3"),
                                         html.Span("Informe Táctico", className="fw-bold")
                                     ], className="d-flex flex-column align-items-center justify-content-center")
-                                ], id="btn-rep-tactic", n_clicks=0, color="primary", outline=True, className="w-100 py-3 shadow-sm")
+                                ], id="btn-rep-tactic", n_clicks=0, className="w-100")
                             ], width=4),
-                        ], className="g-3 mb-4"),
+                        ], className="g-4 mb-4"),
 
                         # --- CONTENEDOR DINÁMICO DE FILTROS (vacío inicialmente) ---
                         html.Div(id='report-selectors-container', children=[], style={'display': 'none'}),
-                        
+
                         # --- ALMACÉN DEL BLOQUE SELECCIONADO ---
                         dcc.Store(id='selected-report-block', data=None),
                         # --- INTERVALO PARA ACTUALIZAR PROGRESO ---
@@ -449,51 +463,72 @@ def crear_layout_principal():
                         # --- MODAL DE PROGRESO ---
                         dbc.Modal([
                             dbc.ModalHeader(
-                                dbc.ModalTitle("Generando Informe", id="report-modal-title"),
+                                dbc.ModalTitle([
+                                    html.I(className="bi bi-hourglass-split me-2"),
+                                    "Generando Informe"
+                                ], id="report-modal-title"),
                                 close_button=False
                             ),
                             dbc.ModalBody(id="report-modal-body", children=[
                                 html.Div([
-                                    dbc.Spinner(color="primary", size="lg"),
-                                    html.P("Preparando...", className="text-muted mt-3 text-center")
-                                ], className="text-center py-4")
+                                    dbc.Spinner(color="primary", size="lg", spinnerClassName="mb-3"),
+                                    html.P("Preparando...", className="text-muted text-center")
+                                ], className="text-center py-5")
                             ]),
                         ], id="report-modal", centered=True, backdrop="static", size="lg", is_open=False),
 
                         dcc.Download(id="download-pdf"),
                     ])
-                ], className="shadow mb-5")
-            ], width=10, className="mx-auto")
+                ], className="mb-5")
+            ], width=12, lg=10, className="mx-auto")
         ]),
 
-        html.Hr(className="my-5"),
+        # --- SEPARATOR ---
+        dbc.Row([
+            dbc.Col([
+                html.Hr(className="my-4")
+            ], width=10, className="mx-auto")
+        ]),
 
         # --- BLOQUE: VISUALIZACIÓN DE DATOS ---
         dbc.Row([
             dbc.Col([
-                html.H4("📈 Visualización de Datos Cargados", className="text-center mb-4"),
                 dbc.Card([
+                    dbc.CardHeader([
+                        html.I(className="bi bi-bar-chart-line me-2"),
+                        "Visualización de Datos Cargados"
+                    ]),
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
-                                html.Label("Visualizar Liga:", className="fw-bold mb-2"),
+                                html.Label([
+                                    html.I(className="bi bi-trophy me-1"),
+                                    "Liga"
+                                ], className="form-label"),
                                 dcc.Dropdown(id='liga-dropdown', options=[{'label': l, 'value': l} for l in ligas],
                                              value=ligas[0] if ligas else None, clearable=False)
                             ], width=6),
                             dbc.Col([
-                                html.Label("Visualizar Temporada:", className="fw-bold mb-2"),
+                                html.Label([
+                                    html.I(className="bi bi-calendar3 me-1"),
+                                    "Temporada"
+                                ], className="form-label"),
                                 dcc.Dropdown(id='temporada-dropdown', options=[{'label': t, 'value': t} for t in temporadas],
                                              value=temporadas[0] if temporadas else None, clearable=False)
                             ], width=6),
                         ])
                     ])
-                ], className="shadow-sm mb-4 bg-light")
-            ], width=10, className="mx-auto")
+                ], className="mb-4")
+            ], width=12, lg=10, className="mx-auto")
         ]),
-        
+
         # --- GRID DE JORNADAS ---
-        html.Div(id='jornadas-container'),
-        
+        dbc.Row([
+            dbc.Col([
+                html.Div(id='jornadas-container')
+            ], width=12, lg=10, className="mx-auto")
+        ]),
+
     ], fluid=True)
 
 def run_report_process(script_name, equipo_nombre, j_inicio, j_fin, destination_folder):
@@ -877,98 +912,187 @@ def crear_pagina_actualizacion():
     return dbc.Container([
         dbc.Row([
             dbc.Col([
-                html.H2("🔄 Panel de Actualización de Datos", className="text-center my-4"),
-                dcc.Link(dbc.Button("⬅️ Volver al Inicio", color="secondary", outline=True), href="/", className="mb-4 d-inline-block")
+                html.Div([
+                    html.I(className="bi bi-cloud-arrow-down me-2", style={"fontSize": "2rem", "verticalAlign": "middle"}),
+                    html.H2("Actualización de Datos", className="d-inline mb-0", style={"verticalAlign": "middle"})
+                ], className="text-center my-4"),
+                html.P("Gestiona la descarga y procesamiento de datos de todas las fuentes", className="text-muted text-center mb-4"),
+                dcc.Link([
+                    html.I(className="bi bi-arrow-left me-1"),
+                    "Volver al Inicio"
+                ], href="/", className="btn btn-outline-secondary mb-4 d-inline-block")
             ], width=12)
         ]),
-        
+
         dbc.Row([
             # --- COLUMNA 1: OPTA ---
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H4([
-                        html.Img(src="/assets/opta_logo.png", style={"height": "24px", "marginRight": "8px", "verticalAlign": "middle"}),
-                        "OPTA"
-                    ], className="mb-0 text-white"), style={"background": "#1E90FF"}),
+                    dbc.CardHeader([
+                        html.Div([
+                            html.Img(src="/assets/opta_logo.png", style={"height": "28px", "marginRight": "10px", "verticalAlign": "middle"}),
+                            html.Span("OPTA", style={"verticalAlign": "middle"})
+                        ])
+                    ]),
                     dbc.CardBody([
-                        html.Label("Competición:"),
+                        html.Label([
+                            html.I(className="bi bi-globe me-1"),
+                            "Competición"
+                        ], className="form-label"),
                         dcc.Dropdown(id='opta-liga-dropdown', placeholder="Seleccionar liga...", className="mb-3"),
-                        html.Label("Temporada:"),
-                        dcc.Dropdown(id='opta-temporada-dropdown', placeholder="Seleccionar temp...", className="mb-3"),
-                        dbc.Row([
-                            dbc.Col([html.Label("J. Inicial:"), dbc.Input(id="opta-jornada-inicial", type="number", value=1)], width=6),
-                            dbc.Col([html.Label("J. Final:"), dbc.Input(id="opta-jornada-final", type="number", value=1)], width=6),
-                        ], className="mb-3"),
-                        dbc.Button("Descargar Opta", id="btn-update-opta", color="primary", className="w-100", disabled=True),
-                    ])
-                ], className="shadow mb-4")
-            ], width=12, lg=4),
 
-            # --- COLUMNA 2: MEDIACOACH (Sustituir en crear_pagina_actualizacion) ---
+                        html.Label([
+                            html.I(className="bi bi-calendar-range me-1"),
+                            "Temporada"
+                        ], className="form-label"),
+                        dcc.Dropdown(id='opta-temporada-dropdown', placeholder="Seleccionar temp...", className="mb-3"),
+
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("J. Inicial", className="form-label small"),
+                                dbc.Input(id="opta-jornada-inicial", type="number", value=1, min=1)
+                            ], width=6),
+                            dbc.Col([
+                                html.Label("J. Final", className="form-label small"),
+                                dbc.Input(id="opta-jornada-final", type="number", value=1, min=1)
+                            ], width=6),
+                        ], className="mb-3"),
+
+                        dbc.Button([
+                            html.I(className="bi bi-download me-2"),
+                            "Descargar Opta"
+                        ], id="btn-update-opta", color="primary", className="w-100", disabled=True)
+                    ])
+                ])
+            ], width=12, lg=4, className="mb-4"),
+
+            # --- COLUMNA 2: MEDIACOACH ---
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H4([
-                        html.Img(src="/assets/mediacoach_logo.png", style={"height": "24px", "marginRight": "8px", "verticalAlign": "middle"}),
-                        "MEDIACOACH"
-                    ], className="mb-0 text-white"), style={"background": "#DC143C"}),
+                    dbc.CardHeader([
+                        html.Div([
+                            html.Img(src="/assets/mediacoach_logo.png", style={"height": "28px", "marginRight": "10px", "verticalAlign": "middle"}),
+                            html.Span("MEDIACOACH", style={"verticalAlign": "middle"})
+                        ])
+                    ]),
                     dbc.CardBody([
-                        html.Label("Temporada:"),
+                        html.Label([
+                            html.I(className="bi bi-calendar-range me-1"),
+                            "Temporada"
+                        ], className="form-label"),
                         dcc.Dropdown(id='mediacoach-temporada-dropdown', placeholder="Seleccionar temp...", className="mb-3"),
 
-                        html.Label("Competición:"),
+                        html.Label([
+                            html.I(className="bi bi-globe me-1"),
+                            "Competición"
+                        ], className="form-label"),
                         dcc.Dropdown(id='mediacoach-liga-dropdown', placeholder="Esperando temporada...", className="mb-3"),
+
                         dbc.Row([
-                            dbc.Col([html.Label("J. Inicial:"), dbc.Input(id="mediacoach-jornada-inicial", type="number", value=1)], width=6),
-                            dbc.Col([html.Label("J. Final:"), dbc.Input(id="mediacoach-jornada-final", type="number", value=1)], width=6),
+                            dbc.Col([
+                                html.Label("J. Inicial", className="form-label small"),
+                                dbc.Input(id="mediacoach-jornada-inicial", type="number", value=1, min=1)
+                            ], width=6),
+                            dbc.Col([
+                                html.Label("J. Final", className="form-label small"),
+                                dbc.Input(id="mediacoach-jornada-final", type="number", value=1, min=1)
+                            ], width=6),
                         ], className="mb-3"),
-                        dbc.Button("Descargar MediaCoach", id="btn-update-mediacoach", color="danger", className="w-100", disabled=True),
+
+                        dbc.Button([
+                            html.I(className="bi bi-download me-2"),
+                            "Descargar MediaCoach"
+                        ], id="btn-update-mediacoach", color="danger", className="w-100", disabled=True)
                     ])
-                ], className="shadow mb-4")
-            ], width=12, lg=4),
+                ])
+            ], width=12, lg=4, className="mb-4"),
 
             # --- COLUMNA 3: SPORTIAN ---
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H4([
-                        html.Img(src="/assets/sportian_logo.png", style={"height": "24px", "marginRight": "8px", "verticalAlign": "middle"}),
-                        "SPORTIAN"
-                    ], className="mb-0 text-white"), style={"background": "#FFD700"}),
+                    dbc.CardHeader([
+                        html.Div([
+                            html.Img(src="/assets/sportian_logo.png", style={"height": "28px", "marginRight": "10px", "verticalAlign": "middle"}),
+                            html.Span("SPORTIAN", style={"verticalAlign": "middle"})
+                        ])
+                    ]),
                     dbc.CardBody([
-                        html.P("Arrastra un CSV de corners o faltas para procesarlo."),
+                        html.P("Sube un archivo CSV de corners o faltas para procesar", className="text-muted small mb-3"),
+
                         dcc.Upload(
                             id='sportian-upload',
                             children=html.Div([
-                                html.I(className="fas fa-cloud-upload-alt", style={"fontSize": "48px", "color": "#FFD700"}),
-                                html.P("Arrastra un archivo CSV aquí", className="mt-2 mb-1"),
-                                html.P("o haz clic para seleccionar", className="text-muted small")
-                            ]),
+                                html.I(className="bi bi-cloud-upload", style={"fontSize": "56px", "color": "#FFD700", "marginBottom": "12px"}),
+                                html.P("Arrastra tu archivo CSV aquí", className="mb-1 fw-bold"),
+                                html.P("o haz clic para explorar", className="text-muted small mb-0")
+                            ], className="d-flex flex-column align-items-center justify-content-center"),
                             style={
-                                "height": "160px", "border": "2px dashed #FFD700", "borderRadius": "10px",
-                                "display": "flex", "alignItems": "center", "justifyContent": "center",
-                                "cursor": "pointer", "backgroundColor": "#fffef5"
+                                "height": "180px",
+                                "border": "2px dashed var(--border-medium)",
+                                "borderRadius": "var(--radius-lg)",
+                                "display": "flex",
+                                "alignItems": "center",
+                                "justifyContent": "center",
+                                "cursor": "pointer",
+                                "backgroundColor": "var(--bg-tertiary)",
+                                "transition": "all 0.25s ease",
+                                "margin": "0 auto",
+                                "width": "100%"
                             },
                             multiple=False,
                             accept='.csv'
                         ),
-                        html.Div(id='sportian-upload-status', className="mt-2 text-center"),
-                        dbc.Button("Procesar CSV", id="btn-update-sportian", color="warning", className="w-100 mt-3", disabled=True),
+
+                        html.Div(id='sportian-upload-status', className="mt-3 text-center"),
+
+                        dbc.Button([
+                            html.I(className="bi bi-file-earmark-spreadsheet me-2"),
+                            "Procesar CSV"
+                        ], id="btn-update-sportian", color="warning", className="w-100 mt-3", disabled=True)
                     ])
-                ], className="shadow mb-4")
-            ], width=12, lg=4),
+                ])
+            ], width=12, lg=4, className="mb-4"),
         ]),
 
-        # --- SECCIÓN DE PROGRESO (Común para todos) ---
-        dbc.Card([
-            dbc.CardBody([
-                html.H5("Estado de la descarga:"),
-                dbc.Progress(id="progress-bar", value=0, striped=True, animated=True, style={"height": "25px"}, className="mb-3"),
-                html.Div(id="update-progress", style={
-                    "height": "150px", "overflow-y": "auto", "background": "#222", 
-                    "color": "#00FF00", "padding": "10px", "font-family": "monospace", "fontSize": "12px"
-                })
-            ])
-        ], className="shadow"),
-        
+        # --- SECCIÓN DE PROGRESO ---
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.I(className="bi bi-activity me-2"),
+                        "Progreso de Descarga"
+                    ]),
+                    dbc.CardBody([
+                        html.Label("Estado de la operación:", className="form-label mb-2"),
+                        dbc.Progress(
+                            id="progress-bar",
+                            value=0,
+                            striped=True,
+                            animated=True,
+                            className="mb-3",
+                            style={"height": "24px"}
+                        ),
+                        html.Label("Consola de salida:", className="form-label mb-2"),
+                        html.Div(
+                            id="update-progress",
+                            style={
+                                "height": "180px",
+                                "overflow-y": "auto",
+                                "background": "linear-gradient(180deg, #0d1117 0%, #161b22 100%)",
+                                "border": "1px solid var(--border-medium)",
+                                "borderRadius": "var(--radius-md)",
+                                "color": "#00ff88",
+                                "padding": "14px",
+                                "font-family": "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                "fontSize": "11px",
+                                "lineHeight": "1.6"
+                            }
+                        )
+                    ])
+                ], className="mt-3")
+            ], width=12)
+        ]),
+
         dcc.Interval(id='progress-interval', interval=1000, disabled=True)
     ], fluid=True)
 
@@ -1725,12 +1849,12 @@ def update_jornadas(liga, temp):
         o_count = df_j[df_j['fuente'] == 'opta']['n_partidos'].sum()
         s_count = df_j[df_j['fuente'] == 'sportian']['n_partidos'].sum()
 
-        # Gráfico (Sportian en blanco)
+        # Gráfico (Sportian en amarillo Villarreal)
         fig = go.Figure(data=[go.Pie(
             labels=['MediaCoach', 'Opta', 'Sportian'],
             values=[1 if m_count > 0 else 0, 1 if o_count > 0 else 0, 1 if s_count > 0 else 0],
-            hole=.7, 
-            marker=dict(colors=['#DC143C', '#1E90FF', '#FFFFFF'], line=dict(color='#444', width=0.5)),
+            hole=.7,
+            marker=dict(colors=['#DC143C', '#1E90FF', '#FFD700'], line=dict(color='#444', width=0.5)),
             textinfo='none'
         )])
         fig.update_layout(showlegend=False, height=75, margin=dict(t=0, b=0, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)')
