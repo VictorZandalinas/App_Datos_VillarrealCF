@@ -1,0 +1,16 @@
+Benchmark realizado: 2026-04-22 17:46:16
+Equipo: Villarreal, Jornada: 15
+
+64.47s | ERROR | tactic2.2.1_opta_evolutivo_contraataque.py
+59.49s | OK | tactic1.3_mediacoach_evolucion_resumen_general.py
+54.15s | OK | tactic4_saques_banda_ofensivos.py
+36.55s | OK | tactic5_opta_perdidas.py
+30.20s | OK | tactic3.1_opta_inicios_blocaje_portero.py
+28.32s | OK | tactic3_opta_saque_puerta_secuencias.py
+22.19s | OK | tactic1.2_mediacoach_resumen_sin_balon.py
+11.39s | OK | tactic1.4_opta_xT.py
+9.95s | OK | tactic1.1_mediacoach_resumen_con_balon.py
+8.13s | OK | tactic1_opta_clasificacion_liga.py
+5.15s | OK | tactic2_opta_mapa_pases.py
+4.86s | OK | tactic2.1_opta_mapa_pases_campo_contrario.py
+1.26s | ERROR | tactic2.2_opta_contraataque.py

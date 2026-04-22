@@ -352,8 +352,14 @@ class InformeGeneratorChunked:
                 script_idx = self.scripts.index(script) + 1
                 total = len(self.scripts)
 
+                # MEDICIÓN DE MEMORIA ANTES DEL SCRIPT
+                mem_antes = get_memory_info()
+                mem_antes_mb = mem_antes['rss_mb'] if mem_antes['available'] else 0
+
                 # Formato compatible con regex de app.py: "[i/total] Ejecutando: nombre"
                 print(f"\n--- [{script_idx}/{total}] Ejecutando: {script} ---")
+                if mem_antes['available']:
+                    print(f"📊 [MEMORIA ANTES] {mem_antes_mb:.0f}MB ({mem_antes['percent']:.1f}%)")
 
                 # Ejecutar script individual
                 pdf_path = self._ejecutar_script_individual(
@@ -363,16 +369,21 @@ class InformeGeneratorChunked:
                     j_fin
                 )
 
+                # MEDICIÓN DE MEMORIA DESPUÉS DEL SCRIPT
+                mem_despues = get_memory_info()
+                mem_despues_mb = mem_despues['rss_mb'] if mem_despues['available'] else 0
+                delta_mb = mem_despues_mb - mem_antes_mb if mem_antes['available'] and mem_despues['available'] else 0
+
                 if pdf_path:
                     chunk_pdfs.append(pdf_path)
                     print(f"✅ PDF generado: {pdf_path.name}")
                 else:
                     print(f"⚠️ {script} no generó PDF")
 
-                # Log de memoria si está alta
-                mem = get_memory_info()
-                if mem['available'] and mem['rss_mb'] > 2000:
-                    print(f"📊 [MEMORIA] Tras {script}: {mem['rss_mb']:.0f}MB ({mem['percent']:.1f}%)")
+                # Log de memoria SIEMPRE (no solo si > 2000MB)
+                if mem_despues['available']:
+                    simbolo = "🔴" if delta_mb > 100 else "🟡" if delta_mb > 50 else "🟢"
+                    print(f"📊 [MEMORIA DESPUÉS] {mem_despues_mb:.0f}MB ({mem_despues['percent']:.1f}%) | Δ: {simbolo} {delta_mb:+.0f}MB")
 
             except MemoryError as e:
                 print(f"❌ [CHUNK {chunk_id}] OOM en {script}: {e}")

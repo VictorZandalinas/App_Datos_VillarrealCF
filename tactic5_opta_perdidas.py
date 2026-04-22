@@ -568,17 +568,35 @@ def seleccionar_equipo_interactivo(df):
 
 if __name__ == "__main__":
     analyzer = AnalizadorPerdidas()
-    
+
     if analyzer.load_data():
-        equipo = seleccionar_equipo_interactivo(analyzer.df)
-        
+        # Soporte para selección interactiva O automática (wrapper)
+        try:
+            linea = input().strip()
+            equipos = sorted(analyzer.df['Team Name'].dropna().unique())
+
+            # Si es número, usar como índice
+            if linea.isdigit():
+                idx = int(linea) - 1
+                if 0 <= idx < len(equipos):
+                    equipo = equipos[idx]
+                else:
+                    # Índice fuera de rango: buscar por nombre hardcodeado
+                    # El wrapper usa 'Villarreal' como equipo por defecto
+                    equipo = 'Villarreal' if 'Villarreal' in equipos else equipos[-1]
+            else:
+                equipo = linea  # Nombre directo
+        except (EOFError, ValueError):
+            # Fallback a modo interactivo
+            equipo = seleccionar_equipo_interactivo(analyzer.df)
+
         if equipo:
             if analyzer.process_losses(equipo):
                 fig = analyzer.create_visualization(equipo)
                 if fig:
-                    filename = f"analisis_perdidas_{equipo.replace(' ', '_')}.png"
-                    fig.savefig(filename, dpi=300, bbox_inches='tight')
-                    print(f"\n✅ Gráfica guardada: {filename}")
-                    plt.show()
+                    # Guardar como PDF (patrón informe_wrapper_chunked)
+                    filename = f"12_analisis_perdidas_{equipo.replace(' ', '_')}.pdf"
+                    fig.savefig(filename, format='pdf', bbox_inches='tight', dpi=300)
+                    print(f"\n✅ PDF generado: {filename}")
             else:
                 print("No se encontraron pérdidas significativas.")
