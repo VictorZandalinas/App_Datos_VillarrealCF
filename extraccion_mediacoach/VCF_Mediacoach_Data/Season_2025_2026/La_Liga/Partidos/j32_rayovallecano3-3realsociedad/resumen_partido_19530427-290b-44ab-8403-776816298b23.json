@@ -1,0 +1,49 @@
+{
+  "match_id": "19530427-290b-44ab-8403-776816298b23",
+  "jornada": "desconocida",
+  "total_archivos_descargados": 19,
+  "archivos_por_tipo": {
+    "xml_eventos": 2,
+    "pdf_informes": 9,
+    "xlsx_rendimiento": 2,
+    "xlsx_maxima_exigencia": 0,
+    "csv_equipos": 4,
+    "csv_jugadores": 0,
+    "otros": 2
+  },
+  "archivos_descargados": {
+    "xml_eventos": [
+      "eventos_partido_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160841.xml",
+      "eventos_partido_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160842.xml"
+    ],
+    "pdf_informes": [
+      "informe_1_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160829.pdf",
+      "informe_2_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160830.pdf",
+      "informe_3_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160831.pdf",
+      "informe_4_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160832.pdf",
+      "informe_5_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160834.pdf",
+      "informe_6_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160836.pdf",
+      "informe_7_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160838.pdf",
+      "informe_8_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160839.pdf",
+      "informe_9_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160840.pdf"
+    ],
+    "xlsx_rendimiento": [
+      "rendimiento_1_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160827.xlsx",
+      "rendimiento_2_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160828.xlsx"
+    ],
+    "xlsx_maxima_exigencia": [],
+    "csv_equipos": [
+      "postpartido_equipos_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160829.csv",
+      "postpartido_equipos_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160830.csv",
+      "postpartido_equipos_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160835.csv",
+      "postpartido_equipos_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160837.csv"
+    ],
+    "csv_jugadores": [],
+    "otros": [
+      "otro_xlsx_general_pos15_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160840.xlsx",
+      "otro_xlsx_general_pos16_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160840.xlsx"
+    ]
+  },
+  "errores": [],
+  "timestamp": "2026-04-28T16:08:42.396031"
+}

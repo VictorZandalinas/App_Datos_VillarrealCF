@@ -1238,5 +1238,109 @@
   "rendimiento_2_jdesconocida_55ed7a52-9d68-40dd-aca5-e0254bf822eb_20260423_161318.xlsx_245667_1776953598173": {
     "archivo": "rendimiento_2_jdesconocida_55ed7a52-9d68-40dd-aca5-e0254bf822eb_20260423_161318.xlsx",
     "procesado": "2026-04-23T14:13:53.077Z"
+  },
+  "rendimiento_1_jdesconocida_cb1ae085-0b3d-4ff6-8496-4c17a2ba846b_20260428_160813.xlsx_239845_1777385293771": {
+    "archivo": "rendimiento_1_jdesconocida_cb1ae085-0b3d-4ff6-8496-4c17a2ba846b_20260428_160813.xlsx",
+    "procesado": "2026-04-28T14:10:31.933Z"
+  },
+  "rendimiento_2_jdesconocida_cb1ae085-0b3d-4ff6-8496-4c17a2ba846b_20260428_160814.xlsx_240374_1777385294230": {
+    "archivo": "rendimiento_2_jdesconocida_cb1ae085-0b3d-4ff6-8496-4c17a2ba846b_20260428_160814.xlsx",
+    "procesado": "2026-04-28T14:10:32.036Z"
+  },
+  "rendimiento_1_jdesconocida_6fedb943-0c39-4083-aae6-4734ccee45e6_20260428_160857.xlsx_243848_1777385337912": {
+    "archivo": "rendimiento_1_jdesconocida_6fedb943-0c39-4083-aae6-4734ccee45e6_20260428_160857.xlsx",
+    "procesado": "2026-04-28T14:10:32.136Z"
+  },
+  "rendimiento_2_jdesconocida_6fedb943-0c39-4083-aae6-4734ccee45e6_20260428_160858.xlsx_244501_1777385338338": {
+    "archivo": "rendimiento_2_jdesconocida_6fedb943-0c39-4083-aae6-4734ccee45e6_20260428_160858.xlsx",
+    "procesado": "2026-04-28T14:10:32.229Z"
+  },
+  "rendimiento_1_jdesconocida_b668df33-4e2c-45e0-bdf5-3b4c6aafdab8_20260428_160733.xlsx_239620_1777385253391": {
+    "archivo": "rendimiento_1_jdesconocida_b668df33-4e2c-45e0-bdf5-3b4c6aafdab8_20260428_160733.xlsx",
+    "procesado": "2026-04-28T14:10:32.324Z"
+  },
+  "rendimiento_2_jdesconocida_b668df33-4e2c-45e0-bdf5-3b4c6aafdab8_20260428_160733.xlsx_238755_1777385253869": {
+    "archivo": "rendimiento_2_jdesconocida_b668df33-4e2c-45e0-bdf5-3b4c6aafdab8_20260428_160733.xlsx",
+    "procesado": "2026-04-28T14:10:32.429Z"
+  },
+  "rendimiento_1_jdesconocida_0aa60156-63b1-4194-8f54-af411588cfa1_20260428_160747.xlsx_229994_1777385267481": {
+    "archivo": "rendimiento_1_jdesconocida_0aa60156-63b1-4194-8f54-af411588cfa1_20260428_160747.xlsx",
+    "procesado": "2026-04-28T14:10:32.520Z"
+  },
+  "rendimiento_2_jdesconocida_0aa60156-63b1-4194-8f54-af411588cfa1_20260428_160747.xlsx_230481_1777385267929": {
+    "archivo": "rendimiento_2_jdesconocida_0aa60156-63b1-4194-8f54-af411588cfa1_20260428_160747.xlsx",
+    "procesado": "2026-04-28T14:10:32.612Z"
+  },
+  "rendimiento_1_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160827.xlsx_251189_1777385307997": {
+    "archivo": "rendimiento_1_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160827.xlsx",
+    "procesado": "2026-04-28T14:10:32.710Z"
+  },
+  "rendimiento_2_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160828.xlsx_249310_1777385308386": {
+    "archivo": "rendimiento_2_jdesconocida_19530427-290b-44ab-8403-776816298b23_20260428_160828.xlsx",
+    "procesado": "2026-04-28T14:10:32.811Z"
+  },
+  "rendimiento_1_jdesconocida_bf5f59ab-1cb1-48c8-b882-36bcf754bdc9_20260428_160928.xlsx_241441_1777385368424": {
+    "archivo": "rendimiento_1_jdesconocida_bf5f59ab-1cb1-48c8-b882-36bcf754bdc9_20260428_160928.xlsx",
+    "procesado": "2026-04-28T14:10:32.903Z"
+  },
+  "rendimiento_2_jdesconocida_bf5f59ab-1cb1-48c8-b882-36bcf754bdc9_20260428_160928.xlsx_241216_1777385368830": {
+    "archivo": "rendimiento_2_jdesconocida_bf5f59ab-1cb1-48c8-b882-36bcf754bdc9_20260428_160928.xlsx",
+    "procesado": "2026-04-28T14:10:32.995Z"
+  },
+  "rendimiento_1_jdesconocida_467ddd8b-b1a3-485b-bf83-220bb282249f_20260428_160718.xlsx_244739_1777385238120": {
+    "archivo": "rendimiento_1_jdesconocida_467ddd8b-b1a3-485b-bf83-220bb282249f_20260428_160718.xlsx",
+    "procesado": "2026-04-28T14:10:33.089Z"
+  },
+  "rendimiento_2_jdesconocida_467ddd8b-b1a3-485b-bf83-220bb282249f_20260428_160718.xlsx_245712_1777385238505": {
+    "archivo": "rendimiento_2_jdesconocida_467ddd8b-b1a3-485b-bf83-220bb282249f_20260428_160718.xlsx",
+    "procesado": "2026-04-28T14:10:33.182Z"
+  },
+  "rendimiento_1_jdesconocida_63c6a3d3-ea19-43cd-b251-fcd2445072ba_20260428_160843.xlsx_240235_1777385323324": {
+    "archivo": "rendimiento_1_jdesconocida_63c6a3d3-ea19-43cd-b251-fcd2445072ba_20260428_160843.xlsx",
+    "procesado": "2026-04-28T14:10:33.275Z"
+  },
+  "rendimiento_2_jdesconocida_63c6a3d3-ea19-43cd-b251-fcd2445072ba_20260428_160843.xlsx_238515_1777385323731": {
+    "archivo": "rendimiento_2_jdesconocida_63c6a3d3-ea19-43cd-b251-fcd2445072ba_20260428_160843.xlsx",
+    "procesado": "2026-04-28T14:10:33.372Z"
+  },
+  "rendimiento_1_jdesconocida_aa72c10e-430e-42a8-a580-4dcb7230fbb3_20260428_160759.xlsx_243441_1777385279653": {
+    "archivo": "rendimiento_1_jdesconocida_aa72c10e-430e-42a8-a580-4dcb7230fbb3_20260428_160759.xlsx",
+    "procesado": "2026-04-28T14:10:33.464Z"
+  },
+  "rendimiento_2_jdesconocida_aa72c10e-430e-42a8-a580-4dcb7230fbb3_20260428_160800.xlsx_241315_1777385280087": {
+    "archivo": "rendimiento_2_jdesconocida_aa72c10e-430e-42a8-a580-4dcb7230fbb3_20260428_160800.xlsx",
+    "procesado": "2026-04-28T14:10:33.558Z"
+  },
+  "rendimiento_1_jdesconocida_f4ba73e5-d3cd-446c-8418-7ea4027d26c1_20260428_160915.xlsx_232395_1777385355108": {
+    "archivo": "rendimiento_1_jdesconocida_f4ba73e5-d3cd-446c-8418-7ea4027d26c1_20260428_160915.xlsx",
+    "procesado": "2026-04-28T14:10:33.646Z"
+  },
+  "rendimiento_2_jdesconocida_f4ba73e5-d3cd-446c-8418-7ea4027d26c1_20260428_160915.xlsx_230934_1777385355546": {
+    "archivo": "rendimiento_2_jdesconocida_f4ba73e5-d3cd-446c-8418-7ea4027d26c1_20260428_160915.xlsx",
+    "procesado": "2026-04-28T14:10:33.733Z"
+  },
+  "rendimiento_1_jdesconocida_84017bd9-eb24-4c6c-96d4-1fcce1b7b4f7_20260428_160945.xlsx_250291_1777385385627": {
+    "archivo": "rendimiento_1_jdesconocida_84017bd9-eb24-4c6c-96d4-1fcce1b7b4f7_20260428_160945.xlsx",
+    "procesado": "2026-04-28T14:10:33.831Z"
+  },
+  "rendimiento_2_jdesconocida_84017bd9-eb24-4c6c-96d4-1fcce1b7b4f7_20260428_160945.xlsx_249773_1777385385971": {
+    "archivo": "rendimiento_2_jdesconocida_84017bd9-eb24-4c6c-96d4-1fcce1b7b4f7_20260428_160945.xlsx",
+    "procesado": "2026-04-28T14:10:33.926Z"
+  },
+  "rendimiento_1_jdesconocida_082ae47b-cc7c-4b64-91a8-6ee2c7879afe_20260428_160959.xlsx_242431_1777385399245": {
+    "archivo": "rendimiento_1_jdesconocida_082ae47b-cc7c-4b64-91a8-6ee2c7879afe_20260428_160959.xlsx",
+    "procesado": "2026-04-28T14:10:34.018Z"
+  },
+  "rendimiento_2_jdesconocida_082ae47b-cc7c-4b64-91a8-6ee2c7879afe_20260428_160959.xlsx_240892_1777385399586": {
+    "archivo": "rendimiento_2_jdesconocida_082ae47b-cc7c-4b64-91a8-6ee2c7879afe_20260428_160959.xlsx",
+    "procesado": "2026-04-28T14:10:34.112Z"
+  },
+  "rendimiento_1_jdesconocida_c92023a3-0711-42ac-9108-29e7babaa65e_20260428_161013.xlsx_249050_1777385413427": {
+    "archivo": "rendimiento_1_jdesconocida_c92023a3-0711-42ac-9108-29e7babaa65e_20260428_161013.xlsx",
+    "procesado": "2026-04-28T14:10:34.238Z"
+  },
+  "rendimiento_2_jdesconocida_c92023a3-0711-42ac-9108-29e7babaa65e_20260428_161013.xlsx_245802_1777385413858": {
+    "archivo": "rendimiento_2_jdesconocida_c92023a3-0711-42ac-9108-29e7babaa65e_20260428_161013.xlsx",
+    "procesado": "2026-04-28T14:10:34.335Z"
   }
 }
