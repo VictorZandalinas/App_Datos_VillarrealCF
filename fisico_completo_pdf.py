@@ -402,6 +402,11 @@ class GeneradorMaestro:
             def _r(path, *a, **kw):
                 if not (isinstance(path, str) and path.endswith('.parquet')):
                     return _orig_rp(path, *a, **kw)
+                # 🔥 EXCLUSIÓN CRÍTICA: No redirigir archivos de Opta a carpetas de equipo
+                # Los archivos de Opta (match_events.parquet, etc.) están en extraccion_opta/
+                # y NO deben filtrarse por equipo ni por jornada
+                if path.startswith('extraccion_opta/'):
+                    return _orig_rp(path, *a, **kw)
                 p1 = _to_path(path, _equipo_folder)
                 p2 = _to_path(path, _villa_folder)
                 if p1 and p2:

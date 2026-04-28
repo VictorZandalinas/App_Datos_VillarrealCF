@@ -450,13 +450,13 @@ class Posible11Inicial:
             print("⚠️ Eventos no cargados, imposible buscar formación.")
             return None
 
-        week_str = str(week)
-        
+        week_str = str(int(week))
+
         setup_events = self.events_df[
             (self.events_df['Event Name'] == 'Team set up') &
             (self.events_df['Week'] == week_str)
         ]
-        
+
         if setup_events.empty:
             print(f"   -> ❌ No se encontró el evento 'Team set up' para la Week {week_str}.")
             return None

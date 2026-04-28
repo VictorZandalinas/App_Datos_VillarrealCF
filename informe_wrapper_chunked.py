@@ -437,12 +437,18 @@ class InformeGeneratorChunked:
         # Código inyectado: monkey-patch pd.read_parquet (DuckDB pushdown) + ejecutar script
         # - Para scripts de equipo: merge rival folder + Villarreal folder
         # - Para scripts de liga: usar carpeta general directamente (sin merge)
+        # Obtener nombre Sportian para auto-selección
+        _equipo_sportian = equipo
+        if self.team_mappings and equipo in self.team_mappings:
+            _equipo_sportian = self.team_mappings[equipo].get('sportian', equipo)
+
         injected_code = textwrap.dedent(f"""\
             import matplotlib, pandas as pd, sys, numpy as np
             import os as _os
             matplotlib.use('Agg')
             _j0, _j1 = {j_inicio}, {j_fin}
             _equipo_key = '{equipo}'
+            _equipo_sportian = '{_equipo_sportian}'
             _is_liga = {is_script_liga}
             def _norm(s):
                 for x in [' cf',' fc',' rc',' rcd',' ca',' ud',' ','-']:
@@ -544,10 +550,16 @@ class InformeGeneratorChunked:
                 _stdin_idx[0] += 1
                 if 'equipo' in str(prompt).lower() and _last_teams_cache[0] is not None:
                     try:
-                        _idx = _last_teams_cache[0].index(_equipo_key) + 1
-                        return str(_idx)  # consumimos queued (índice incorrecto), devolvemos el correcto
+                        # Intentar primero con nombre Sportian (ej: 'Celta de Vigo')
+                        _idx = _last_teams_cache[0].index(_equipo_sportian) + 1
+                        return str(_idx)
                     except (ValueError, TypeError):
-                        pass
+                        try:
+                            # Fallback: intentar con nombre canónico (ej: 'Celta')
+                            _idx = _last_teams_cache[0].index(_equipo_key) + 1
+                            return str(_idx)
+                        except (ValueError, TypeError):
+                            pass
                 return queued
             _builtins.input = _auto_input
             exec(open('{script}', encoding='utf-8').read())
@@ -629,8 +641,11 @@ class InformeGeneratorChunked:
                 respuestas = f"19\n{jornada}\n{jornada}\n"
 
         elif 'sportian' in script.lower():
-            # Sportian espera nombre directo
-            respuestas = f"{equipo}\n"
+            # Sportian espera nombre directo (usar mapeo si disponible)
+            nombre_sportian = equipo
+            if self.team_mappings and equipo in self.team_mappings:
+                nombre_sportian = self.team_mappings[equipo].get('sportian', equipo)
+            respuestas = f"{nombre_sportian}\n"
 
         else:
             # Opta: necesita índice del equipo en lista opta
