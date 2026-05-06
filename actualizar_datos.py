@@ -33,6 +33,94 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+# ====================================
+# SISTEMA DE CHECKPOINTS PARA RECUPERACIÓN
+# ====================================
+
+class CheckpointManager:
+    """
+    Gestiona checkpoints persistentes para recuperación tras interrupciones.
+    Cada checkpoint se guarda inmediatamente en disco tras completarse una fase crítica.
+    """
+
+    def __init__(self, checkpoint_file: str):
+        self.checkpoint_file = Path(checkpoint_file)
+        self.data = self._load()
+
+    def _load(self) -> dict:
+        """Carga checkpoint existente o crea uno nuevo"""
+        if self.checkpoint_file.exists():
+            try:
+                with open(self.checkpoint_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    logging.info(f"📍 Checkpoint cargado desde {self.checkpoint_file}")
+                    return data
+            except Exception as e:
+                logging.warning(f"⚠️ No se pudo cargar checkpoint: {e}")
+        return {"started_at": None, "source": None, "phases": {}, "completed": False}
+
+    def _save(self):
+        """Guarda checkpoint inmediatamente en disco"""
+        self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.checkpoint_file, 'w', encoding='utf-8') as f:
+            json.dump(self.data, f, indent=2, default=str)
+        logging.info(f"💾 Checkpoint guardado: {self.checkpoint_file}")
+
+    def start(self, source: str):
+        """Inicia nuevo checkpoint para una fuente de datos"""
+        self.data = {
+            "started_at": datetime.now().isoformat(),
+            "source": source,
+            "phases": {},
+            "completed": False
+        }
+        self._save()
+
+    def mark_phase(self, phase_name: str, **metadata):
+        """Marca una fase como completada con metadata opcional"""
+        self.data["phases"][phase_name] = {
+            "completed_at": datetime.now().isoformat(),
+            "metadata": metadata
+        }
+        self._save()
+
+    def is_phase_completed(self, phase_name: str) -> bool:
+        """Verifica si una fase ya está completada"""
+        return phase_name in self.data["phases"]
+
+    def get_phase_data(self, phase_name: str) -> dict:
+        """Obtiene metadata de una fase completada"""
+        return self.data["phases"].get(phase_name, {}).get("metadata", {})
+
+    def mark_completed(self):
+        """Marca todo el proceso como completado"""
+        self.data["completed"] = True
+        self.data["completed_at"] = datetime.now().isoformat()
+        self._save()
+
+    def is_completed(self) -> bool:
+        """Verifica si el proceso está completado"""
+        return self.data.get("completed", False)
+
+    def cleanup(self):
+        """Elimina archivo de checkpoint tras completar"""
+        if self.checkpoint_file.exists():
+            try:
+                self.checkpoint_file.unlink()
+                logging.info(f"🗑️ Checkpoint eliminado: {self.checkpoint_file}")
+            except Exception as e:
+                logging.warning(f"⚠️ No se pudo eliminar checkpoint: {e}")
+
+    def needs_resume(self) -> bool:
+        """Verifica si hay un proceso incompleto que requiere reanudar"""
+        return not self.data.get("completed", False) and self.data.get("started_at") is not None
+
+    def get_source(self) -> str:
+        """Obtiene la fuente de datos del checkpoint"""
+        return self.data.get("source", "unknown")
+
+
 # ====================================
 # CONFIGURACIÓN
 # ====================================
@@ -77,6 +165,13 @@ BASE_PATH = Path(__file__).parent
 OPTA_PATH = Path('extraccion_opta/datos_opta_parquet')
 MEDIACOACH_PATH = Path('extraccion_mediacoach/datos_mediacoach_parquet') # Preparado para el futuro
 SPORTIAN_PATH = Path('extraccion_sportian/datos_sportian_parquet')       # Preparado para el futuro
+
+# Paths para checkpoints
+CHECKPOINTS_PATH = BASE_PATH / '.checkpoints'
+CHECKPOINTS_PATH.mkdir(exist_ok=True, parents=True)
+OPTA_CHECKPOINT = CHECKPOINTS_PATH / 'opta_checkpoint.json'
+MEDIACOACH_CHECKPOINT = CHECKPOINTS_PATH / 'mediacoach_checkpoint.json'
+SPORTIAN_CHECKPOINT = CHECKPOINTS_PATH / 'sportian_checkpoint.json'
 
 
 # Event Types Mapping (sin cambios)
@@ -2499,76 +2594,122 @@ def verificar_completitud_eventos(match_ids_sample=None):
         
         time.sleep(2)  # Evitar rate limiting
 
-def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callback=None):
-    """Ejecuta el script descarga_completa.py y captura su progreso"""
+def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callback=None, force_restart=False):
+    """Ejecuta el script descarga_completa.py y captura su progreso + CHECKPOINT"""
     import subprocess
     import sys
     import os
+
+    # Inicializar checkpoint manager
+    checkpoint = CheckpointManager(MEDIACOACH_CHECKPOINT)
+
+    # Verificar si hay un checkpoint pendiente de reanudar
+    if checkpoint.needs_resume() and not force_restart:
+        print(f"📍 SE DETECTÓ UNA INTERRUPCIÓN PREVIA DE MEDIACOACH")
+        print(f"   📁 Fuente: {checkpoint.get_source()}")
+        print(f"   🕐 Iniciado: {checkpoint.data.get('started_at', 'desconocido')}")
+        print(f"   👉 Reanudando desde el último checkpoint...")
+        print("=" * 50)
+    elif checkpoint.needs_resume() and force_restart:
+        print("🗑️ Eliminando checkpoint anterior por reinicio forzado...")
+        checkpoint.cleanup()
+        checkpoint.start("MediaCoach")
+    else:
+        checkpoint.start("MediaCoach")
+
+    try:
+        return _update_mediacoach_data_web_inner(
+            liga, temporada, j_inicio, j_fin, progress_callback, checkpoint
+        )
+    except Exception as e:
+        print(f"💥 Error crítico en actualización MediaCoach: {e}")
+        # checkpoint NO se elimina - permite reanudar
+        raise
+    finally:
+        # Si se completó con éxito, limpiar checkpoint
+        if checkpoint.is_completed():
+            checkpoint.cleanup()
+
+def _update_mediacoach_data_web_inner(liga, temporada, j_inicio, j_fin, progress_callback=None, checkpoint=None):
+    """Lógica interna de update_mediacoach_data_web con soporte de checkpoint"""
+    if checkpoint is None:
+        checkpoint = CheckpointManager(MEDIACOACH_CHECKPOINT)
 
     # 1. Construir la ruta al script orquestador
     base_path = os.getcwd()
     script_path = os.path.join(base_path, 'extraccion_mediacoach', 'descarga_completa.py')
     mc_data_path = os.path.join(base_path, 'extraccion_mediacoach', 'data')
 
-    # 2. Comando exacto con los argumentos que espera descarga_completa.py
-    cmd = [
-        sys.executable, script_path,
-        '--liga', str(liga),
-        '--temporada', str(temporada),
-        '--j_inicio', str(j_inicio),
-        '--j_fin', str(j_fin)
-    ]
+    # FASE 1: Descarga de datos MediaCoach
+    phase_1_key = "fase_1_descarga"
 
-    print(f"🚀 Lanzando orquestador: {' '.join(cmd)}")
+    if not checkpoint.is_phase_completed(phase_1_key):
+        # 2. Comando exacto con los argumentos que espera descarga_completa.py
+        cmd = [
+            sys.executable, script_path,
+            '--liga', str(liga),
+            '--temporada', str(temporada),
+            '--j_inicio', str(j_inicio),
+            '--j_fin', str(j_fin)
+        ]
 
-    # 3. Snapshot pre-ejecución: IDs de partido existentes por archivo MediaCoach
-    #    Esto permite calcular el delta después del subprocess sin modificar descarga_completa.py
-    pre_match_ids = {}   # {filename: set(match_ids)}   — archivos con ID PARTIDO
-    pre_row_counts = {}  # {filename: int(row_count)}   — archivos sin ID PARTIDO
-    COL_PARTIDO_MC = 'ID PARTIDO'
-    if os.path.exists(mc_data_path):
-        for f in os.listdir(mc_data_path):
-            if f.endswith('.parquet'):
+        print(f"🚀 Lanzando orquestador: {' '.join(cmd)}")
+
+        # 3. Snapshot pre-ejecución: IDs de partido existentes por archivo MediaCoach
+        pre_match_ids = {}
+        pre_row_counts = {}
+        COL_PARTIDO_MC = 'ID PARTIDO'
+        if os.path.exists(mc_data_path):
+            for f in os.listdir(mc_data_path):
+                if f.endswith('.parquet'):
+                    try:
+                        df_snap = pd.read_parquet(os.path.join(mc_data_path, f))
+                        if COL_PARTIDO_MC in df_snap.columns:
+                            pre_match_ids[f] = set(df_snap[COL_PARTIDO_MC].unique())
+                        else:
+                            pre_row_counts[f] = len(df_snap)
+                    except Exception:
+                        pass
+
+        # 4. Ejecutar y leer la salida en tiempo real
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+
+        messages = []
+
+        for line in process.stdout:
+            clean_line = line.strip()
+            if not clean_line:
+                continue
+
+            print(f"STDOUT: {clean_line}")
+
+            progreso_actual = 0
+            if "PROGRESS:" in clean_line:
                 try:
-                    df_snap = pd.read_parquet(os.path.join(mc_data_path, f))
-                    if COL_PARTIDO_MC in df_snap.columns:
-                        pre_match_ids[f] = set(df_snap[COL_PARTIDO_MC].unique())
-                    else:
-                        pre_row_counts[f] = len(df_snap)
+                    progreso_actual = int(clean_line.split("PROGRESS:")[1].split("-")[0])
                 except Exception:
                     pass
 
-    # 4. Ejecutar y leer la salida en tiempo real
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        universal_newlines=True
-    )
+            if progress_callback:
+                messages.append({'timestamp': datetime.now().strftime("%H:%M:%S"), 'message': clean_line})
+                progress_callback(progreso_actual, clean_line, messages[-50:])
 
-    messages = []
+        process.wait()
 
-    for line in process.stdout:
-        clean_line = line.strip()
-        if not clean_line:
-            continue
+        if process.returncode != 0:
+            raise Exception(f"descarga_completa.py falló con código {process.returncode}")
 
-        print(f"STDOUT: {clean_line}")
-
-        progreso_actual = 0
-        if "PROGRESS:" in clean_line:
-            try:
-                progreso_actual = int(clean_line.split("PROGRESS:")[1].split("-")[0])
-            except Exception:
-                pass
-
-        if progress_callback:
-            messages.append({'timestamp': datetime.now().strftime("%H:%M:%S"), 'message': clean_line})
-            progress_callback(progreso_actual, clean_line, messages[-50:])
-
-    process.wait()
+        checkpoint.mark_phase(phase_1_key, completed=True, liga=liga, temporada=temporada)
+    else:
+        print(f"📍 Fase 1 completada - Saltando descarga MediaCoach")
+        messages = []
 
     # 5. Helpers de mensajes/progreso para el resto del flujo
     def _mc_add_message(msg, msg_type="info"):
@@ -2579,63 +2720,75 @@ def update_mediacoach_data_web(liga, temporada, j_inicio, j_fin, progress_callba
         if progress_callback:
             progress_callback(progress, status, messages[-50:])
 
-    # 6. Calcular delta MediaCoach comparando snapshot pre/post
-    mc_delta_path = None
-    try:
-        if os.path.exists(mc_data_path):
-            delta_files = {}
-            for f in os.listdir(mc_data_path):
-                if not f.endswith('.parquet'):
-                    continue
-                try:
-                    df_post = pd.read_parquet(os.path.join(mc_data_path, f))
-                    if COL_PARTIDO_MC not in df_post.columns:
-                        # Archivos sin ID PARTIDO (rendimiento_fisico, maxima_exigencia, etc.):
-                        # incluir el archivo completo si creció respecto al snapshot pre-ejecución.
-                        old_count = pre_row_counts.get(f, -1)
-                        if old_count >= 0 and len(df_post) > old_count:
-                            delta_files[f] = df_post
+    # FASE 2: Calcular delta y actualizar carpetas
+    phase_2_key = "fase_2_carpetas"
+
+    if not checkpoint.is_phase_completed(phase_2_key):
+        # 6. Calcular delta MediaCoach comparando snapshot pre/post
+        mc_delta_path = None
+        try:
+            if os.path.exists(mc_data_path):
+                delta_files = {}
+                for f in os.listdir(mc_data_path):
+                    if not f.endswith('.parquet'):
                         continue
-                    old_ids = pre_match_ids.get(f, set())
-                    new_ids = set(df_post[COL_PARTIDO_MC].unique()) - old_ids
-                    if new_ids:
-                        delta_files[f] = df_post[df_post[COL_PARTIDO_MC].isin(new_ids)]
-                except Exception:
-                    pass
+                    try:
+                        df_post = pd.read_parquet(os.path.join(mc_data_path, f))
+                        if COL_PARTIDO_MC not in df_post.columns:
+                            old_count = pre_row_counts.get(f, -1) if 'pre_row_counts' in dir() else -1
+                            if old_count >= 0 and len(df_post) > old_count:
+                                delta_files[f] = df_post
+                            continue
+                        old_ids = pre_match_ids.get(f, set()) if 'pre_match_ids' in dir() else set()
+                        new_ids = set(df_post[COL_PARTIDO_MC].unique()) - old_ids
+                        if new_ids:
+                            delta_files[f] = df_post[df_post[COL_PARTIDO_MC].isin(new_ids)]
+                    except Exception:
+                        pass
 
-            if delta_files:
-                mc_delta_path = tempfile.mkdtemp(prefix='datos_delta_mc_')
-                mc_delta_dir = os.path.join(mc_delta_path, 'mediacoach')
-                os.makedirs(mc_delta_dir, exist_ok=True)
-                for fname, df_delta in delta_files.items():
-                    df_delta.to_parquet(os.path.join(mc_delta_dir, fname), index=False)
-                total_nuevos = sum(len(df) for df in delta_files.values())
-                _mc_add_message(f"   ⚡ Delta MediaCoach: {len(delta_files)} archivos, {total_nuevos} filas nuevas.")
-    except Exception as e:
-        _mc_add_message(f"⚠️ No se pudo calcular delta MediaCoach, usando modo completo: {e}", "warning")
-        if mc_delta_path:
-            shutil.rmtree(mc_delta_path, ignore_errors=True)
-            mc_delta_path = None
+                if delta_files:
+                    mc_delta_path = tempfile.mkdtemp(prefix='datos_delta_mc_')
+                    mc_delta_dir = os.path.join(mc_delta_path, 'mediacoach')
+                    os.makedirs(mc_delta_dir, exist_ok=True)
+                    for fname, df_delta in delta_files.items():
+                        df_delta.to_parquet(os.path.join(mc_delta_dir, fname), index=False)
+                    total_nuevos = sum(len(df) for df in delta_files.values())
+                    _mc_add_message(f"   ⚡ Delta MediaCoach: {len(delta_files)} archivos, {total_nuevos} filas nuevas.")
+        except Exception as e:
+            _mc_add_message(f"⚠️ No se pudo calcular delta MediaCoach, usando modo completo: {e}", "warning")
+            if mc_delta_path:
+                shutil.rmtree(mc_delta_path, ignore_errors=True)
+                mc_delta_path = None
 
-    # 7. Actualizar carpetas de equipos (modo delta si hay nuevos datos, completo si no)
-    try:
-        run_crear_carpetas_equipos(
-            add_message_fn=_mc_add_message, update_progress_fn=_mc_update_progress,
-            progress_start=95, progress_end=98, delta_path=mc_delta_path
-        )
-    finally:
-        if mc_delta_path:
-            shutil.rmtree(mc_delta_path, ignore_errors=True)
+        # 7. Actualizar carpetas de equipos (modo delta si hay nuevos datos, completo si no)
+        try:
+            run_crear_carpetas_equipos(
+                add_message_fn=_mc_add_message, update_progress_fn=_mc_update_progress,
+                progress_start=95, progress_end=98, delta_path=mc_delta_path
+            )
+        finally:
+            if mc_delta_path:
+                shutil.rmtree(mc_delta_path, ignore_errors=True)
 
-    # Auto-commit y push a GitHub
-    print("📤 Subiendo cambios de MediaCoach a GitHub...")
-    git_auto_sync("MediaCoach")
+        checkpoint.mark_phase(phase_2_key, completed=True)
+    else:
+        print(f"📍 Fase 2 completada - Saltando carpetas")
 
-    if progress_callback:
-        progress_callback(100, "✅ Proceso MediaCoach finalizado con éxito.", messages)
+    # FASE 3: Git sync
+    phase_3_key = "fase_3_git"
 
-def update_opta_data_web(competition_id, stage_id, start_week, end_week, progress_callback=None):
-    """Versión web INTELIGENTE: Detecta si es Copa para ignorar las jornadas"""
+    if not checkpoint.is_phase_completed(phase_3_key):
+        _mc_add_message("🎉 ¡Actualización MediaCoach completada!", "success")
+        _mc_update_progress(100, "✅ Proceso MediaCoach finalizado con éxito.")
+        print("📤 Subiendo cambios de MediaCoach a GitHub...")
+        git_auto_sync("MediaCoach")
+        checkpoint.mark_phase(phase_3_key, completed=True)
+        checkpoint.mark_completed()
+    else:
+        print(f"📍 Fase 3 completada - Git sync ya realizado")
+
+def update_opta_data_web(competition_id, stage_id, start_week, end_week, progress_callback=None, force_restart=False):
+    """Versión web INTELIGENTE: Detecta si es Copa para ignorar las jornadas + CHECKPOINT"""
     messages = []
 
     def add_message(msg, msg_type="info"):
@@ -2651,216 +2804,272 @@ def update_opta_data_web(competition_id, stage_id, start_week, end_week, progres
         if progress_callback:
             progress_callback(progress, status, messages)
 
+    # Inicializar checkpoint manager
+    checkpoint = CheckpointManager(OPTA_CHECKPOINT)
+
+    # Verificar si hay un checkpoint pendiente de reanudar
+    if checkpoint.needs_resume() and not force_restart:
+        add_message(f"📍 SE DETECTÓ UNA INTERRUPCIÓN PREVIA DE OPTA")
+        add_message(f"   📁 Fuente: {checkpoint.get_source()}")
+        add_message(f"   🕐 Iniciado: {checkpoint.data.get('started_at', 'desconocido')}")
+        add_message(f"   👉 Reanudando desde el último checkpoint...")
+        add_message("=" * 50)
+    elif checkpoint.needs_resume() and force_restart:
+        add_message("🗑️ Eliminando checkpoint anterior por reinicio forzado...")
+        checkpoint.cleanup()
+        checkpoint.start("Opta")
+    else:
+        checkpoint.start("Opta")
+
     try:
-        return _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages, progress_callback)
+        return _update_opta_data_web_inner(
+            competition_id, stage_id, start_week, end_week,
+            add_message, update_progress, messages, progress_callback, checkpoint
+        )
     except Exception as e:
         add_message(f"💥 Error crítico en la actualización: {e}", "error")
         update_progress(100, f"Error crítico: {e}")
+        # checkpoint NO se elimina - permite reanudar
         return messages
+    finally:
+        # Si se completó con éxito, limpiar checkpoint
+        if checkpoint.is_completed():
+            checkpoint.cleanup()
 
-def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages, progress_callback=None):
-    """Lógica interna de update_opta_data_web"""
+def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, add_message, update_progress, messages, progress_callback=None, checkpoint=None):
+    """Lógica interna de update_opta_data_web con soporte de checkpoint"""
+    if checkpoint is None:
+        checkpoint = CheckpointManager(OPTA_CHECKPOINT)
+
     add_message("🎯 ACTUALIZACIÓN DE DATOS OPTA (WEB)")
     add_message("=" * 50)
     update_progress(5, "Iniciando proceso...")
-    
-    # 1. Obtener información de la competición para saber si es LIGA o COPA
-    # Necesitamos el nombre para saber cómo comportarnos
-    add_message("🔍 Analizando tipo de competición...")
+
+    # FASE 1: Obtener información de la competición
+    phase_1_key = "fase_1_competicion"
     is_cup_format = False
     season = "N/A"
-    
-    try:
-        # Obtenemos las competiciones para sacar el nombre y la temporada
-        competitions = get_all_competitions_and_stages()
-        comp_name = "Desconocida"
-        
-        # Buscamos la info correspondiente a los IDs recibidos de la web
-        for c_id, c_info in competitions.items():
-            if c_id == competition_id:
-                if stage_id in c_info['stages']:
-                    season = c_info['stages'][stage_id]['season']
-                    comp_name = c_info.get('name', '').lower()
-                    break
-        
-        # LÓGICA DE DETECCIÓN
-        # Si NO contiene palabras de liga regular, asumimos que es formato Copa/Torneo
-        # Normalizamos quitando acentos para evitar fallos (ej: "división" vs "division")
-        comp_name_normalized = ''.join(
-            c for c in unicodedata.normalize('NFD', comp_name) if unicodedata.category(c) != 'Mn'
-        )
-        keywords_liga = ['liga', 'division', 'premier', 'serie a', 'bundesliga', 'regular season', 'primera']
-        is_cup_format = not any(k in comp_name_normalized for k in keywords_liga)
-        
-        add_message(f"🏆 Competición detectada: {comp_name.upper()}")
-        add_message(f"🗓️ Temporada: {season}")
-        
-        if is_cup_format:
-            add_message(f"ℹ️ Formato detectado: COPA/ELIMINATORIA")
-            add_message(f"   👉 Se ignorará la selección de jornadas {start_week}-{end_week}.")
-            add_message(f"   👉 Se descargarán TODOS los partidos de esta fase.")
-        else:
-            add_message(f"ℹ️ Formato detectado: LIGA REGULAR")
-            add_message(f"   👉 Descargando jornadas: {start_week} a {end_week}")
+    comp_name = "Desconocida"
 
-    except Exception as e:
-        add_message(f"⚠️ No se pudo determinar el tipo de competición: {e}", "warning")
-        # Si falla la detección, seguimos con la lógica por defecto (Liga)
+    if not checkpoint.is_phase_completed(phase_1_key):
+        add_message("🔍 Analizando tipo de competición...")
+        try:
+            competitions = get_all_competitions_and_stages()
+            for c_id, c_info in competitions.items():
+                if c_id == competition_id:
+                    if stage_id in c_info['stages']:
+                        season = c_info['stages'][stage_id]['season']
+                        comp_name = c_info.get('name', '').lower()
+                        break
+
+            comp_name_normalized = ''.join(
+                c for c in unicodedata.normalize('NFD', comp_name) if unicodedata.category(c) != 'Mn'
+            )
+            keywords_liga = ['liga', 'division', 'premier', 'serie a', 'bundesliga', 'regular season', 'primera']
+            is_cup_format = not any(k in comp_name_normalized for k in keywords_liga)
+
+            add_message(f"🏆 Competición detectada: {comp_name.upper()}")
+            add_message(f"🗓️ Temporada: {season}")
+
+            if is_cup_format:
+                add_message(f"ℹ️ Formato detectado: COPA/ELIMINATORIA")
+                add_message(f"   👉 Se ignorará la selección de jornadas {start_week}-{end_week}.")
+            else:
+                add_message(f"ℹ️ Formato detectado: LIGA REGULAR")
+                add_message(f"   👉 Descargando jornadas: {start_week} a {end_week}")
+
+        except Exception as e:
+            add_message(f"⚠️ No se pudo determinar el tipo de competición: {e}", "warning")
+
+        checkpoint.mark_phase(phase_1_key, is_cup_format=is_cup_format, season=season, comp_name=comp_name)
+    else:
+        phase_1_data = checkpoint.get_phase_data(phase_1_key)
+        is_cup_format = phase_1_data.get('is_cup_format', False)
+        season = phase_1_data.get('season', 'N/A')
+        add_message(f"📍 Fase 1 completada - Reanudando: {comp_name.upper()}")
 
     add_message("=" * 50)
 
-    # 2. Get matches (Lógica diferenciada)
-    add_message("🔄 Obteniendo partidos...")
-    update_progress(20, "Conectando con API...")
-    
+    # FASE 2: Obtener partidos
+    phase_2_key = "fase_2_partidos"
     all_matches_df = pd.DataFrame()
-    
-    if is_cup_format:
-        # SI ES COPA: Llamamos directamente a advanced SIN semana específica
-        # Esto evita el error 404 de "Week 1"
-        matches_df = get_match_ids_advanced(
-            max_matches=500, # Pedimos muchos para traer toda la fase
-            specific_week=None, # <--- CLAVE: Ignoramos la semana que viene de la web
-            stage_id=stage_id,
-            messages=messages
-        )
-        if not matches_df.empty:
-            all_matches_df = matches_df
-            add_message(f"✅ Descarga completa de la fase: {len(all_matches_df)} partidos.")
+
+    if not checkpoint.is_phase_completed(phase_2_key):
+        add_message("🔄 Obteniendo partidos...")
+        update_progress(20, "Conectando con API...")
+
+        if is_cup_format:
+            matches_df = get_match_ids_advanced(
+                max_matches=500, specific_week=None, stage_id=stage_id, messages=messages
+            )
+            if not matches_df.empty:
+                all_matches_df = matches_df
+                add_message(f"✅ Descarga completa de la fase: {len(all_matches_df)} partidos.")
+        else:
+            all_matches_df = get_matches_by_weeks_range(
+                stage_id, start_week, end_week, messages=messages, progress_callback=progress_callback
+            )
+
+        if all_matches_df.empty:
+            add_message("❌ No se encontraron partidos", "error")
+            update_progress(100, "Error: No se encontraron partidos")
+            return messages
+
+        checkpoint.mark_phase(phase_2_key, match_ids=all_matches_df['Match ID'].tolist())
     else:
-        # SI ES LIGA: Usamos el rango de semanas seleccionado en la web
-        all_matches_df = get_matches_by_weeks_range(
-            stage_id, start_week, end_week, 
-            messages=messages, progress_callback=progress_callback
-        )
-    
-    if all_matches_df.empty:
-        add_message("❌ No se encontraron partidos", "error")
-        update_progress(100, "Error: No se encontraron partidos")
-        return messages
+        phase_2_data = checkpoint.get_phase_data(phase_2_key)
+        match_ids_cached = phase_2_data.get('match_ids', [])
+        all_matches_df = pd.DataFrame({'Match ID': match_ids_cached})
+        add_message(f"📍 Fase 2 completada - {len(match_ids_cached)} partidos en caché")
 
-    # 4. Verificación granular de datos existentes
-    update_progress(30, "Verificando datos existentes por partido...")
-    match_ids = all_matches_df['Match ID'].tolist()
-    data_status = get_granular_data_status(match_ids, messages)
+    # FASE 3: Verificación granular
+    phase_3_key = "fase_3_verificacion"
 
-    # Determinar qué partidos necesitan alguna descarga
-    matches_needing_data = []
-    for match_id in match_ids:
-        status = data_status.get(match_id, {})
-        if not all(status.values()):
-            matches_needing_data.append(match_id)
+    if not checkpoint.is_phase_completed(phase_3_key):
+        update_progress(30, "Verificando datos existentes por partido...")
+        match_ids = all_matches_df['Match ID'].tolist()
+        data_status = get_granular_data_status(match_ids, messages)
 
-    if not matches_needing_data:
+        matches_needing_data = []
+        for match_id in match_ids:
+            status = data_status.get(match_id, {})
+            if not all(status.values()):
+                matches_needing_data.append(match_id)
+
+        checkpoint.mark_phase(phase_3_key,
+                             matches_needing_data=matches_needing_data,
+                             total_matches=len(match_ids))
+    else:
+        phase_3_data = checkpoint.get_phase_data(phase_3_key)
+        matches_needing_data = phase_3_data.get('matches_needing_data', [])
+        add_message(f"📍 Fase 3 completada - {len(matches_needing_data)} partidos necesitan datos")
+
+    # Verificar si no hay datos nuevos
+    if not checkpoint.is_phase_completed(phase_3_key) or len(checkpoint.get_phase_data(phase_3_key).get('matches_needing_data', [])) == 0:
         add_message("🎉 ¡No hay datos nuevos que descargar!", "success")
+        # Las fases ABP se ejecutan siempre al final si no hay datos nuevos
         update_progress(95, "Verificando ABP...")
         update_abp_events_standalone()
         calculate_and_save_abp_statistics()
         update_progress(100, "Completado: Todos los datos están actualizados.")
+        checkpoint.mark_completed()
         return messages
 
-    add_message(f"📊 {len(matches_needing_data)} partidos necesitan datos")
+    # FASE 4: Descarga granular de datos (puede reanudarse partido por partido)
+    phase_4_key = "fase_4_descarga"
+    phase_4_data = checkpoint.get_phase_data(phase_4_key) if checkpoint.is_phase_completed(phase_4_key) else {}
+    processed_match_ids = set(phase_4_data.get('processed_match_ids', []))
 
-    # 5. Process data loop - DESCARGA GRANULAR
-    all_data = {
-        'player_stats': [], 'team_stats': [], 'player_xg_stats': [],
-        'xg_events': [], 'match_events': [], 'team_officials': [],
-        'posesiones': []
-    }
+    matches_needing_data = checkpoint.get_phase_data(phase_3_key).get('matches_needing_data', [])
+    matches_to_process = [mid for mid in matches_needing_data if mid not in processed_match_ids]
 
-    progress_increment = 55 / len(matches_needing_data)
+    if matches_to_process:
+        add_message(f"📊 {len(matches_to_process)} partidos por descargar ({len(processed_match_ids)} ya completados)")
 
-    for i, match_id in enumerate(matches_needing_data):
-        current_progress = 30 + (i * progress_increment)
-        update_progress(current_progress, f"Procesando partido {i+1}/{len(matches_needing_data)}")
+        all_data = {
+            'player_stats': [], 'team_stats': [], 'player_xg_stats': [],
+            'xg_events': [], 'match_events': [], 'team_officials': [],
+            'posesiones': []
+        }
 
-        status = data_status.get(match_id, {})
-        missing_feeds = [k for k, v in status.items() if not v]
-        add_message(f"⚽ Partido {i+1}/{len(matches_needing_data)}: {match_id}")
-        add_message(f"   📥 Feeds faltantes: {', '.join(missing_feeds)}")
+        progress_base = 30
+        progress_increment = 55 / len(matches_needing_data)
 
-        try:
-            # MA2 - Player Stats y Team Officials (se descargan juntos)
-            if not status.get('player_stats') or not status.get('team_officials'):
+        for i, match_id in enumerate(matches_to_process):
+            current_progress = progress_base + ((len(processed_match_ids) + i) * progress_increment)
+            update_progress(current_progress, f"Procesando partido {len(processed_match_ids) + i + 1}/{len(matches_needing_data)}")
+
+            add_message(f"⚽ Partido {len(processed_match_ids) + i + 1}/{len(matches_needing_data)}: {match_id}")
+
+            try:
                 p_stats, t_off = process_match_player_stats(match_id, season)
-                if not p_stats.empty:
-                    all_data['player_stats'].append(p_stats)
-                if not t_off.empty:
-                    all_data['team_officials'].append(t_off)
+                if not p_stats.empty: all_data['player_stats'].append(p_stats)
+                if not t_off.empty: all_data['team_officials'].append(t_off)
 
-            # MA2 - Team Stats
-            if not status.get('team_stats'):
                 t_stats = process_match_team_stats(match_id, season)
-                if not t_stats.empty:
-                    all_data['team_stats'].append(t_stats)
+                if not t_stats.empty: all_data['team_stats'].append(t_stats)
 
-            # MA3 - Match Events
-            if not status.get('match_events'):
                 m_events = process_match_events(match_id, season)
-                if not m_events.empty:
-                    all_data['match_events'].append(m_events)
+                if not m_events.empty: all_data['match_events'].append(m_events)
 
-            # MA12 - xG Player Stats
-            if not status.get('player_xg_stats'):
                 p_xg = process_xg_player_stats(match_id, season)
-                if not p_xg.empty:
-                    all_data['player_xg_stats'].append(p_xg)
+                if not p_xg.empty: all_data['player_xg_stats'].append(p_xg)
 
-            # MA12 - xG Events
-            if not status.get('xg_events'):
                 xg_ev = process_xg_events(match_id, season)
-                if not xg_ev.empty:
-                    all_data['xg_events'].append(xg_ev)
+                if not xg_ev.empty: all_data['xg_events'].append(xg_ev)
 
-            # MA13 - Possession Events (NUEVO)
-            if not status.get('posesiones'):
                 pos_events = process_possession_events(match_id, season)
-                if not pos_events.empty:
-                    all_data['posesiones'].append(pos_events)
+                if not pos_events.empty: all_data['posesiones'].append(pos_events)
 
-        except Exception as e:
-            add_message(f"❌ Error en partido {match_id}: {e}", "error")
-            continue
+                # Guardar checkpoint después de cada partido completado
+                processed_match_ids.add(match_id)
+                checkpoint.mark_phase(phase_4_key, processed_match_ids=list(processed_match_ids))
 
-        if i < len(matches_needing_data) - 1:
-            time.sleep(DELAY_SECONDS)
-    
-    # 6. Save Data (con delta para actualización rápida de carpetas por equipo)
-    update_progress(85, "Guardando datos...")
-    new_data = {}
-    for data_type, df_list in all_data.items():
-        if df_list:
-            new_data[data_type] = pd.concat(df_list, ignore_index=True)
-        else:
-            new_data[data_type] = pd.DataFrame()
+            except Exception as e:
+                add_message(f"❌ Error en partido {match_id}: {e}", "error")
+                continue
 
-    # Carpeta temporal delta: save_opta_data escribe aquí solo las filas realmente nuevas
-    opta_delta_path = tempfile.mkdtemp(prefix='datos_delta_opta_')
-    try:
-        save_opta_data(new_data, messages, delta_path=opta_delta_path)
+            if i < len(matches_to_process) - 1:
+                time.sleep(DELAY_SECONDS)
 
-        # 7. ABP Processing
-        update_progress(93, "Procesando ABP...")
+        # Consolidar datos descargados
+        new_data = {}
+        for data_type, df_list in all_data.items():
+            if df_list:
+                new_data[data_type] = pd.concat(df_list, ignore_index=True)
+            else:
+                new_data[data_type] = pd.DataFrame()
+    else:
+        add_message("📍 Fase 4 completada - Saltando descarga (ya completada)")
+        new_data = {k: pd.DataFrame() for k in ['player_stats', 'team_stats', 'player_xg_stats', 'xg_events', 'match_events', 'team_officials', 'posesiones']}
+
+    # FASE 5: Guardar datos y procesar ABP
+    phase_5_key = "fase_5_guardado_abp"
+
+    if not checkpoint.is_phase_completed(phase_5_key):
+        update_progress(85, "Guardando datos...")
+        opta_delta_path = tempfile.mkdtemp(prefix='datos_delta_opta_')
         try:
+            save_opta_data(new_data, messages, delta_path=opta_delta_path)
+
+            update_progress(93, "Procesando ABP...")
             update_abp_events_standalone()
             calculate_and_save_abp_statistics()
-        except Exception as e:
-            add_message(f"⚠️ Error procesando ABP: {e}", "warning")
 
-        # 8. Actualizar carpetas de equipos solo con los datos nuevos (modo delta = rápido)
+            checkpoint.mark_phase(phase_5_key, completed=True)
+        except Exception as e:
+            add_message(f"⚠️ Error en fase 5: {e}", "warning")
+            raise
+        finally:
+            shutil.rmtree(opta_delta_path, ignore_errors=True)
+    else:
+        add_message("📍 Fase 5 completada - Saltando guardado/ABP")
+
+    # FASE 6: Actualizar carpetas de equipos
+    phase_6_key = "fase_6_carpetas"
+
+    if not checkpoint.is_phase_completed(phase_6_key):
+        update_progress(96, "Actualizando carpetas de equipos...")
         run_crear_carpetas_equipos(
             add_message_fn=add_message, update_progress_fn=update_progress,
-            progress_start=96, progress_end=98, delta_path=opta_delta_path
+            progress_start=96, progress_end=98, delta_path=None
         )
-    finally:
-        shutil.rmtree(opta_delta_path, ignore_errors=True)
+        checkpoint.mark_phase(phase_6_key, completed=True)
+    else:
+        add_message("📍 Fase 6 completada - Saltando carpetas")
 
-    add_message("🎉 ¡Actualización completada!", "success")
-    update_progress(100, "¡Actualización completada!")
+    # FASE 7: Git sync
+    phase_7_key = "fase_7_git"
 
-    # Auto-commit y push a GitHub
-    add_message("📤 Subiendo cambios a GitHub...")
-    git_auto_sync("Opta")
+    if not checkpoint.is_phase_completed(phase_7_key):
+        add_message("🎉 ¡Actualización completada!", "success")
+        update_progress(100, "¡Actualización completada!")
+        add_message("📤 Subiendo cambios a GitHub...")
+        git_auto_sync("Opta")
+        checkpoint.mark_phase(phase_7_key, completed=True)
+        checkpoint.mark_completed()
+    else:
+        add_message("📍 Fase 7 completada - Git sync ya realizado")
 
     return messages
 
@@ -3459,12 +3668,29 @@ def update_opta_data():
 # SPORTIAN DATA UPDATER
 # ====================================
 
-def process_sportian_csv_upload(contents, filename, progress_callback=None):
-    """Procesa un archivo CSV de Sportian subido via web (corners o faltas)"""
+def process_sportian_csv_upload(contents, filename, progress_callback=None, force_restart=False):
+    """Procesa un archivo CSV de Sportian subido via web (corners o faltas) + CHECKPOINT"""
     import base64
     import tempfile
     import sys
     import os
+
+    # Inicializar checkpoint manager
+    checkpoint = CheckpointManager(SPORTIAN_CHECKPOINT)
+
+    # Verificar si hay un checkpoint pendiente de reanudar
+    if checkpoint.needs_resume() and not force_restart:
+        print(f"📍 SE DETECTÓ UNA INTERRUPCIÓN PREVIA DE SPORTIAN")
+        print(f"   📁 Fuente: {checkpoint.get_source()}")
+        print(f"   🕐 Iniciado: {checkpoint.data.get('started_at', 'desconocido')}")
+        print(f"   👉 Reanudando desde el último checkpoint...")
+        print("=" * 50)
+    elif checkpoint.needs_resume() and force_restart:
+        print("🗑️ Eliminando checkpoint anterior por reinicio forzado...")
+        checkpoint.cleanup()
+        checkpoint.start("Sportian")
+    else:
+        checkpoint.start("Sportian")
 
     messages = []
 
@@ -3477,110 +3703,233 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None):
         if progress_callback:
             progress_callback(progress, status, messages)
 
-    add_message(f"📤 PROCESANDO CSV SPORTIAN: {filename}")
-    add_message("=" * 50)
-    update_progress(10, "Decodificando archivo...")
-
     try:
-        # 1. Decodificar el contenido base64
-        content_type, content_string = contents.split(',')
-        decoded = base64.b64decode(content_string)
+        add_message(f"📤 PROCESANDO CSV SPORTIAN: {filename}")
+        add_message("=" * 50)
 
-        # 2. Guardar temporalmente en la carpeta de Sportian
-        sportian_dir = os.path.join(os.getcwd(), 'extraccion_sportian')
-        temp_csv_path = os.path.join(sportian_dir, filename)
+        # FASE 1: Decodificar y guardar CSV
+        phase_1_key = "fase_1_csv"
 
-        with open(temp_csv_path, 'wb') as f:
-            f.write(decoded)
+        if not checkpoint.is_phase_completed(phase_1_key):
+            update_progress(10, "Decodificando archivo...")
 
-        add_message(f"✅ Archivo guardado: {temp_csv_path}")
-        update_progress(30, "Archivo guardado, procesando...")
+            # 1. Decodificar el contenido base64
+            content_type, content_string = contents.split(',')
+            decoded = base64.b64decode(content_string)
 
-        # 3. Importar y ejecutar la función del script csv_a_parquet
-        sys.path.insert(0, sportian_dir)
-        from csv_a_parquet import procesar_dataset
+            # 2. Guardar temporalmente en la carpeta de Sportian
+            sportian_dir = os.path.join(os.getcwd(), 'extraccion_sportian')
+            temp_csv_path = os.path.join(sportian_dir, filename)
 
-        # Determinar tipo de archivo y procesar
-        nombre_lower = filename.lower()
+            with open(temp_csv_path, 'wb') as f:
+                f.write(decoded)
 
-        if 'corner' in nombre_lower:
-            parquet_dest = os.path.join(sportian_dir, 'corners_tracking.parquet')
-            id_col = 'ID_Evento_Corner'
-            tipo = 'corners'
-        elif 'falta' in nombre_lower:
-            parquet_dest = os.path.join(sportian_dir, 'faltas_tracking.parquet')
-            id_col = 'ID_Evento_Falta'
-            tipo = 'faltas'
+            add_message(f"✅ Archivo guardado: {temp_csv_path}")
+
+            # Determinar tipo de archivo
+            nombre_lower = filename.lower()
+
+            if 'corner' in nombre_lower:
+                parquet_dest = os.path.join(sportian_dir, 'corners_tracking.parquet')
+                id_col = 'ID_Evento_Corner'
+                tipo = 'corners'
+            elif 'falta' in nombre_lower:
+                parquet_dest = os.path.join(sportian_dir, 'faltas_tracking.parquet')
+                id_col = 'ID_Evento_Falta'
+                tipo = 'faltas'
+            else:
+                add_message(f"❌ El archivo debe contener 'corners' o 'faltas' en el nombre", "error")
+                update_progress(100, "Error: nombre de archivo inválido")
+                return
+
+            checkpoint.mark_phase(phase_1_key,
+                                 temp_csv_path=temp_csv_path,
+                                 parquet_dest=parquet_dest,
+                                 id_col=id_col,
+                                 tipo=tipo)
         else:
-            add_message(f"❌ El archivo debe contener 'corners' o 'faltas' en el nombre", "error")
-            update_progress(100, "Error: nombre de archivo inválido")
-            return
+            phase_1_data = checkpoint.get_phase_data(phase_1_key)
+            temp_csv_path = phase_1_data.get('temp_csv_path')
+            parquet_dest = phase_1_data.get('parquet_dest')
+            id_col = phase_1_data.get('id_col')
+            tipo = phase_1_data.get('tipo')
+            add_message(f"📍 Fase 1 completada - Tipo: {tipo}")
 
+        update_progress(30, "Archivo guardado, procesando...")
         add_message(f"🔍 Tipo detectado: {tipo}")
         update_progress(50, f"Procesando {tipo}...")
 
-        # 4. Snapshot de IDs existentes antes de procesar (para calcular el delta)
-        pre_ids = set()
-        if os.path.exists(parquet_dest):
-            try:
-                df_pre = pd.read_parquet(parquet_dest)
-                if id_col in df_pre.columns:
-                    pre_ids = set(df_pre[id_col].unique())
-            except Exception:
-                pass
+        # FASE 2: Procesar dataset
+        phase_2_key = "fase_2_procesar"
 
-        # 5. Procesar el dataset (merge incremental CSV → parquet maestro)
-        procesar_dataset(temp_csv_path, parquet_dest, id_col)
+        if not checkpoint.is_phase_completed(phase_2_key):
+            # 4. Snapshot de IDs existentes antes de procesar (para calcular el delta)
+            pre_ids = set()
+            if os.path.exists(parquet_dest):
+                try:
+                    df_pre = pd.read_parquet(parquet_dest)
+                    if id_col in df_pre.columns:
+                        pre_ids = set(df_pre[id_col].unique())
+                except Exception:
+                    pass
 
-        add_message(f"✅ Datos de {tipo} actualizados en {parquet_dest}")
+            # 5. Procesar el dataset (merge incremental CSV → parquet maestro)
+            sys.path.insert(0, sportian_dir)
+            from csv_a_parquet import procesar_dataset
+
+            procesar_dataset(temp_csv_path, parquet_dest, id_col)
+
+            add_message(f"✅ Datos de {tipo} actualizados en {parquet_dest}")
+
+            checkpoint.mark_phase(phase_2_key, completed=True, pre_ids=list(pre_ids))
+        else:
+            phase_2_data = checkpoint.get_phase_data(phase_2_key)
+            pre_ids = set(phase_2_data.get('pre_ids', []))
+            add_message(f"📍 Fase 2 completada - Datos procesados")
+
         update_progress(75, "Calculando delta y actualizando carpetas de equipos...")
 
-        # 6. Calcular las filas verdaderamente nuevas y escribir delta temporal
-        sportian_delta_path = None
-        try:
-            if os.path.exists(parquet_dest):
-                df_post = pd.read_parquet(parquet_dest)
-                if id_col in df_post.columns:
-                    new_ids = set(df_post[id_col].unique()) - pre_ids
-                    if new_ids:
-                        delta_df = df_post[df_post[id_col].isin(new_ids)]
-                        sportian_delta_path = tempfile.mkdtemp(prefix='datos_delta_sportian_')
-                        sportian_delta_dir = os.path.join(sportian_delta_path, 'sportian')
-                        os.makedirs(sportian_delta_dir, exist_ok=True)
-                        delta_df.to_parquet(
-                            os.path.join(sportian_delta_dir, os.path.basename(parquet_dest)),
-                            index=False
-                        )
-                        add_message(f"   ⚡ Delta Sportian: {len(new_ids)} eventos nuevos para distribuir.")
-        except Exception as e:
-            add_message(f"⚠️ No se pudo calcular delta Sportian, usando modo completo: {e}", "warning")
-            if sportian_delta_path:
-                shutil.rmtree(sportian_delta_path, ignore_errors=True)
-                sportian_delta_path = None
+        # FASE 3: Calcular delta y actualizar carpetas
+        phase_3_key = "fase_3_carpetas"
 
-        # 7. Actualizar carpetas de equipos (modo delta si hay nuevos datos, completo si no)
-        try:
-            run_crear_carpetas_equipos(
-                add_message_fn=add_message, update_progress_fn=update_progress,
-                progress_start=80, progress_end=95, delta_path=sportian_delta_path
-            )
-        finally:
-            if sportian_delta_path:
-                shutil.rmtree(sportian_delta_path, ignore_errors=True)
+        if not checkpoint.is_phase_completed(phase_3_key):
+            # 6. Calcular las filas verdaderamente nuevas y escribir delta temporal
+            sportian_delta_path = None
+            try:
+                if os.path.exists(parquet_dest):
+                    df_post = pd.read_parquet(parquet_dest)
+                    if id_col in df_post.columns:
+                        new_ids = set(df_post[id_col].unique()) - pre_ids
+                        if new_ids:
+                            delta_df = df_post[df_post[id_col].isin(new_ids)]
+                            sportian_delta_path = tempfile.mkdtemp(prefix='datos_delta_sportian_')
+                            sportian_delta_dir = os.path.join(sportian_delta_path, 'sportian')
+                            os.makedirs(sportian_delta_dir, exist_ok=True)
+                            delta_df.to_parquet(
+                                os.path.join(sportian_delta_dir, os.path.basename(parquet_dest)),
+                                index=False
+                            )
+                            add_message(f"   ⚡ Delta Sportian: {len(new_ids)} eventos nuevos para distribuir.")
+            except Exception as e:
+                add_message(f"⚠️ No se pudo calcular delta Sportian, usando modo completo: {e}", "warning")
+                if sportian_delta_path:
+                    shutil.rmtree(sportian_delta_path, ignore_errors=True)
+                    sportian_delta_path = None
 
-        update_progress(95, "Sincronizando con Git...")
+            # 7. Actualizar carpetas de equipos (modo delta si hay nuevos datos, completo si no)
+            try:
+                run_crear_carpetas_equipos(
+                    add_message_fn=add_message, update_progress_fn=update_progress,
+                    progress_start=80, progress_end=95, delta_path=sportian_delta_path
+                )
+            finally:
+                if sportian_delta_path:
+                    shutil.rmtree(sportian_delta_path, ignore_errors=True)
 
-        # 6. Sincronizar con Git
-        git_auto_sync("Sportian")
+            checkpoint.mark_phase(phase_3_key, completed=True)
+        else:
+            add_message(f"📍 Fase 3 completada - Saltando carpetas")
 
-        add_message("✅ Proceso completado exitosamente")
-        update_progress(100, "✅ Proceso completado")
+        # FASE 4: Git sync
+        phase_4_key = "fase_4_git"
+
+        if not checkpoint.is_phase_completed(phase_4_key):
+            update_progress(95, "Sincronizando con Git...")
+
+            # 6. Sincronizar con Git
+            git_auto_sync("Sportian")
+
+            add_message("✅ Proceso completado exitosamente")
+            update_progress(100, "✅ Proceso completado")
+
+            checkpoint.mark_phase(phase_4_key, completed=True)
+            checkpoint.mark_completed()
+        else:
+            add_message(f"📍 Fase 4 completada - Git sync ya realizado")
+            update_progress(100, "✅ Proceso completado")
 
     except Exception as e:
         add_message(f"❌ Error: {str(e)}", "error")
         update_progress(100, f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
+        raise  # Re-raise para que el checkpoint se mantenga
+    finally:
+        # Si se completó con éxito, limpiar checkpoint
+        if checkpoint.is_completed():
+            checkpoint.cleanup()
+
+# ====================================
+# CHECKPOINT MANAGEMENT UTILITIES
+# ====================================
+
+def check_pending_checkpoints():
+    """Verifica si hay checkpoints pendientes de reanudar"""
+    pending = []
+    for checkpoint_file, name in [(OPTA_CHECKPOINT, "Opta"),
+                                   (MEDIACOACH_CHECKPOINT, "MediaCoach"),
+                                   (SPORTIAN_CHECKPOINT, "Sportian")]:
+        if checkpoint_file.exists():
+            try:
+                with open(checkpoint_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if not data.get('completed', False):
+                        pending.append({
+                            'source': name,
+                            'file': checkpoint_file,
+                            'started_at': data.get('started_at', 'desconocido'),
+                            'phases': list(data.get('phases', {}).keys())
+                        })
+            except Exception as e:
+                logging.warning(f"⚠️ No se pudo leer checkpoint de {name}: {e}")
+    return pending
+
+def clear_checkpoint(source: str = None):
+    """Elimina checkpoints de una fuente específica o todos"""
+    checkpoints = {
+        'opta': OPTA_CHECKPOINT,
+        'mediacoach': MEDIACOACH_CHECKPOINT,
+        'sportian': SPORTIAN_CHECKPOINT
+    }
+
+    if source and source.lower() in checkpoints:
+        cp_file = checkpoints[source.lower()]
+        if cp_file.exists():
+            cp_file.unlink()
+            print(f"🗑️ Checkpoint de {source} eliminado")
+        else:
+            print(f"ℹ️ No hay checkpoint de {source}")
+    else:
+        # Eliminar todos
+        for name, cp_file in checkpoints.items():
+            if cp_file.exists():
+                cp_file.unlink()
+                print(f"🗑️ Checkpoint de {name.capitalize()} eliminado")
+
+def resume_update(source: str, **kwargs):
+    """Reanuda una actualización interrumpida"""
+    checkpoint_file = None
+    if source.lower() == 'opta':
+        checkpoint_file = OPTA_CHECKPOINT
+    elif source.lower() == 'mediacoach':
+        checkpoint_file = MEDIACOACH_CHECKPOINT
+    elif source.lower() == 'sportian':
+        checkpoint_file = SPORTIAN_CHECKPOINT
+
+    if not checkpoint_file or not checkpoint_file.exists():
+        print(f"❌ No hay checkpoint pendiente de {source}")
+        return
+
+    print(f"📍 Reanudando actualización de {source}...")
+
+    if source.lower() == 'opta':
+        # Reanudar Opta web (se necesitan los parámetros originales)
+        # Esto es un placeholder - en producción se guardarían en el checkpoint
+        print("⚠️ Para reanudar Opta, usa la interfaz web con los mismos parámetros")
+    elif source.lower() == 'mediacoach':
+        print("⚠️ Para reanudar MediaCoach, usa la interfaz web con los mismos parámetros")
+    elif source.lower() == 'sportian':
+        print("⚠️ Para reanudar Sportian, sube el mismo CSV en la interfaz web")
 
 # ====================================
 # MEDIACOACH DATA UPDATER
@@ -3602,23 +3951,34 @@ def update_mediacoach_data():
 # ====================================
 
 def main():
-    """Main interface for data updates"""
+    """Main interface for data updates con soporte de checkpoints"""
     print("🔄 SISTEMA DE ACTUALIZACIÓN DE DATOS")
     print("=" * 50)
     print("📊 Villarreal CF - Departamento de Datos")
     print("")
-    
+
+    # Verificar checkpoints pendientes al iniciar
+    pending = check_pending_checkpoints()
+    if pending:
+        print("⚠️  SE DETECTARON ACTUALIZACIONES INTERRUMPIDAS:")
+        for p in pending:
+            print(f"   • {p['source']} - Iniciado: {p['started_at']}")
+            print(f"     Fases completadas: {', '.join(p['phases']) if p['phases'] else 'ninguna'}")
+        print("\n   Usa la opción 6 para limpiar checkpoints o reanuda desde la web.")
+        print("=" * 50)
+
     while True:
         print("\n📋 OPCIONES DISPONIBLES:")
         print("  1. 📈 Actualizar datos de Opta (incluye ABP)")
         print("  2. ⚽ Actualizar/Crear Parquet de Eventos ABP solamente")
         print("  3. 🎮 Actualizar datos de MediaCoach")
         print("  4. 🔄 Actualizar ambos (Opta y MediaCoach)")
-        print("  5. 🚪 Salir")
-        
+        print("  5. 🗑️  Limpiar checkpoints")
+        print("  6. 🚪 Salir")
+
         try:
-            choice = input("\n🎯 Selecciona una opción (1-5): ").strip()
-            
+            choice = input("\n🎯 Selecciona una opción (1-6): ").strip()
+
             if choice == '1':
                 update_opta_data()
             elif choice == '2':
@@ -3633,11 +3993,23 @@ def main():
                 print("\n" + "="*50)
                 update_mediacoach_data()
             elif choice == '5':
+                print("\n🗑️  Opciones de limpieza:")
+                print("   1. Limpiar checkpoint de Opta")
+                print("   2. Limpiar checkpoint de MediaCoach")
+                print("   3. Limpiar checkpoint de Sportian")
+                print("   4. Limpiar TODOS los checkpoints")
+                sub_choice = input("   Selecciona (1-4): ").strip()
+                mapping = {'1': 'opta', '2': 'mediacoach', '3': 'sportian', '4': None}
+                if sub_choice in mapping:
+                    clear_checkpoint(mapping[sub_choice])
+                else:
+                    print("❌ Opción no válida")
+            elif choice == '6':
                 print("👋 ¡Hasta luego!")
                 break
             else:
                 print("❌ Opción no válida. Intenta de nuevo.")
-                
+
         except KeyboardInterrupt:
             print("\n👋 Cancelado por el usuario")
             break
