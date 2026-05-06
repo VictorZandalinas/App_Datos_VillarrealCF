@@ -3674,6 +3674,15 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
     import tempfile
     import sys
     import os
+    import gc
+    import logging
+
+    # Configurar logging específico para Sportian
+    logger = logging.getLogger('sportian_web')
+    logger.info("=" * 60)
+    logger.info(f"📤 INICIANDO PROCESO SPORTIAN WEB: {filename}")
+    logger.info(f"   Contenido size: {len(contents) if contents else 0} chars (base64)")
+    logger.info("=" * 60)
 
     # Inicializar checkpoint manager
     checkpoint = CheckpointManager(SPORTIAN_CHECKPOINT)
@@ -3712,10 +3721,15 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
 
         if not checkpoint.is_phase_completed(phase_1_key):
             update_progress(10, "Decodificando archivo...")
+            logger.info(f"   📄 Decodificando base64...")
 
             # 1. Decodificar el contenido base64
             content_type, content_string = contents.split(',')
             decoded = base64.b64decode(content_string)
+
+            # Log del tamaño del archivo
+            csv_size_mb = len(decoded) / (1024 * 1024)
+            logger.info(f"      → Archivo decodificado: {csv_size_mb:.2f} MB")
 
             # 2. Guardar temporalmente en la carpeta de Sportian
             sportian_dir = os.path.join(os.getcwd(), 'extraccion_sportian')
@@ -3724,7 +3738,12 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
             with open(temp_csv_path, 'wb') as f:
                 f.write(decoded)
 
-            add_message(f"✅ Archivo guardado: {temp_csv_path}")
+            # Verificar tamaño en disco
+            disk_size_mb = os.path.getsize(temp_csv_path) / (1024 * 1024)
+            logger.info(f"      → Guardado en disco: {disk_size_mb:.2f} MB")
+            logger.info(f"      → Ruta: {temp_csv_path}")
+
+            add_message(f"✅ Archivo guardado: {temp_csv_path} ({csv_size_mb:.2f} MB)")
 
             # Determinar tipo de archivo
             nombre_lower = filename.lower()
@@ -3767,18 +3786,27 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
             pre_ids = set()
             if os.path.exists(parquet_dest):
                 try:
+                    logger.info(f"   📚 Leyendo parquet existente para snapshot de IDs...")
                     df_pre = pd.read_parquet(parquet_dest)
                     if id_col in df_pre.columns:
                         pre_ids = set(df_pre[id_col].unique())
-                except Exception:
-                    pass
+                    logger.info(f"      → {len(pre_ids)} IDs existentes en {parquet_dest}")
+                except Exception as e:
+                    logger.warning(f"      ⚠️ Error leyendo parquet existente: {e}")
+                    pre_ids = set()
 
             # 5. Procesar el dataset (merge incremental CSV → parquet maestro)
+            logger.info(f"   🔄 Iniciando proceso ETL desde csv_a_parquet.py...")
             sys.path.insert(0, sportian_dir)
             from csv_a_parquet import procesar_dataset
 
+            # Forzar GC antes de procesar para liberar memoria
+            gc.collect()
+            logger.info(f"   🧹 Memoria liberada antes de procesar")
+
             procesar_dataset(temp_csv_path, parquet_dest, id_col)
 
+            logger.info(f"   ✅ Proceso ETL completado")
             add_message(f"✅ Datos de {tipo} actualizados en {parquet_dest}")
 
             checkpoint.mark_phase(phase_2_key, completed=True, pre_ids=list(pre_ids))
@@ -3796,21 +3824,38 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
             # 6. Calcular las filas verdaderamente nuevas y escribir delta temporal
             sportian_delta_path = None
             try:
+                logger.info(f"   📊 Calculando delta de eventos nuevos...")
                 if os.path.exists(parquet_dest):
                     df_post = pd.read_parquet(parquet_dest)
                     if id_col in df_post.columns:
                         new_ids = set(df_post[id_col].unique()) - pre_ids
+                        logger.info(f"      → {len(new_ids)} IDs nuevos detectados")
                         if new_ids:
                             delta_df = df_post[df_post[id_col].isin(new_ids)]
+                            logger.info(f"      → Delta: {len(delta_df)} filas para distribuir")
+
                             sportian_delta_path = tempfile.mkdtemp(prefix='datos_delta_sportian_')
                             sportian_delta_dir = os.path.join(sportian_delta_path, 'sportian')
                             os.makedirs(sportian_delta_dir, exist_ok=True)
+
+                            delta_size_mb = delta_df.memory_usage(deep=True).sum() / (1024 * 1024)
+                            logger.info(f"      → Memoria delta: {delta_size_mb:.2f} MB")
+
                             delta_df.to_parquet(
                                 os.path.join(sportian_delta_dir, os.path.basename(parquet_dest)),
                                 index=False
                             )
                             add_message(f"   ⚡ Delta Sportian: {len(new_ids)} eventos nuevos para distribuir.")
+
+                            # Liberar memoria
+                            del delta_df
+                            gc.collect()
+                    else:
+                        logger.warning(f"      ⚠️ Columna ID '{id_col}' no encontrada en parquet")
+                else:
+                    logger.warning(f"      ⚠️ Parquet destino no existe: {parquet_dest}")
             except Exception as e:
+                logger.error(f"      ❌ Error calculando delta: {e}", exc_info=True)
                 add_message(f"⚠️ No se pudo calcular delta Sportian, usando modo completo: {e}", "warning")
                 if sportian_delta_path:
                     shutil.rmtree(sportian_delta_path, ignore_errors=True)
@@ -3835,10 +3880,12 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
 
         if not checkpoint.is_phase_completed(phase_4_key):
             update_progress(95, "Sincronizando con Git...")
+            logger.info(f"   🔄 Iniciando git auto sync...")
 
             # 6. Sincronizar con Git
             git_auto_sync("Sportian")
 
+            logger.info(f"   ✅ Git sync completado")
             add_message("✅ Proceso completado exitosamente")
             update_progress(100, "✅ Proceso completado")
 
@@ -3849,15 +3896,21 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
             update_progress(100, "✅ Proceso completado")
 
     except Exception as e:
+        logger.error(f"❌ ERROR CRÍTICO en process_sportian_csv_upload: {e}", exc_info=True)
         add_message(f"❌ Error: {str(e)}", "error")
         update_progress(100, f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise  # Re-raise para que el checkpoint se mantenga
     finally:
+        logger.info(f"   🧹 Limpieza final y verificación de checkpoint...")
         # Si se completó con éxito, limpiar checkpoint
         if checkpoint.is_completed():
             checkpoint.cleanup()
+            logger.info(f"      → Checkpoint limpiado")
+        logger.info("=" * 60)
+        logger.info(f"🏁 FIN PROCESO SPORTIAN WEB")
+        logger.info("=" * 60)
 
 # ====================================
 # CHECKPOINT MANAGEMENT UTILITIES

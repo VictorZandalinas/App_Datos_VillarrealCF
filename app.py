@@ -1652,17 +1652,46 @@ def process_sportian_csv(n_clicks, contents, filename):
         raise dash.exceptions.PreventUpdate
 
     global progress_data
-    progress_data = {'active': True, 'progress': 0, 'status': 'Procesando CSV Sportian...', 'messages': []}
+    progress_data = {'active': True, 'progress': 0, 'status': 'Procesando CSV Sportian...', 'messages': [], 'error': False}
 
     def cb(p, s, msgs):
         global progress_data
         progress_data.update({'progress': p, 'status': s, 'messages': msgs})
-        if p >= 100: progress_data['active'] = False
+        if p >= 100:
+            progress_data['active'] = False
+            # Detectar si el status indica error
+            if s and ('error' in s.lower() or 'fatal' in s.lower() or '❌' in s):
+                progress_data['error'] = True
+
+    def safe_sportian_update():
+        """Wrapper para capturar errores no controlados del hilo"""
+        try:
+            actualizar_datos.process_sportian_csv_upload(contents, filename, cb)
+        except Exception as e:
+            import logging
+            import traceback
+            logging.error(f"Error fatal en hilo de actualización Sportian: {e}", exc_info=True)
+            error_tb = traceback.format_exc()
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            global progress_data
+            # Añadir el error como mensajes visibles en la consola
+            error_msgs = progress_data.get('messages', [])
+            error_msgs.append({'timestamp': timestamp, 'message': '=' * 50, 'type': 'error'})
+            error_msgs.append({'timestamp': timestamp, 'message': f'💥 ERROR FATAL: {e}', 'type': 'error'})
+            for line in error_tb.strip().split('\n'):
+                error_msgs.append({'timestamp': timestamp, 'message': line, 'type': 'error'})
+            error_msgs.append({'timestamp': timestamp, 'message': '=' * 50, 'type': 'error'})
+            progress_data.update({
+                'progress': 100,
+                'status': f'Error fatal: {e}',
+                'messages': error_msgs,
+                'error': True,
+                'active': False
+            })
 
     # Lanzar proceso en hilo separado
     threading.Thread(
-        target=actualizar_datos.process_sportian_csv_upload,
-        args=(contents, filename, cb),
+        target=safe_sportian_update,
         daemon=True
     ).start()
 
@@ -1683,12 +1712,19 @@ def clear_sportian_after_complete(n, disabled):
     if disabled or progress_data.get('active', True):
         raise dash.exceptions.PreventUpdate
 
-    # Si el proceso terminó y hay mensaje de éxito, limpiar el upload
+    # Si el proceso terminó, mostrar estado (éxito o error)
     if progress_data.get('progress', 0) >= 100:
-        return None, html.Div([
-            html.I(className="fas fa-check-circle text-success me-2"),
-            html.Span("¡Procesado correctamente!", className="text-success")
-        ])
+        has_error = progress_data.get('error', False)
+        if has_error:
+            return None, html.Div([
+                html.I(className="fas fa-times-circle text-danger me-2"),
+                html.Span("Error al procesar. Revisa la consola.", className="text-danger")
+            ])
+        else:
+            return None, html.Div([
+                html.I(className="fas fa-check-circle text-success me-2"),
+                html.Span("¡Procesado correctamente!", className="text-success")
+            ])
 
     raise dash.exceptions.PreventUpdate
 
@@ -1728,25 +1764,54 @@ def toggle_password_visibility(n_clicks):
 )
 def start_mediacoach_update(n, liga, season_id, season_options, ji, jf):
     if not n: raise dash.exceptions.PreventUpdate
-    
+
     # Obtener el nombre de la temporada (ej: "Temporada 24-25") a partir del ID
     season_name = next((opt['label'] for opt in season_options if opt['value'] == season_id), season_id)
-    
+
     global progress_data
-    progress_data = {'active': True, 'progress': 0, 'status': 'Preparando MediaCoach...', 'messages': []}
-    
+    progress_data = {'active': True, 'progress': 0, 'status': 'Preparando MediaCoach...', 'messages': [], 'error': False}
+
     def cb(p, s, msgs):
         global progress_data
         progress_data.update({'progress': p, 'status': s, 'messages': msgs})
-        if p >= 100: progress_data['active'] = False
+        if p >= 100:
+            progress_data['active'] = False
+            # Detectar si el status indica error
+            if s and ('error' in s.lower() or 'fatal' in s.lower() or '❌' in s):
+                progress_data['error'] = True
+
+    def safe_mediacoach_update():
+        """Wrapper para capturar errores no controlados del hilo"""
+        try:
+            actualizar_datos.update_mediacoach_data_web(liga, season_name, ji, jf, cb)
+        except Exception as e:
+            import logging
+            import traceback
+            logging.error(f"Error fatal en hilo de actualización MediaCoach: {e}", exc_info=True)
+            error_tb = traceback.format_exc()
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            global progress_data
+            # Añadir el error como mensajes visibles en la consola
+            error_msgs = progress_data.get('messages', [])
+            error_msgs.append({'timestamp': timestamp, 'message': '=' * 50, 'type': 'error'})
+            error_msgs.append({'timestamp': timestamp, 'message': f'💥 ERROR FATAL: {e}', 'type': 'error'})
+            for line in error_tb.strip().split('\n'):
+                error_msgs.append({'timestamp': timestamp, 'message': line, 'type': 'error'})
+            error_msgs.append({'timestamp': timestamp, 'message': '=' * 50, 'type': 'error'})
+            progress_data.update({
+                'progress': 100,
+                'status': f'Error fatal: {e}',
+                'messages': error_msgs,
+                'error': True,
+                'active': False
+            })
 
     # Lanzamos el proceso en un hilo separado para que la web no se congele
     threading.Thread(
-        target=actualizar_datos.update_mediacoach_data_web, 
-        args=(liga, season_name, ji, jf, cb), 
+        target=safe_mediacoach_update,
         daemon=True
     ).start()
-    
+
     return False, True
 
 # Callback 1: Solo actualiza el Store (siempre existe)
@@ -2112,6 +2177,20 @@ def update_ui(n):
                 'padding': '8px', 'background': '#330000', 'borderRadius': '4px'
             }
         ))
+
+    # Si terminó con éxito, añadir banner de éxito
+    elif not has_error and not progress_data['active'] and progress_data['progress'] >= 100:
+        msgs.append(html.Hr(style={'borderColor': '#28a745'}))
+        msgs.append(html.Div([
+            html.I(className="fas fa-check-circle text-success me-2"),
+            html.Span("✅ ACTUALIZACIÓN TERMINADA CON ÉXITO", style={'fontWeight': 'bold', 'color': '#28a745'})
+        ], style={
+            'padding': '12px',
+            'background': '#1e4620',
+            'borderRadius': '6px',
+            'border': '1px solid #28a745',
+            'marginTop': '10px'
+        }))
 
     # Retornamos: progreso, mensajes, si el intervalo se apaga, si el botón se habilita
     return progress_data['progress'], msgs, not progress_data['active'], progress_data['active']
