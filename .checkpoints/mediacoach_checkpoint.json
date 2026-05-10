@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-05-10T12:12:18.373289",
+  "source": "MediaCoach",
+  "phases": {
+    "fase_1_descarga": {
+      "completed_at": "2026-05-10T12:15:10.797567",
+      "metadata": {
+        "completed": true,
+        "liga": "LALIGA EA SPORTS",
+        "temporada": "Season 2025/2026"
+      }
+    },
+    "fase_2_carpetas": {
+      "completed_at": "2026-05-10T12:15:29.127775",
+      "metadata": {
+        "completed": true
+      }
+    }
+  },
+  "completed": false
+}

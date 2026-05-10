@@ -2778,14 +2778,16 @@ def _update_mediacoach_data_web_inner(liga, temporada, j_inicio, j_fin, progress
     phase_3_key = "fase_3_git"
 
     if not checkpoint.is_phase_completed(phase_3_key):
-        _mc_add_message("🎉 ¡Actualización MediaCoach completada!", "success")
-        _mc_update_progress(100, "✅ Proceso MediaCoach finalizado con éxito.")
-        print("📤 Subiendo cambios de MediaCoach a GitHub...")
+        _mc_add_message("📤 Subiendo cambios a GitHub...")
+        _mc_update_progress(95, "Sincronizando con GitHub...")
         git_auto_sync("MediaCoach")
+        _mc_add_message("🎉 ¡Actualización MediaCoach completada!", "success")
+        _mc_update_progress(100, "✅ Proceso completado - Cambios en GitHub")
         checkpoint.mark_phase(phase_3_key, completed=True)
         checkpoint.mark_completed()
     else:
         print(f"📍 Fase 3 completada - Git sync ya realizado")
+        _mc_update_progress(100, "✅ Proceso completado")
 
 def update_opta_data_web(competition_id, stage_id, start_week, end_week, progress_callback=None, force_restart=False):
     """Versión web INTELIGENTE: Detecta si es Copa para ignorar las jornadas + CHECKPOINT"""
@@ -3049,10 +3051,10 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
     phase_6_key = "fase_6_carpetas"
 
     if not checkpoint.is_phase_completed(phase_6_key):
-        update_progress(96, "Actualizando carpetas de equipos...")
+        update_progress(85, "Actualizando carpetas de equipos...")
         run_crear_carpetas_equipos(
             add_message_fn=add_message, update_progress_fn=update_progress,
-            progress_start=96, progress_end=98, delta_path=None
+            progress_start=85, progress_end=95, delta_path=None
         )
         checkpoint.mark_phase(phase_6_key, completed=True)
     else:
@@ -3062,14 +3064,16 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
     phase_7_key = "fase_7_git"
 
     if not checkpoint.is_phase_completed(phase_7_key):
-        add_message("🎉 ¡Actualización completada!", "success")
-        update_progress(100, "¡Actualización completada!")
         add_message("📤 Subiendo cambios a GitHub...")
+        update_progress(95, "Sincronizando con GitHub...")
         git_auto_sync("Opta")
+        add_message("🎉 ¡Actualización completada!", "success")
+        update_progress(100, "✅ Proceso completado - Cambios en GitHub")
         checkpoint.mark_phase(phase_7_key, completed=True)
         checkpoint.mark_completed()
     else:
         add_message("📍 Fase 7 completada - Git sync ya realizado")
+        update_progress(100, "✅ Proceso completado")
 
     return messages
 
@@ -3879,15 +3883,16 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
         phase_4_key = "fase_4_git"
 
         if not checkpoint.is_phase_completed(phase_4_key):
-            update_progress(95, "Sincronizando con Git...")
+            add_message("📤 Subiendo cambios a GitHub...")
+            update_progress(95, "Sincronizando con GitHub...")
             logger.info(f"   🔄 Iniciando git auto sync...")
 
             # 6. Sincronizar con Git
             git_auto_sync("Sportian")
 
             logger.info(f"   ✅ Git sync completado")
-            add_message("✅ Proceso completado exitosamente")
-            update_progress(100, "✅ Proceso completado")
+            add_message("🎉 ¡Actualización Sportian completada!")
+            update_progress(100, "✅ Proceso completado - Cambios en GitHub")
 
             checkpoint.mark_phase(phase_4_key, completed=True)
             checkpoint.mark_completed()
