@@ -310,6 +310,79 @@ def obtener_resumen_datos():
     huella = obtener_huella_archivos()
     return obtener_resumen_datos_cached(huella)
 
+# --- FUNCIONES PARA DATOS POR EQUIPOS ---
+
+@lru_cache(maxsize=1)
+def obtener_equipos_data_cached(huella):
+    """
+    Obtiene lista de equipos y cuenta jornadas únicas por fuente (MediaCoach, Opta, Sportian)
+    para cada equipo desde data_por_equipos/{equipo}/
+    """
+    print(f"🔄 [CACHE] Recargando datos de equipos desde el disco.")
+    equipos_data = []
+
+    for equipo_nombre in EQUIPOS_REPORTE:
+        # Normalizar nombre para carpeta (quitar número inicial)
+        nombre_carpeta = equipo_nombre.split('. ', 1)[-1] if '. ' in equipo_nombre else equipo_nombre
+
+        base_path = BASE_PATH / 'data_por_equipos' / nombre_carpeta
+
+        if not base_path.exists():
+            continue
+
+        equipo_info = {
+            'nombre': equipo_nombre,
+            'nombre_carpeta': nombre_carpeta,
+            'mediacoach_jornadas': 0,
+            'opta_jornadas': 0,
+            'sportian_jornadas': 0
+        }
+
+        # 1. MediaCoach: rendimiento_fisico.parquet -> columna Jornada
+        mc_path = base_path / 'extraccion_mediacoach/data/rendimiento_fisico.parquet'
+        if mc_path.exists():
+            try:
+                df_mc = pd.read_parquet(mc_path, columns=['Jornada'])
+                if 'Jornada' in df_mc.columns:
+                    jornadas_unicas = df_mc['Jornada'].dropna().unique()
+                    equipo_info['mediacoach_jornadas'] = len(jornadas_unicas)
+            except Exception as e:
+                print(f"⚠️ Error leyendo MediaCoach para {equipo_nombre}: {e}")
+
+        # 2. Opta: estadisticas_abp.parquet -> columna Week
+        opta_path = base_path / 'extraccion_opta/datos_opta_parquet/estadisticas_abp.parquet'
+        if opta_path.exists():
+            try:
+                df_opta = pd.read_parquet(opta_path, columns=['Week'])
+                if 'Week' in df_opta.columns:
+                    weeks_unicas = df_opta['Week'].dropna().unique()
+                    equipo_info['opta_jornadas'] = len(weeks_unicas)
+            except Exception as e:
+                print(f"⚠️ Error leyendo Opta para {equipo_nombre}: {e}")
+
+        # 3. Sportian: corners_defensivo_snapshot.parquet -> columna Jornada
+        sportian_path = base_path / 'extraccion_sportian/corners_defensivo_snapshot.parquet'
+        if sportian_path.exists():
+            try:
+                df_sportian = pd.read_parquet(sportian_path, columns=['Jornada'])
+                if 'Jornada' in df_sportian.columns:
+                    jornadas_unicas = df_sportian['Jornada'].dropna().unique()
+                    equipo_info['sportian_jornadas'] = len(jornadas_unicas)
+            except Exception as e:
+                print(f"⚠️ Error leyendo Sportian para {equipo_nombre}: {e}")
+
+        equipos_data.append(equipo_info)
+
+    print(f"✅ Datos de equipos cargados: {len(equipos_data)} equipos.")
+    return equipos_data
+
+def obtener_equipos_data():
+    """Función de acceso público que utiliza caché basado en tiempo."""
+    # Usamos tiempo como huella para invalidar caché cada cierto tiempo
+    import time
+    huella = int(time.time() / 300)  # Invalidar cada 5 minutos
+    return obtener_equipos_data_cached(huella)
+
 # --- LAYOUTS ---
 
 login_layout = html.Div([
@@ -482,6 +555,13 @@ def crear_layout_principal():
                 ], className="mb-5")
             ], width=12, lg=10, className="mx-auto")
         ]),
+
+        # --- FILA DE EQUIPOS CON ESCUDOS Y JORNADAS ---
+        dbc.Row([
+            dbc.Col([
+                html.Div(id='equipos-container')
+            ], width=12, lg=10, className="mx-auto")
+        ], className="mb-4"),
 
         # --- SEPARATOR ---
         dbc.Row([
@@ -1948,6 +2028,103 @@ def update_jornadas(liga, temp):
         ], width=4, md=2, lg=1, className="mb-2 px-1")) 
         
     return dbc.Row(cards, className="g-1 justify-content-start")
+
+@app.callback(
+    Output('equipos-container', 'children'),
+    Input('url', 'pathname')
+)
+def renderizar_equipos(path):
+    """Renderiza la fila de equipos con escudos y conteo de jornadas por fuente"""
+    if path != '/actualizar' and path != '/':
+        raise dash.exceptions.PreventUpdate
+
+    equipos_data = obtener_equipos_data()
+
+    if not equipos_data:
+        return html.Div("No hay datos de equipos disponibles.", className="text-center mt-3")
+
+    equipos_cards = []
+
+    for equipo in equipos_data:
+        nombre_equipo = equipo['nombre']
+        nombre_carpeta = equipo['nombre_carpeta']
+
+        # Obtener escudo del equipo
+        escudo_src = get_escudo_base64(nombre_equipo)
+        if not escudo_src:
+            # Intentar con variaciones del nombre del equipo
+            for nombre_alternativo, archivo_escudo in ESCUDOS_MAPPING.items():
+                if nombre_alternativo.lower() in nombre_equipo.lower() or nombre_equipo.lower() in nombre_alternativo.lower():
+                    escudo_src = get_escudo_base64(nombre_alternativo)
+                    if escudo_src:
+                        break
+
+        # Si no hay escudo, usar icono por defecto
+        escudo_element = html.Img(
+            src=escudo_src if escudo_src else "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cpath d='M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z'/%3E%3C/svg%3E",
+            style={'height': '40px', 'objectFit': 'contain'}
+        ) if escudo_src else html.I(
+            className="bi bi-shield-shaded",
+            style={"fontSize": "40px", "color": "#888"}
+        )
+
+        # Conteos por fuente
+        mc_count = equipo['mediacoach_jornadas']
+        opta_count = equipo['opta_jornadas']
+        sportian_count = equipo['sportian_jornadas']
+
+        # Colores según disponibilidad (verde si hay datos, gris si no)
+        mc_color = '#28a745' if mc_count > 0 else '#6c757d'
+        opta_color = '#28a745' if opta_count > 0 else '#6c757d'
+        sportian_color = '#28a745' if sportian_count > 0 else '#6c757d'
+
+        equipos_cards.append(dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    # Escudo centrado
+                    html.Div([
+                        escudo_element
+                    ], className="text-center mb-2"),
+
+                    # Nombre del equipo (truncado si es largo)
+                    html.P(
+                        nombre_carpeta[:15] + ('...' if len(nombre_carpeta) > 15 else ''),
+                        className="text-center fw-bold mb-2 small",
+                        style={'fontSize': '11px', 'minHeight': '30px'}
+                    ),
+
+                    # Estadísticas por fuente
+                    html.Div([
+                        # MediaCoach
+                        html.Div([
+                            html.Img(src=get_logo_base64("mediacoach_logo.png"),
+                                     style={'height': '16px', 'marginRight': '4px'}),
+                            html.Span(f"{mc_count}",
+                                     style={'fontSize': '12px', 'fontWeight': 'bold', 'color': mc_color})
+                        ], className="d-flex align-items-center justify-content-center mb-1"),
+
+                        # Opta
+                        html.Div([
+                            html.Img(src=get_logo_base64("opta_logo.png"),
+                                     style={'height': '16px', 'marginRight': '4px'}),
+                            html.Span(f"{opta_count}",
+                                     style={'fontSize': '12px', 'fontWeight': 'bold', 'color': opta_color})
+                        ], className="d-flex align-items-center justify-content-center mb-1"),
+
+                        # Sportian
+                        html.Div([
+                            html.Img(src=get_logo_base64("sportian_logo.png"),
+                                     style={'height': '8px', 'marginRight': '4px'}),
+                            html.Span(f"{sportian_count}",
+                                     style={'fontSize': '12px', 'fontWeight': 'bold', 'color': sportian_color})
+                        ], className="d-flex align-items-center justify-content-center"),
+                    ])
+                ], className="py-2")
+            ], className="shadow-sm equipo-card",
+               style={'minWidth': '100px', 'maxWidth': '120px'})
+        ], width=3, md=2, lg=1, className="mb-2 px-1"))
+
+    return dbc.Row(equipos_cards, className="g-2 justify-content-start")
 
 # --- CALLBACKS DE ACTUALIZACIÓN ---
 @app.callback(

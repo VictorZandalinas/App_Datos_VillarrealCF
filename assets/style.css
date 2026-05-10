@@ -893,3 +893,48 @@ body #app-wrapper .card:nth-child(3) { animation-delay: 0.3s; }
     font-weight: 500;
 }
 
+/* ============================================
+   TARJETAS DE EQUIPOS - FILA SUPERIOR
+   ============================================ */
+.equipo-card {
+    transition: all var(--transition-base);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.equipo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--vr-yellow);
+}
+
+.equipo-card .card-body {
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.equipo-card img[src*="escudos"] {
+    max-height: 40px;
+    width: auto;
+    object-fit: contain;
+}
+
+.equipo-card .bi-shield-shaded {
+    color: var(--text-muted);
+}
+
+/* Estadísticas de fuentes en tarjeta de equipo */
+.equipo-card .d-flex.align-items-center {
+    gap: 4px;
+}
+
+.equipo-card .d-flex img {
+    height: 16px;
+    width: auto;
+    object-fit: contain;
+}
+
