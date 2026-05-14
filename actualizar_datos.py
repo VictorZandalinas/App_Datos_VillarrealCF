@@ -2949,11 +2949,16 @@ def _update_opta_data_web_inner(competition_id, stage_id, start_week, end_week, 
     # Verificar si no hay datos nuevos
     if not checkpoint.is_phase_completed(phase_3_key) or len(checkpoint.get_phase_data(phase_3_key).get('matches_needing_data', [])) == 0:
         add_message("🎉 ¡No hay datos nuevos que descargar!", "success")
-        # Las fases ABP se ejecutan siempre al final si no hay datos nuevos
-        update_progress(95, "Verificando ABP...")
+        
+        update_progress(90, "Verificando estadísticas ABP...")
         update_abp_events_standalone()
         calculate_and_save_abp_statistics()
-        update_progress(100, "Completado: Todos los datos están actualizados.")
+        
+        # AÑADIDO: Sincronizar con Git aunque no haya datos de Opta (por si ABP cambió algo)
+        update_progress(95, "Sincronizando con GitHub (Git Push)...")
+        git_auto_sync("Opta")
+        
+        update_progress(100, "✅ Completado: Todos los datos están actualizados y sincronizados en GitHub.")
         checkpoint.mark_completed()
         return messages
 

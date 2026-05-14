@@ -1833,11 +1833,13 @@ def toggle_password_visibility(n_clicks):
 
 @app.callback(
     [Output('progress-interval', 'disabled', allow_duplicate=True), 
-     Output('btn-update-mediacoach', 'disabled', allow_duplicate=True)],
+     Output('btn-update-opta', 'disabled', allow_duplicate=True),
+     Output('btn-update-mediacoach', 'disabled', allow_duplicate=True),
+     Output('btn-update-sportian', 'disabled', allow_duplicate=True)],
     Input('btn-update-mediacoach', 'n_clicks'),
     [State('mediacoach-liga-dropdown', 'value'), 
-     State('mediacoach-temporada-dropdown', 'value'), # Aquí va el ID de la temporada
-     State('mediacoach-temporada-dropdown', 'options'), # Para sacar el nombre de la temporada
+     State('mediacoach-temporada-dropdown', 'value'), 
+     State('mediacoach-temporada-dropdown', 'options'),
      State('mediacoach-jornada-inicial', 'value'), 
      State('mediacoach-jornada-final', 'value')],
     prevent_initial_call=True
@@ -1892,7 +1894,7 @@ def start_mediacoach_update(n, liga, season_id, season_options, ji, jf):
         daemon=True
     ).start()
 
-    return False, True
+    return False, True, True, True 
 
 # Callback 1: Solo actualiza el Store (siempre existe)
 @app.callback(
@@ -2168,8 +2170,9 @@ def enable_btn(l, t): return not (l and t)
 
 @app.callback(
     [Output('progress-interval', 'disabled', allow_duplicate=True), 
-     # AÑADIMOS allow_duplicate=True AQUÍ ABAJO:
-     Output('btn-update-opta', 'disabled', allow_duplicate=True)], 
+     Output('btn-update-opta', 'disabled', allow_duplicate=True),
+     Output('btn-update-mediacoach', 'disabled', allow_duplicate=True),
+     Output('btn-update-sportian', 'disabled', allow_duplicate=True)], 
     Input('btn-update-opta', 'n_clicks'),
     [State('opta-liga-dropdown', 'value'), 
      State('opta-temporada-dropdown', 'value'),
@@ -2223,7 +2226,7 @@ def start_opta_update(n, comp_id, stage_id, ji, jf):
         daemon=True
     ).start()
     
-    return False, True
+    return False, True, True, True
 
 def _parse_range(range_header, file_size):
     """Parsea la cabecera Range del navegador. Devuelve (start, end) o None."""
@@ -2312,65 +2315,64 @@ def descargar_informe(filename):
 
 @app.callback(
     [Output('progress-bar', 'value'), 
+     Output('progress-bar', 'label'),  # <-- Añadido para mostrar el % en texto
      Output('update-progress', 'children'), 
      Output('progress-interval', 'disabled', allow_duplicate=True), 
-     Output('btn-update-opta', 'disabled', allow_duplicate=True)],
+     Output('btn-update-opta', 'disabled', allow_duplicate=True),
+     Output('btn-update-mediacoach', 'disabled', allow_duplicate=True),
+     Output('btn-update-sportian', 'disabled', allow_duplicate=True)],
     Input('progress-interval', 'n_intervals'),
     prevent_initial_call=True
 )
 def update_ui(n):
     global progress_data
 
+    # Limpiar caché si terminó al 100%
     if not progress_data['active'] and progress_data['progress'] >= 100:
         obtener_resumen_datos_cached.cache_clear()
 
     has_error = progress_data.get('error', False)
+    progreso_actual = progress_data.get('progress', 0)
+    
+    # Etiqueta de texto para la barra
+    label_progreso = f"{progreso_actual}%"
 
-    # Convertimos los mensajes en párrafos HTML - errores en rojo
+    # Convertimos los mensajes en párrafos HTML
     msgs = []
     for m in progress_data.get('messages', []):
         msg_type = m.get('type', 'info')
         if msg_type == 'error':
-            msgs.append(html.P(
-                f"[{m['timestamp']}] {m['message']}",
-                style={'color': '#FF4444', 'fontWeight': 'bold'}
-            ))
+            msgs.append(html.P(f"[{m['timestamp']}] {m['message']}", style={'color': '#FF4444', 'fontWeight': 'bold'}))
         elif msg_type == 'warning':
-            msgs.append(html.P(
-                f"[{m['timestamp']}] {m['message']}",
-                style={'color': '#FFAA00'}
-            ))
+            msgs.append(html.P(f"[{m['timestamp']}] {m['message']}", style={'color': '#FFAA00'}))
+        elif msg_type == 'success':
+            msgs.append(html.P(f"[{m['timestamp']}] {m['message']}", style={'color': '#00FF88', 'fontWeight': 'bold'}))
         else:
             msgs.append(html.P(f"[{m['timestamp']}] {m['message']}"))
 
-    # Si hay error, añadir banner visible al final
-    if has_error and not progress_data['active']:
-        msgs.append(html.Hr(style={'borderColor': '#FF4444'}))
-        msgs.append(html.P(
-            f"La descarga se ha detenido por un error. "
-            f"Revisa los mensajes anteriores para más detalle.",
-            style={
-                'color': '#FF4444', 'fontWeight': 'bold', 'fontSize': '14px',
-                'padding': '8px', 'background': '#330000', 'borderRadius': '4px'
-            }
-        ))
+    # Mensaje final persistente (Error o Éxito)
+    if not progress_data['active']:
+        if has_error:
+            msgs.append(html.Hr(style={'borderColor': '#FF4444'}))
+            msgs.append(html.Div([
+                html.I(className="bi bi-x-circle-fill text-danger me-2"),
+                html.Span("PROCESO DETENIDO POR ERROR", style={'fontWeight': 'bold'})
+            ], style={'padding': '12px', 'background': '#330000', 'borderRadius': '6px', 'color': '#FF4444', 'border': '1px solid #FF4444', 'marginTop': '10px'}))
+        
+        elif progreso_actual >= 100:
+            msgs.append(html.Hr(style={'borderColor': '#00FF88'}))
+            msgs.append(html.Div([
+                html.I(className="bi bi-check-circle-fill me-2"),
+                html.Span("ACTUALIZACIÓN 100% COMPLETADA Y SUBIDA A GITHUB", style={'fontWeight': 'bold'})
+            ], style={'padding': '12px', 'background': '#003311', 'borderRadius': '6px', 'color': '#00FF88', 'border': '1px solid #00FF88', 'marginTop': '10px'}))
 
-    # Si terminó con éxito, añadir banner de éxito
-    elif not has_error and not progress_data['active'] and progress_data['progress'] >= 100:
-        msgs.append(html.Hr(style={'borderColor': '#28a745'}))
-        msgs.append(html.Div([
-            html.I(className="fas fa-check-circle text-success me-2"),
-            html.Span("✅ ACTUALIZACIÓN TERMINADA CON ÉXITO", style={'fontWeight': 'bold', 'color': '#28a745'})
-        ], style={
-            'padding': '12px',
-            'background': '#1e4620',
-            'borderRadius': '6px',
-            'border': '1px solid #28a745',
-            'marginTop': '10px'
-        }))
-
-    # Retornamos: progreso, mensajes, si el intervalo se apaga, si el botón se habilita
-    return progress_data['progress'], msgs, not progress_data['active'], progress_data['active']
+    # Determinar si bloqueamos o desbloqueamos los botones
+    # Si 'active' es True, los botones DEBEN estar desactivados (True).
+    # Si 'active' es False, los botones DEBEN estar activados (False).
+    botones_desactivados = progress_data['active']
+    
+    # Retorna: valor barra, texto barra, consola, apagar_intervalo, btnOpta, btnMC, btnSportian
+    return progreso_actual, label_progreso, msgs, not progress_data['active'], botones_desactivados, botones_desactivados, botones_desactivados
 
 @app.callback(
     Output('login-status', 'data', allow_duplicate=True), 
