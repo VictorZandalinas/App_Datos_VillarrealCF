@@ -2332,8 +2332,13 @@ def update_ui(n):
         obtener_resumen_datos_cached.cache_clear()
 
     has_error = progress_data.get('error', False)
-    progreso_actual = progress_data.get('progress', 0)
     
+    # Forzar a entero para que la barra de Bootstrap no falle con floats
+    try:
+        progreso_actual = int(progress_data.get('progress', 0))
+    except (ValueError, TypeError):
+        progreso_actual = 0
+        
     # Etiqueta de texto para la barra
     label_progreso = f"{progreso_actual}%"
 

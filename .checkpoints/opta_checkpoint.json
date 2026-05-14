@@ -1,0 +1,69 @@
+{
+  "started_at": "2026-05-14T16:39:52.027379",
+  "source": "Opta",
+  "phases": {
+    "fase_1_competicion": {
+      "completed_at": "2026-05-14T16:39:53.273399",
+      "metadata": {
+        "is_cup_format": false,
+        "season": "25/26",
+        "comp_name": "primera divisi\u00f3n"
+      }
+    },
+    "fase_2_partidos": {
+      "completed_at": "2026-05-14T16:39:55.603605",
+      "metadata": {
+        "match_ids": [
+          "3je81f1r98u8rqsk99bzjwyl0",
+          "3kigmlbqhunbi6gixcr7cz6z8",
+          "3msszbu4fc0okhk1cy6k7f09g",
+          "3jromoqjf4ywqhz6gv1xpo0lw",
+          "3lazt464v4k6hjwcq9ljf0ums",
+          "3m24sjc20wo15f6mmkw3qeqz8",
+          "3k57p4cr98z0cknr4b39kaivo",
+          "3mfg133s0kwtlbnaes34dxhxw",
+          "3logguenlwy065aa7gb1hf3tg",
+          "3kvn4dplqj7ecztktcd1afhuc"
+        ]
+      }
+    },
+    "fase_3_verificacion": {
+      "completed_at": "2026-05-14T16:39:55.741232",
+      "metadata": {
+        "matches_needing_data": [
+          "3je81f1r98u8rqsk99bzjwyl0",
+          "3kigmlbqhunbi6gixcr7cz6z8",
+          "3msszbu4fc0okhk1cy6k7f09g",
+          "3jromoqjf4ywqhz6gv1xpo0lw",
+          "3lazt464v4k6hjwcq9ljf0ums"
+        ],
+        "total_matches": 10
+      }
+    },
+    "fase_4_descarga": {
+      "completed_at": "2026-05-14T16:44:10.044261",
+      "metadata": {
+        "processed_match_ids": [
+          "3je81f1r98u8rqsk99bzjwyl0",
+          "3lazt464v4k6hjwcq9ljf0ums",
+          "3jromoqjf4ywqhz6gv1xpo0lw",
+          "3msszbu4fc0okhk1cy6k7f09g",
+          "3kigmlbqhunbi6gixcr7cz6z8"
+        ]
+      }
+    },
+    "fase_5_guardado_abp": {
+      "completed_at": "2026-05-14T16:45:07.268646",
+      "metadata": {
+        "completed": true
+      }
+    },
+    "fase_6_carpetas": {
+      "completed_at": "2026-05-14T16:47:17.518289",
+      "metadata": {
+        "completed": true
+      }
+    }
+  },
+  "completed": false
+}
