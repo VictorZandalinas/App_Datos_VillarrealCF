@@ -6,6 +6,7 @@ import gc
 import logging
 import sys
 from datetime import datetime
+import pyarrow.parquet as pq
 
 # ==========================================
 # CONFIGURACIÓN DE LOGGING
@@ -154,14 +155,15 @@ def actualizar_parquets_especializados(df_maestro, id_col, csv_filename=None):
     df_old_off = pd.DataFrame()
     df_old_def = pd.DataFrame()
 
-    # Intentamos leer el Ofensivo para ver qué IDs ya tenemos
+    # Intentamos leer SOLO la columna ID del Ofensivo para ver qué IDs ya tenemos
+    # OPTIMIZACIÓN: No cargar todo el parquet, solo la columna del ID
     if os.path.exists(file_off):
         try:
-            logger.info(f"   📂 Leyendo {file_off}...")
-            df_old_off = pd.read_parquet(file_off)
-            if id_col in df_old_off.columns:
-                ids_procesados = set(df_old_off[id_col].unique())
-            logger.info(f"      → {len(df_old_off)} filas ({len(ids_procesados)} eventos únicos)")
+            logger.info(f"   📂 Leyendo columna ID de {file_off}...")
+            # Usar PyArrow para leer solo la columna necesaria (mucho menos memoria)
+            table = pq.read_table(file_off, columns=[id_col])
+            ids_procesados = set(table.column(id_col).to_pylist())
+            logger.info(f"      → {len(ids_procesados)} eventos únicos ya procesados")
         except Exception as e:
             logger.warning(f"      ⚠️ Error leyendo {file_off}: {e}")
 
@@ -256,24 +258,32 @@ def actualizar_parquets_especializados(df_maestro, id_col, csv_filename=None):
         df_new_off = pd.concat(new_data_off, ignore_index=True)
         logger.info(f"         → {len(df_new_off)} filas nuevas")
 
-        if not df_old_off.empty:
-            df_final_off = pd.concat([df_old_off, df_new_off], ignore_index=True)
+        # Cargar el parquet existente SOLO si existe y necesitamos hacer append
+        if os.path.exists(file_off):
+            try:
+                logger.info(f"      → Leyendo {file_off} para append...")
+                df_old_off = pd.read_parquet(file_off)
+                df_final_off = pd.concat([df_old_off, df_new_off], ignore_index=True)
+                logger.info(f"      ✅ Actualizado {file_off}: +{len(df_new_off)} filas (Total: {len(df_final_off)})")
+            except Exception as e:
+                logger.warning(f"      ⚠️ Error leyendo {file_off}: {e}, guardando solo nuevos")
+                df_final_off = df_new_off
         else:
             df_final_off = df_new_off
 
         df_final_off.to_parquet(file_off, index=False)
-        logger.info(f"      ✅ Actualizado {file_off}: +{len(df_new_off)} filas (Total: {len(df_final_off)})")
 
         # Liberar memoria
-        del df_new_off, df_final_off
+        del df_new_off, df_final_off, df_old_off
         gc.collect()
 
     # Actualizar Defensivo
     if new_data_def:
-        # Cargar defensivo existente si no se cargó antes
-        if os.path.exists(file_def) and df_old_def.empty:
+        df_old_def = pd.DataFrame()
+        # Cargar defensivo existente SOLO si existe y necesitamos hacer append
+        if os.path.exists(file_def):
             try:
-                logger.info(f"      → Leyendo {file_def}...")
+                logger.info(f"      → Leyendo {file_def} para append...")
                 df_old_def = pd.read_parquet(file_def)
             except:
                 pass
@@ -284,14 +294,15 @@ def actualizar_parquets_especializados(df_maestro, id_col, csv_filename=None):
 
         if not df_old_def.empty:
             df_final_def = pd.concat([df_old_def, df_new_def], ignore_index=True)
+            logger.info(f"      ✅ Actualizado {file_def}: +{len(df_new_def)} filas (Total: {len(df_final_def)})")
         else:
             df_final_def = df_new_def
+            logger.info(f"      ✅ Creado {file_def}: {len(df_new_def)} filas")
 
         df_final_def.to_parquet(file_def, index=False)
-        logger.info(f"      ✅ Actualizado {file_def}: +{len(df_new_def)} filas (Total: {len(df_final_def)})")
 
         # Liberar memoria
-        del df_new_def, df_final_def
+        del df_new_def, df_final_def, df_old_def
         gc.collect()
 
     # Limpieza final
@@ -349,45 +360,46 @@ def procesar_dataset(csv_source, parquet_dest, id_col_name):
             logger.error(f"      ❌ Archivo CSV no encontrado: {csv_source}")
             return
 
-        # 2. CARGAR PARQUET MAESTRO EXISTENTE
+        # 2. CARGAR PARQUET MAESTRO EXISTENTE (OPTIMIZADO: solo columna ID primero)
+        ids_old = set()
+        df_old = None
+        hay_cambios = False
+
         if os.path.exists(parquet_dest):
-            logger.info(f"   📚 Leyendo parquet maestro existente...")
-            df_old = pd.read_parquet(parquet_dest)
-            logger.info(f"      → Maestro existente: {len(df_old)} filas")
-            mem_mb = df_old.memory_usage(deep=True).sum() / (1024 * 1024)
-            logger.info(f"      → Memoria en uso: {mem_mb:.2f} MB")
+            try:
+                logger.info(f"   📚 Leyendo columna ID del maestro existente...")
+                # Leer solo la columna ID para el filtro incremental (menos memoria)
+                table = pq.read_table(parquet_dest, columns=[id_col_name])
+                ids_old = set(table.column(id_col_name).to_pylist())
+                logger.info(f"      → {len(ids_old)} IDs existentes en maestro")
+            except Exception as e:
+                logger.warning(f"      ⚠️ Error leyendo IDs del maestro: {e}")
+                ids_old = set()
 
         # 3. COMBINAR DATOS (Incremental)
         logger.info(f"   🔀 Combinando datos (modo incremental)...")
-        hay_cambios = False
 
-        if df_new is not None and df_old is not None:
-            if id_col_name in df_old.columns:
-                ids_old = set(df_old[id_col_name].unique())
-                logger.info(f"      → {len(ids_old)} IDs existentes en maestro")
+        # Filtrar datos nuevos usando los IDs ya procesados
+        df_new_filtered = df_new[~df_new[id_col_name].isin(ids_old)] if ids_old else df_new
+        logger.info(f"      → {len(df_new_filtered)} filas nuevas después de filtrar")
 
-                df_new_filtered = df_new[~df_new[id_col_name].isin(ids_old)]
-                logger.info(f"      → {len(df_new_filtered)} filas nuevas después de filtrar")
-
-                if not df_new_filtered.empty:
-                    logger.info(f"      ✨ Añadiendo {len(df_new_filtered)} filas nuevas al maestro")
+        if not df_new_filtered.empty:
+            logger.info(f"      ✨ Añadiendo {len(df_new_filtered)} filas nuevas al maestro")
+            # Leer el parquet completo SOLO si hay datos nuevos que añadir
+            if os.path.exists(parquet_dest):
+                try:
+                    logger.info(f"      → Leyendo maestro completo para append...")
+                    df_old = pd.read_parquet(parquet_dest)
                     df_combined = pd.concat([df_old, df_new_filtered], ignore_index=True)
-                    hay_cambios = True
-                else:
-                    logger.info(f"      zzz Sin datos nuevos para el maestro")
-                    df_combined = df_old
+                except Exception as e:
+                    logger.warning(f"      ⚠️ Error leyendo maestro: {e}, guardando solo nuevos")
+                    df_combined = df_new_filtered
             else:
-                logger.warning(f"      ⚠️ Columna ID no existe en maestro, concatenando todo")
-                df_combined = pd.concat([df_old, df_new], ignore_index=True)
-                hay_cambios = True
-
-        elif df_new is not None and df_old is None:
-            logger.info(f"      ✨ Creando archivo maestro nuevo (no existía previo)")
-            df_combined = df_new
+                df_combined = df_new_filtered
             hay_cambios = True
-
-        elif df_new is None and df_old is not None:
-            df_combined = df_old
+        else:
+            logger.info(f"      ✓ Sin datos nuevos para el maestro")
+            df_combined = None
 
         # Liberar df_new si ya no se necesita
         del df_new
@@ -395,7 +407,7 @@ def procesar_dataset(csv_source, parquet_dest, id_col_name):
 
         # 4. NORMALIZACIÓN (Solo si hubo cambios)
         cols_coords = ['X_Jugador', 'Y_Jugador', 'X_Balon', 'Y_Balon']
-        if hay_cambios and all(col in df_combined.columns for col in cols_coords + ['Segundos_Desde_Saque', id_col_name]):
+        if hay_cambios and df_combined is not None and all(col in df_combined.columns for col in cols_coords + ['Segundos_Desde_Saque', id_col_name]):
             logger.info(f"   🔄 Aplicando normalización de coordenadas...")
 
             # Identificar eventos a invertir (Saque en X<50 en T=0)
@@ -413,7 +425,7 @@ def procesar_dataset(csv_source, parquet_dest, id_col_name):
                 logger.info(f"      → No se requiere inversión (todos los eventos están orientados correctamente)")
 
         # 5. GUARDAR MAESTRO
-        if hay_cambios:
+        if hay_cambios and df_combined is not None:
             logger.info(f"   💾 Guardando maestro actualizado...")
             df_combined.to_parquet(parquet_dest, index=False)
 
@@ -427,7 +439,7 @@ def procesar_dataset(csv_source, parquet_dest, id_col_name):
             logger.info(f"      → Sin cambios, no se guarda maestro")
 
         # 6. BORRAR CSV
-        if hay_cambios or (df_new is not None):
+        if hay_cambios:
             try:
                 os.remove(csv_source)
                 logger.info(f"   🗑️ CSV temporal eliminado: {csv_source}")
@@ -437,14 +449,28 @@ def procesar_dataset(csv_source, parquet_dest, id_col_name):
         # 7. LLAMADA CRÍTICA: ACTUALIZAR PARQUETS ESPECIALIZADOS
         if "corners" in parquet_dest:
             logger.info(f"   📣 Iniciando actualización de parquets especializados...")
-            # Pasar solo df_combined (ya filtrado si era incremental)
-            actualizar_parquets_especializados(df_combined, id_col_name, csv_source)
-            logger.info(f"   ✅ Parquets especializados actualizados")
+            # Pasar df_new_filtered (datos nuevos) o el maestro completo si existe
+            df_para_especializados = None
+            if hay_cambios and df_combined is not None:
+                df_para_especializados = df_combined
+            elif os.path.exists(parquet_dest):
+                # Si no hay cambios pero necesitamos actualizar especializados, leer solo lo necesario
+                try:
+                    logger.info(f"      → Leyendo maestro para especializados...")
+                    df_para_especializados = pd.read_parquet(parquet_dest)
+                except Exception as e:
+                    logger.warning(f"      ⚠️ Error leyendo maestro: {e}")
+
+            if df_para_especializados is not None:
+                actualizar_parquets_especializados(df_para_especializados, id_col_name, csv_source)
+                logger.info(f"   ✅ Parquets especializados actualizados")
+            else:
+                logger.info(f"   ℹ️ Saltando especializados (no hay datos)")
         else:
             logger.info(f"   ℹ️ Saltando parquets especializados (no es corners)")
 
         # Limpieza final
-        del df_combined, df_old
+        del df_combined, df_old, df_para_especializados
         gc.collect()
 
         logger.info("=" * 60)

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 SISTEMA DE ACTUALIZACIÓN DE DATOS
 Opta API + MediaCoach Data Updater
@@ -3523,6 +3521,9 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
         add_message(f"📤 PROCESANDO CSV SPORTIAN: {filename}")
         add_message("=" * 50)
 
+        # DEFINIMOS EL DIRECTORIO AQUÍ PARA QUE EXISTA AUNQUE SE SALTE LA FASE 1
+        sportian_dir = os.path.join(os.getcwd(), 'extraccion_sportian')
+
         # FASE 1: Decodificar y guardar CSV
         phase_1_key = "fase_1_csv"
 
@@ -3539,7 +3540,6 @@ def process_sportian_csv_upload(contents, filename, progress_callback=None, forc
             logger.info(f"      → Archivo decodificado: {csv_size_mb:.2f} MB")
 
             # 2. Guardar temporalmente en la carpeta de Sportian
-            sportian_dir = os.path.join(os.getcwd(), 'extraccion_sportian')
             temp_csv_path = os.path.join(sportian_dir, filename)
 
             with open(temp_csv_path, 'wb') as f:
