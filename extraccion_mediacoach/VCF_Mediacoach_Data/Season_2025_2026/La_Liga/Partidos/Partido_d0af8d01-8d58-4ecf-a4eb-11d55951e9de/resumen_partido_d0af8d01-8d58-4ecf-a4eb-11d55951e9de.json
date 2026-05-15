@@ -1,0 +1,28 @@
+{
+  "match_id": "d0af8d01-8d58-4ecf-a4eb-11d55951e9de",
+  "jornada": "desconocida",
+  "total_archivos_descargados": 2,
+  "archivos_por_tipo": {
+    "xml_eventos": 0,
+    "pdf_informes": 2,
+    "xlsx_rendimiento": 0,
+    "xlsx_maxima_exigencia": 0,
+    "csv_equipos": 0,
+    "csv_jugadores": 0,
+    "otros": 0
+  },
+  "archivos_descargados": {
+    "xml_eventos": [],
+    "pdf_informes": [
+      "informe_1_jdesconocida_d0af8d01-8d58-4ecf-a4eb-11d55951e9de_20260515_161754.pdf",
+      "informe_2_jdesconocida_d0af8d01-8d58-4ecf-a4eb-11d55951e9de_20260515_161755.pdf"
+    ],
+    "xlsx_rendimiento": [],
+    "xlsx_maxima_exigencia": [],
+    "csv_equipos": [],
+    "csv_jugadores": [],
+    "otros": []
+  },
+  "errores": [],
+  "timestamp": "2026-05-15T16:17:55.643289"
+}
